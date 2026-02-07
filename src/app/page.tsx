@@ -28,6 +28,10 @@ export default function BitSignPage() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center text-center"
           >
+            <div className="mb-8 p-4 bg-zinc-950 border border-zinc-900 rounded-2xl">
+              <img src="/bit-sign-icon.png" alt="Bit-Sign Icon" className="w-24 h-24 drop-shadow-2xl" />
+            </div>
+
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-zinc-950 border border-zinc-900 text-[10px] uppercase tracking-[0.3em] text-zinc-500 mb-8">
               <FiShield className="text-blue-500" />
               Sovereignty as a Service
