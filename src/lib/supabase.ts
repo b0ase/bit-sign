@@ -10,14 +10,14 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 // Client for browser-side usage (public)
 export const supabase = createClient(
-    supabaseUrl || '',
-    supabaseAnonKey || ''
+    supabaseUrl || 'https://placeholder.supabase.co',
+    supabaseAnonKey || 'placeholder-key'
 );
 
 // Admin client for server-side usage (privileged)
 export const supabaseAdmin = createClient(
-    supabaseUrl || '',
-    supabaseServiceKey || supabaseAnonKey || '',
+    supabaseUrl || 'https://placeholder.supabase.co',
+    supabaseServiceKey || supabaseAnonKey || 'placeholder-key',
     {
         auth: {
             autoRefreshToken: false,
