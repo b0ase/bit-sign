@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handCashConnect } from '@/lib/handcash';
+import { mapHandCashUser } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
     const authToken = request.nextUrl.searchParams.get('authToken');
@@ -11,6 +12,21 @@ export async function GET(request: NextRequest) {
     try {
         const account = handCashConnect.getAccountFromAuthToken(authToken);
         const { publicProfile } = await account.profile.getCurrentProfile();
+
+        // Persist user in Supabase with Encrypted Auth Token
+        try {
+            await mapHandCashUser({
+                handle: publicProfile.handle,
+                displayName: publicProfile.displayName,
+                avatarUrl: publicProfile.avatarUrl,
+            }, authToken); // Pass auth token for encryption
+            console.log(`[HandCash/Auth] User ${publicProfile.handle} persisted in Supabase with sovereign token`);
+        } catch (dbError) {
+            console.log(`[HandCash/Auth] User ${publicProfile.handle} persisted in Supabase`);
+        } catch (dbError) {
+            console.error(`[HandCash/Auth] Database persistence failed for ${publicProfile.handle}:`, dbError);
+            // We continue even if DB fails so user can still use HandCash features
+        }
 
         // Create the response
         const response = NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/`);

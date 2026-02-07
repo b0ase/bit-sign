@@ -9,8 +9,12 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "BIT-SIGN | Sovereignty as a Service",
-  description: "The industrial-grade signing layer for the $402 narrative economy.",
+  description: "The industrial-grade signing layer for the sovereign digital world.",
 };
+
+import Navbar from "@/components/Navbar";
+
+import Footer from "@/components/Footer";
 
 export default function RootLayout({
   children,
@@ -19,8 +23,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistMono.variable} antialiased selection:bg-white selection:text-black`}>
-        {children}
+      <body className={`${geistMono.variable} antialiased selection:bg-white selection:text-black bg-[#050505] text-white pt-16 font-mono`}>
+        {/* Global Industrial Grid */}
+        <div className="fixed inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none opacity-20 z-0" />
+
+        <div className="relative z-10">
+          <Navbar />
+          {children}
+          <Footer />
+        </div>
       </body>
     </html>
   );

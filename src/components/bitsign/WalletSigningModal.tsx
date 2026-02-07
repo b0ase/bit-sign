@@ -283,38 +283,40 @@ export function WalletSigningModal({
                   )}
 
                   {/* MetaMask */}
-                  <button
-                    onClick={() => connectWallet('metamask')}
-                    disabled={!availableWallets.metamask}
-                    className="w-full flex items-center gap-4 p-4 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed border border-zinc-700 rounded-lg transition-colors"
-                  >
-                    <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold">
-                      M
-                    </div>
-                    <div className="flex-1 text-left">
-                      <div className="font-medium text-white">MetaMask</div>
-                      <div className="text-xs text-zinc-500">
-                        {availableWallets.metamask ? 'Ethereum Wallet' : 'Not installed'}
+                  <div className="relative group/disabled">
+                    <button
+                      disabled={true}
+                      className="w-full flex items-center gap-4 p-4 bg-zinc-800/50 opacity-40 grayscale cursor-not-allowed border border-zinc-700/50 rounded-lg transition-colors"
+                    >
+                      <div className="w-10 h-10 bg-zinc-700 rounded-lg flex items-center justify-center text-zinc-500 font-bold">
+                        M
                       </div>
-                    </div>
-                  </button>
+                      <div className="flex-1 text-left">
+                        <div className="font-medium text-zinc-500">MetaMask</div>
+                        <div className="text-[10px] text-zinc-600 uppercase tracking-widest font-mono">
+                          Pending protocol support // Insecure
+                        </div>
+                      </div>
+                    </button>
+                  </div>
 
                   {/* Phantom */}
-                  <button
-                    onClick={() => connectWallet('phantom')}
-                    disabled={!availableWallets.phantom}
-                    className="w-full flex items-center gap-4 p-4 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed border border-zinc-700 rounded-lg transition-colors"
-                  >
-                    <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center text-white font-bold">
-                      P
-                    </div>
-                    <div className="flex-1 text-left">
-                      <div className="font-medium text-white">Phantom</div>
-                      <div className="text-xs text-zinc-500">
-                        {availableWallets.phantom ? 'Solana Wallet' : 'Not installed'}
+                  <div className="relative group/disabled">
+                    <button
+                      disabled={true}
+                      className="w-full flex items-center gap-4 p-4 bg-zinc-800/50 opacity-40 grayscale cursor-not-allowed border border-zinc-700/50 rounded-lg transition-colors"
+                    >
+                      <div className="w-10 h-10 bg-zinc-700 rounded-lg flex items-center justify-center text-zinc-500 font-bold">
+                        P
                       </div>
-                    </div>
-                  </button>
+                      <div className="flex-1 text-left">
+                        <div className="font-medium text-zinc-500">Phantom</div>
+                        <div className="text-[10px] text-zinc-600 uppercase tracking-widest font-mono">
+                          Pending protocol support // Insecure
+                        </div>
+                      </div>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Message preview */}

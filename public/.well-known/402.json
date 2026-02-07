@@ -1,0 +1,13 @@
+{
+    "domain": "bit-sign.online",
+    "name": "Bit-Sign",
+    "description": "Industrial-grade signing layer for the $402 ecosystem.",
+    "token": "$BIT-SIGN",
+    "verification": {
+        "dns_txt": "_dnsdex-verification=00000000000000000000000000bs1gn8"
+    },
+    "metadata": {
+        "icon": "https://bit-sign.online/bit-sign-icon.png",
+        "version": "1.0.0"
+    }
+}

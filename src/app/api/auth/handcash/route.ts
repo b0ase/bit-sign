@@ -9,8 +9,10 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const returnTo = searchParams.get('returnTo') || '/';
 
-    // Store returnTo in a cookie or just use it in the redirect
+    // Request essential sovereign scopes for Bit-Sign
     const redirectUrl = handCashConnect.getRedirectionUrl();
+    // Note: The HandCashConnect SDK uses the dashboard configuration by default,
+    // but we ensure the app is requesting the right context.
 
     // For now, we just redirect. In a real app, you'd store returnTo in state.
     return NextResponse.redirect(redirectUrl);

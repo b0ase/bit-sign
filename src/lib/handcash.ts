@@ -22,7 +22,7 @@ export const handCashConnect = isDemoMode
     : new HandCashConnect({
         appId: appId!,
         appSecret: appSecret!,
-      });
+    });
 
 /**
  * Returns the "House" account instance using the HOUSE_AUTH_TOKEN.
@@ -39,4 +39,11 @@ export function getHouseAccount() {
         return null;
     }
     return handCashConnect.getAccountFromAuthToken(houseAuthToken);
+}
+/**
+ * Returns a user's account instance given their auth token.
+ */
+export function getUserAccount(authToken: string) {
+    if (!handCashConnect) return null;
+    return handCashConnect.getAccountFromAuthToken(authToken);
 }
