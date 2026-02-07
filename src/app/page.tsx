@@ -17,57 +17,61 @@ export default function BitSignPage() {
   };
 
   return (
-    <main className="min-h-screen text-white font-mono selection:bg-white selection:text-black">
+    <main className="min-h-screen bg-black text-white font-mono selection:bg-zinc-800 selection:text-white overflow-hidden">
 
       {/* Hero Section */}
-      <section className="relative pt-40 pb-32 px-8">
-        <div className="max-w-7xl mx-auto">
+      <section className="relative pt-40 pb-32 px-8 bg-black">
+        {/* Armored Glass Reflection Effect */}
+        <div className="absolute inset-0 bg-gradient-to-b from-zinc-900/20 to-black pointer-events-none" />
+
+        <div className="max-w-7xl mx-auto relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
             className="flex flex-col items-center text-center"
           >
-            <div className="mb-12 p-8 bg-zinc-900/50 border border-white/[0.05] shadow-2xl backdrop-blur-sm">
-              <img src="/bit-sign-icon.png" alt="Bit-Sign Icon" className="w-24 h-24 filter grayscale invert" />
+            <div className="mb-16 p-6 bg-black border border-zinc-800/60 shadow-[0_0_50px_-12px_rgba(255,255,255,0.05)] rounded-sm">
+              <img src="/bit-sign-icon.png" alt="Bit-Sign Icon" className="w-20 h-20 filter grayscale contrast-125 brightness-75" />
             </div>
 
-            <div className="inline-flex items-center gap-3 px-6 py-2 bg-zinc-950 border border-white/[0.03] text-[10px] uppercase tracking-[0.6em] text-zinc-500 mb-12 font-mono">
-              <FiShield className="text-zinc-400" />
-              Digital DNA // Multi-factor Attestation
+            <div className="inline-flex items-center gap-3 px-8 py-3 bg-black border border-zinc-800 text-[10px] uppercase tracking-[0.5em] text-zinc-400 mb-16 font-mono shadow-xl">
+              <FiShield className="text-zinc-600" />
+              Sovereignty as a Service
             </div>
 
-            <h1 className="text-8xl md:text-[12rem] font-black uppercase tracking-tighter mb-12 italic leading-none">
-              BIT<span className="text-zinc-900">.</span>SIGN
+            <h1 className="text-8xl md:text-[13rem] font-black uppercase tracking-tighter mb-12 italic leading-none text-transparent bg-clip-text bg-gradient-to-b from-zinc-100 to-zinc-800 drop-shadow-2xl">
+              BIT<span className="text-zinc-800">.</span>SIGN
             </h1>
 
-            <p className="text-sm md:text-lg text-zinc-500 uppercase tracking-[0.5em] max-w-4xl leading-relaxed mb-20 font-mono">
-              The industrial-grade verification layer for humans and agents.
-              <span className="block mt-4 text-zinc-700">Tokenise your identity via HandCash and supplementary biological proof.</span>
+            <p className="text-xs md:text-sm text-zinc-600 uppercase tracking-[0.4em] max-w-3xl leading-loose mb-24 font-mono border-l-2 border-zinc-900 pl-6 text-left md:text-center md:border-l-0 md:pl-0">
+              The industrial-grade signing layer for the $402 narrative economy.
+              <span className="block mt-4 text-zinc-500">Immutable proof of intent for humans and AI agents.</span>
             </p>
 
             <div className="flex flex-wrap justify-center gap-12">
               {handle ? (
                 <div className="flex flex-col items-center gap-6">
-                  <div className="text-[10px] text-zinc-600 uppercase tracking-[0.4em] font-mono">Authenticated as // <span className="text-white">${handle}</span></div>
+                  <div className="text-[9px] text-zinc-700 uppercase tracking-[0.3em] font-mono">Authenticated // <span className="text-zinc-300">${handle}</span></div>
                   <Link
                     href="/user/account"
-                    className="group relative px-16 py-6 bg-white text-black font-black uppercase tracking-[0.3em] text-[10px] transition-all hover:bg-zinc-200"
+                    className="group relative px-12 py-5 bg-zinc-950 text-zinc-300 border border-zinc-800 hover:border-zinc-400 font-black uppercase tracking-[0.25em] text-[10px] transition-all duration-500"
                   >
-                    <span className="relative z-10 flex items-center gap-4">
+                    <span className="relative z-10 flex items-center gap-4 group-hover:text-white transition-colors">
                       <FiUser className="w-4 h-4" />
-                      Access Digital DNA Dashboard
+                      Access Dashboard
                     </span>
+                    <div className="absolute inset-0 bg-white/[0.02] opacity-0 group-hover:opacity-100 transition-opacity" />
                   </Link>
                 </div>
               ) : (
                 <button
                   onClick={handleLogin}
-                  className="group relative px-16 py-6 bg-white text-black font-black uppercase tracking-[0.3em] text-[10px] transition-all hover:bg-zinc-200"
+                  className="group relative px-16 py-6 bg-white text-black font-black uppercase tracking-[0.25em] text-[11px] transition-all hover:bg-zinc-200 outline outline-4 outline-zinc-900/50 hover:outline-zinc-800"
                 >
                   <span className="relative z-10 flex items-center gap-4">
-                    <FiZap className="w-4 h-4" />
-                    Initialize Identity Handshake
+                    <FiZap className="w-4 h-4 text-black" />
+                    Initialize with HandCash
                   </span>
                 </button>
               )}
@@ -76,49 +80,53 @@ export default function BitSignPage() {
         </div>
       </section>
 
-      {/* Stats/Industrial Row */}
-      <section className="border-y border-white/[0.03] bg-zinc-950/30 py-20 px-8">
-        <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-24">
+      {/* Stats/Industrial Row - "The Beast" Dashboard styling */}
+      <section className="border-y border-zinc-900 bg-black py-24 px-8 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-[0.03]"></div>
+        <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-y-16 gap-x-24 relative z-10">
           {[
-            { label: 'Network Throughput', val: 'Instant Attestation' },
-            { label: 'Proof Standard', val: 'Multi-Factor / Verifiable' },
-            { label: 'SaaS Fee / Attest', val: '0.01 USD' }
+            { label: 'Network Speed', val: '0.2s Confirmation' },
+            { label: 'Signature ID', val: 'BSV-Ordinal Standard' },
+            { label: 'SaaS Fee', val: '$0.01 / Sign' }
           ].map((stat, i) => (
-            <div key={i} className="flex flex-col gap-4">
-              <div className="text-[10px] text-zinc-600 uppercase tracking-[0.4em] font-mono">{stat.label}</div>
-              <div className="text-3xl font-black italic uppercase tracking-tighter text-white">{stat.val}</div>
+            <div key={i} className="flex flex-col gap-4 border-l border-zinc-900/50 pl-8">
+              <div className="text-[9px] text-zinc-700 uppercase tracking-[0.35em] font-mono">{stat.label}</div>
+              <div className="text-2xl font-black italic uppercase tracking-wider text-white font-mono">{stat.val}</div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* SaaS Feature Grid */}
-      <section className="py-40 px-8">
-        <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-1px bg-white/[0.03] border border-white/[0.03]">
+      {/* SaaS Feature Grid - Black on Black */}
+      <section className="py-40 px-8 bg-black">
+        <div className="max-w-7xl mx-auto grid md:grid-cols-3 bg-zinc-900/20 border border-zinc-900">
           {[
             {
               icon: FiEdit3,
-              title: "GitHub Verification",
-              desc: "Sign every commit with your HandCash identity. Real-time notifications for developer authorship."
+              title: "GitHub Link",
+              desc: "Cryptographically sign every commit. Verify developer authorship on-chain."
             },
             {
               icon: FiLock,
-              title: "IP Registration",
-              desc: "Anchor your creative intent and intellectual property on-chain. Permanent, verifiable proof of state."
+              title: "IP Anchor",
+              desc: "Secure your intellectual property in a sovereign vault. Permanent state."
             },
             {
               icon: FiShield,
               title: "Token Registry",
-              desc: "Associate your identity with shareholder tokens and registers of members. Staked verification model."
+              desc: "Associate identity with shareholder tokens. Staked verification model."
             }
           ].map((item, i) => (
-            <div key={i} className="p-16 bg-[#050505] hover:bg-zinc-900/20 transition-all group space-y-12">
-              <div className="w-12 h-12 border border-white/5 flex items-center justify-center text-zinc-800 group-hover:text-white transition-colors">
-                <item.icon size={24} />
+            <div key={i} className="p-16 border-r border-b border-zinc-900 bg-black hover:bg-zinc-950 transition-all group space-y-10 relative">
+              <div className="absolute top-8 right-8 text-zinc-900 group-hover:text-zinc-800 transition-colors">
+                <item.icon size={64} className="opacity-20" />
               </div>
-              <div className="space-y-6">
-                <h3 className="text-2xl font-black uppercase tracking-tighter italic text-white">{item.title}</h3>
-                <p className="text-zinc-600 text-[10px] leading-relaxed uppercase tracking-[0.2em] font-mono group-hover:text-zinc-400 transition-colors">
+              <div className="w-10 h-10 border border-zinc-800 flex items-center justify-center text-zinc-600 group-hover:text-white group-hover:border-zinc-600 transition-all">
+                <item.icon size={18} />
+              </div>
+              <div className="space-y-4">
+                <h3 className="text-xl font-black uppercase tracking-tight italic text-zinc-300 group-hover:text-white transition-colors">{item.title}</h3>
+                <p className="text-zinc-600 text-[10px] leading-relaxed uppercase tracking-[0.2em] font-mono group-hover:text-zinc-500 transition-colors">
                   {item.desc}
                 </p>
               </div>
@@ -127,9 +135,9 @@ export default function BitSignPage() {
         </div>
       </section>
 
-      <footer className="border-t border-zinc-900 py-20 px-8 text-center">
-        <div className="text-[10px] text-zinc-600 uppercase tracking-[0.5em]">
-          © 2026 BIT-SIGN — A $402 INFRASTRUCTURE ENTITY
+      <footer className="border-t border-zinc-900 bg-black py-24 px-8 text-center">
+        <div className="text-[9px] text-zinc-800 uppercase tracking-[0.6em] font-bold">
+          © 2026 BIT-SIGN SYSTEM // $402
         </div>
       </footer>
 

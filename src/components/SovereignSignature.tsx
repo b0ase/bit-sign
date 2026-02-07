@@ -28,7 +28,7 @@ export default function SovereignSignature({ onSave, onCancel }: SovereignSignat
             return;
         }
 
-        const svgElement = await editor.getSvg(shapes);
+        const svgElement = await (editor as any).getSvg(Array.from(editor.getCurrentPageShapeIds()));
         const svgString = new XMLSerializer().serializeToString(svgElement!);
 
         // 2. Get JSON for exact reconstruction if needed

@@ -22,8 +22,6 @@ export async function GET(request: NextRequest) {
             }, authToken); // Pass auth token for encryption
             console.log(`[HandCash/Auth] User ${publicProfile.handle} persisted in Supabase with sovereign token`);
         } catch (dbError) {
-            console.log(`[HandCash/Auth] User ${publicProfile.handle} persisted in Supabase`);
-        } catch (dbError) {
             console.error(`[HandCash/Auth] Database persistence failed for ${publicProfile.handle}:`, dbError);
             // We continue even if DB fails so user can still use HandCash features
         }
