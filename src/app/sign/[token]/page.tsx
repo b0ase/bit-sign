@@ -280,11 +280,26 @@ export default function SignPage() {
 
         {/* Document Preview */}
         {envelope?.document_html && (
-          <div className="border border-zinc-800 rounded-md overflow-hidden">
-            <div className="bg-white text-black p-8 overflow-y-auto max-h-[600px]">
-              <div dangerouslySetInnerHTML={{ __html: envelope.document_html }} />
+          envelope.document_type === 'uploaded_document' && envelope.document_html.startsWith('data:') ? (
+            <div className="border border-zinc-800 rounded-md overflow-hidden">
+              {envelope.document_html.startsWith('data:application/pdf') ? (
+                <iframe src={envelope.document_html} className="w-full h-[600px]" />
+              ) : envelope.document_html.startsWith('data:image/') ? (
+                <img src={envelope.document_html} alt="Document" className="w-full max-h-[600px] object-contain bg-white" />
+              ) : (
+                <div className="p-8 text-center">
+                  <FiFileText className="mx-auto text-zinc-500 mb-3" size={32} />
+                  <a href={envelope.document_html} download className="text-sm text-white underline">Download Document</a>
+                </div>
+              )}
             </div>
-          </div>
+          ) : envelope.document_html ? (
+            <div className="border border-zinc-800 rounded-md overflow-hidden">
+              <div className="bg-white text-black p-8 overflow-y-auto max-h-[600px]">
+                <div dangerouslySetInnerHTML={{ __html: envelope.document_html }} />
+              </div>
+            </div>
+          ) : null
         )}
 
         {/* Drawn Signature Preview (if captured, before submission) */}

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   FiArrowLeft, FiArrowRight, FiPlus, FiTrash2,
-  FiFileText, FiCopy, FiCheck, FiZap
+  FiFileText, FiCopy, FiCheck, FiZap, FiUpload
 } from 'react-icons/fi';
 
 interface TemplateInfo {
@@ -25,6 +25,15 @@ interface SignerEntry {
 
 type Step = 'template' | 'fields' | 'signers' | 'review';
 
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function NewDocumentPage() {
   const router = useRouter();
   const [handle, setHandle] = useState<string | null>(null);
@@ -38,6 +47,7 @@ export default function NewDocumentPage() {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<{ name: string; dataUrl: string } | null>(null);
 
   useEffect(() => {
     const cookies = document.cookie.split('; ');
@@ -56,6 +66,17 @@ export default function NewDocumentPage() {
     } catch (error) {
       console.error('Failed to fetch templates:', error);
     }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const dataUrl = await fileToDataUrl(file);
+    setUploadedFile({ name: file.name, dataUrl });
+    setTitle(file.name.replace(/\.[^.]+$/, ''));
+    setSigners([{ name: '', email: '', handle: '', role: 'Signer' }]);
+    setSelectedTemplate(null);
+    setStep('signers');
   };
 
   const handleSelectTemplate = (template: TemplateInfo) => {
@@ -94,26 +115,34 @@ export default function NewDocumentPage() {
   };
 
   const handleSubmit = async () => {
-    if (!selectedTemplate || !handle) return;
+    if ((!selectedTemplate && !uploadedFile) || !handle) return;
     setSubmitting(true);
 
     try {
+      const payload: any = {
+        title,
+        signers: signers.map((s, i) => ({
+          name: s.name,
+          email: s.email || undefined,
+          handle: s.handle || undefined,
+          role: s.role,
+          order: i + 1,
+        })),
+        expires_in_days: 30,
+      };
+
+      if (uploadedFile) {
+        payload.uploaded_file = uploadedFile.dataUrl;
+        payload.uploaded_file_name = uploadedFile.name;
+      } else if (selectedTemplate) {
+        payload.template_id = selectedTemplate.id;
+        payload.variables = variables;
+      }
+
       const res = await fetch('/api/envelopes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          template_id: selectedTemplate.id,
-          variables,
-          signers: signers.map((s, i) => ({
-            name: s.name,
-            email: s.email || undefined,
-            handle: s.handle || undefined,
-            role: s.role,
-            order: i + 1,
-          })),
-          expires_in_days: 30,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -181,6 +210,23 @@ export default function NewDocumentPage() {
         {/* Step 1: Template Selection */}
         {step === 'template' && (
           <div className="space-y-3">
+            {/* Upload option */}
+            <label className="w-full text-left p-5 border border-dashed border-zinc-700 bg-zinc-950 rounded-md hover:bg-zinc-900 hover:border-zinc-500 transition-all group cursor-pointer block">
+              <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={handleFileUpload} />
+              <div className="flex items-start gap-4">
+                <FiUpload className="text-zinc-500 group-hover:text-white transition-colors mt-0.5" size={22} />
+                <div>
+                  <h3 className="font-semibold text-base">Upload a document</h3>
+                  <p className="text-sm text-zinc-500 mt-0.5">Upload a PDF or image you already have and send it for signing</p>
+                </div>
+              </div>
+            </label>
+
+            <div className="relative py-2">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-900"></div></div>
+              <div className="relative flex justify-center"><span className="bg-black px-3 text-xs text-zinc-600">or use a template</span></div>
+            </div>
+
             {templates.map((t) => (
               <button
                 key={t.id}
@@ -251,16 +297,42 @@ export default function NewDocumentPage() {
         )}
 
         {/* Step 3: Add Signers */}
-        {step === 'signers' && selectedTemplate && (
+        {step === 'signers' && (selectedTemplate || uploadedFile) && (
           <div className="space-y-6">
+            {/* Document Title (for uploads) */}
+            {uploadedFile && (
+              <div>
+                <label className="block text-xs text-zinc-500 mb-1.5">Document Title</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full px-4 py-3 bg-zinc-950 border border-zinc-800 rounded-md text-sm text-white focus:border-white outline-none transition-colors"
+                />
+              </div>
+            )}
+
             {/* Document Preview */}
-            {previewHtml && (
+            {uploadedFile ? (
+              <div className="border border-zinc-800 rounded-md overflow-hidden">
+                {uploadedFile.dataUrl.startsWith('data:application/pdf') ? (
+                  <iframe src={uploadedFile.dataUrl} className="w-full h-[300px]" />
+                ) : uploadedFile.dataUrl.startsWith('data:image/') ? (
+                  <img src={uploadedFile.dataUrl} alt="Document" className="w-full max-h-[300px] object-contain bg-white" />
+                ) : (
+                  <div className="p-6 text-center text-sm text-zinc-400">
+                    <FiFileText className="mx-auto mb-2" size={24} />
+                    {uploadedFile.name}
+                  </div>
+                )}
+              </div>
+            ) : previewHtml ? (
               <div className="border border-zinc-800 rounded-md overflow-hidden">
                 <div className="bg-white text-black p-4 max-h-[300px] overflow-y-auto">
                   <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
                 </div>
               </div>
-            )}
+            ) : null}
 
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-zinc-400">Signers</h3>
@@ -269,9 +341,9 @@ export default function NewDocumentPage() {
                 <div key={i} className="p-4 border border-zinc-900 bg-zinc-950 rounded-md space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-zinc-300">
-                      {selectedTemplate.signers[i]?.label || `Signer ${i + 1}`}
+                      {selectedTemplate?.signers[i]?.label || `Signer ${i + 1}`}
                     </span>
-                    {i >= selectedTemplate.signers.length && (
+                    {(!selectedTemplate || i >= selectedTemplate.signers.length) && (
                       <button
                         onClick={() => setSigners(prev => prev.filter((_, idx) => idx !== i))}
                         className="text-zinc-600 hover:text-red-500 transition-colors"
@@ -333,7 +405,7 @@ export default function NewDocumentPage() {
 
             <div className="flex gap-3 pt-4">
               <button
-                onClick={() => setStep('fields')}
+                onClick={() => { setStep(uploadedFile ? 'template' : 'fields'); if (uploadedFile) setUploadedFile(null); }}
                 className="px-5 py-3 border border-zinc-800 text-zinc-400 text-sm rounded-md hover:border-zinc-600 hover:text-white transition-all flex items-center gap-2"
               >
                 <FiArrowLeft size={14} /> Back

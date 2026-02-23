@@ -15,21 +15,33 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, template_id, variables, signers, expires_in_days } = body;
+    const { title, template_id, variables, signers, expires_in_days, uploaded_file, uploaded_file_name } = body;
 
-    if (!title || !template_id || !signers || !Array.isArray(signers) || signers.length === 0) {
+    if (!title || !signers || !Array.isArray(signers) || signers.length === 0) {
       return NextResponse.json({
-        error: 'Missing required fields: title, template_id, signers[]'
+        error: 'Missing required fields: title, signers[]'
       }, { status: 400 });
     }
 
-    const template = getTemplate(template_id);
-    if (!template) {
-      return NextResponse.json({ error: `Template not found: ${template_id}` }, { status: 400 });
+    let documentHtml: string;
+    let documentType: string;
+
+    if (uploaded_file) {
+      // File upload flow — store base64 file data as the document
+      documentHtml = uploaded_file;
+      documentType = 'uploaded_document';
+    } else if (template_id) {
+      // Template flow
+      const template = getTemplate(template_id);
+      if (!template) {
+        return NextResponse.json({ error: `Template not found: ${template_id}` }, { status: 400 });
+      }
+      documentHtml = renderDocument(template_id, variables || {});
+      documentType = template_id;
+    } else {
+      return NextResponse.json({ error: 'Either template_id or uploaded_file is required' }, { status: 400 });
     }
 
-    // Render the document HTML
-    const documentHtml = renderDocument(template_id, variables || {});
     const documentHash = await hashData(documentHtml);
 
     // Build signers with signing tokens
@@ -54,14 +66,16 @@ export async function POST(request: NextRequest) {
       .from('signing_envelopes')
       .insert({
         title,
-        document_type: template_id,
+        document_type: documentType,
         status: 'pending',
         document_html: documentHtml,
         document_hash: documentHash,
         created_by_handle: handle,
         signers: enrichedSigners,
         expires_at: expiresAt,
-        metadata: { template_id, variables: variables || {} },
+        metadata: uploaded_file
+          ? { uploaded: true, file_name: uploaded_file_name || 'document' }
+          : { template_id, variables: variables || {} },
       })
       .select()
       .single();
