@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bit-Sign
+
+> The Secure Identity Signer for the $401 Protocol
+
+**Live:** [bit-sign.online](https://bit-sign.online)
+
+## What It Does
+
+Bit-Sign produces **identity bundles** and **cryptographic signatures** that anchor identities to the Bitcoin SV blockchain. It is the signing authority for $401 identity tokens.
+
+### Core Functions
+
+1. **Identity Bundle Creation** — Generate a signed identity package linking a human-readable handle to a BSV public key
+2. **Root Key Management** — Secure creation and rotation of root signing keys
+3. **Signature Verification** — Verify that an identity claim was signed by the declared root key
+4. **$401 Attestation** — Produce attestation proofs consumed by `pathd` (the $402 daemon) for identity-gated content
+
+## How It Fits the Protocol Stack
+
+```
+┌─────────────────────────────────┐
+│  bit-sign.online ($401 Signer)  │ ← You are here
+├─────────────────────────────────┤
+│  path401.com (Identity Spec)    │ ← Public specification
+├─────────────────────────────────┤
+│  path403.com (Permission Rules) │ ← Access control
+├─────────────────────────────────┤
+│  pathd ($402 Payment Daemon)    │ ← Content serving
+└─────────────────────────────────┘
+```
+
+## Tech Stack
+
+- **Framework**: Next.js 15
+- **Crypto**: @bsv/sdk, Bitcoin SV ECDSA signatures
+- **Database**: Supabase (identity records)
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
+cp .env.example .env.local
+# Set BSV wallet keys and Supabase credentials
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Related Scripts
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `b0ase.com/scripts/mint-401-identity.ts` — Mint $401 identity token on-chain
+- `b0ase.com/scripts/rotate-401-identity-key.ts` — Key rotation utility
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Ecosystem Links
 
-## Learn More
+- **$401 Spec**: [path401.com](https://path401.com)
+- **$402 Protocol**: [path402.com](https://path402.com)
+- **$403 Permissions**: [path403.com](https://path403.com)
+- **Studio**: [b0ase.com](https://b0ase.com)
 
-To learn more about Next.js, take a look at the following resources:
+## License
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT
