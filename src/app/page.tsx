@@ -20,38 +20,49 @@ export default function BitSignPage() {
     <main className="min-h-screen bg-black text-white selection:bg-zinc-800 selection:text-white overflow-hidden">
 
       {/* Hero Section */}
-      <section className="relative pt-40 pb-32 px-8 bg-black">
-        <div className="max-w-7xl mx-auto relative z-10">
+      <section className="relative min-h-screen flex items-center justify-center px-8 bg-black overflow-hidden">
+        {/* Video background */}
+        <div className="absolute inset-0 z-0">
+          <video
+            autoPlay
+            muted
+            loop
+            playsInline
+            poster="/bit-sign-online.jpg"
+            className="w-full h-full object-cover opacity-40"
+          >
+            <source src="/bit-sign-online.mp4" type="video/mp4" />
+          </video>
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/80" />
+        </div>
+
+        <div className="max-w-7xl mx-auto relative z-10 py-32">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
             className="flex flex-col items-center text-center"
           >
-            <div className="mb-12 p-6 bg-black border border-zinc-800/60 shadow-[0_0_50px_-12px_rgba(255,255,255,0.05)] rounded-md">
-              <img src="/bit-sign-icon.png" alt="Bit-Sign Icon" className="w-20 h-20 filter grayscale contrast-125 brightness-75" />
-            </div>
-
-            <div className="inline-flex items-center gap-3 px-6 py-2.5 bg-black border border-zinc-800 text-sm text-zinc-400 mb-12 rounded-md">
-              <FiShield className="text-zinc-500" />
+            <div className="inline-flex items-center gap-3 px-5 py-2 bg-black/50 backdrop-blur-sm border border-zinc-800/60 text-sm text-zinc-400 mb-10 rounded-full">
+              <FiShield className="text-zinc-500" size={14} />
               Document Signing on Bitcoin
             </div>
 
-            <h1 className="text-6xl md:text-8xl font-bold tracking-tight mb-8 leading-none text-white">
+            <h1 className="text-6xl md:text-8xl lg:text-9xl font-bold tracking-tight mb-8 leading-[0.9] text-white">
               Bit-Sign
             </h1>
 
-            <p className="text-base md:text-lg text-zinc-400 max-w-2xl leading-relaxed mb-16">
+            <p className="text-base md:text-lg text-zinc-300 max-w-2xl leading-relaxed mb-14">
               Sign documents with blockchain-verified proof. Every signature is permanently recorded on-chain &mdash; immutable, instant, and verifiable by anyone.
             </p>
 
             <div className="flex flex-wrap justify-center gap-6">
               {handle ? (
                 <div className="flex flex-col items-center gap-4">
-                  <p className="text-sm text-zinc-500">Signed in as <span className="text-white font-medium">${handle}</span></p>
+                  <p className="text-sm text-zinc-400">Signed in as <span className="text-white font-medium">${handle}</span></p>
                   <Link
                     href="/user/account"
-                    className="group px-8 py-3 bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 font-medium text-sm rounded-md transition-all flex items-center gap-3"
+                    className="group px-8 py-3.5 bg-white/10 backdrop-blur-sm text-white border border-white/20 hover:bg-white/20 font-medium text-sm rounded-md transition-all flex items-center gap-3"
                   >
                     <FiUser className="w-4 h-4" />
                     Go to Dashboard
@@ -60,7 +71,7 @@ export default function BitSignPage() {
               ) : (
                 <button
                   onClick={handleLogin}
-                  className="px-10 py-4 bg-white text-black font-semibold text-sm rounded-md transition-all hover:bg-zinc-200 flex items-center gap-3"
+                  className="px-10 py-4 bg-white text-black font-semibold text-sm rounded-md transition-all hover:bg-zinc-200 flex items-center gap-3 shadow-[0_0_40px_rgba(255,255,255,0.15)]"
                 >
                   <FiZap className="w-4 h-4 text-black" />
                   Sign in with HandCash
