@@ -16,9 +16,13 @@ import {
     FiCamera,
     FiDownload,
     FiChevronDown,
+    FiChevronUp,
     FiZap,
     FiGithub,
-    FiSettings
+    FiSettings,
+    FiSend,
+    FiEye,
+    FiX
 } from 'react-icons/fi';
 
 interface Signature {
@@ -49,6 +53,9 @@ export default function AccountPage() {
     const [activeCaptureTab, setActiveCaptureTab] = useState<'biological' | 'camera' | 'video' | 'vault'>('biological');
     const [isProcessing, setIsProcessing] = useState(false);
     const [marketRate, setMarketRate] = useState(0.05);
+    const [expandedSig, setExpandedSig] = useState<string | null>(null);
+    const [previewData, setPreviewData] = useState<{ url: string; type: string } | null>(null);
+    const [previewLoading, setPreviewLoading] = useState(false);
 
     const exportIdentity = async () => {
         setIsProcessing(true);
@@ -291,6 +298,63 @@ export default function AccountPage() {
         } catch (error) {
             console.error('Download failed:', error);
             alert('Failed to decrypt and download. Please try again.');
+        }
+    };
+
+    const previewSignature = async (sig: Signature) => {
+        if (!encryptionSeed) return;
+        // Toggle off if already viewing this one
+        if (expandedSig === sig.id && previewData) {
+            setExpandedSig(null);
+            if (previewData.url.startsWith('blob:')) URL.revokeObjectURL(previewData.url);
+            setPreviewData(null);
+            return;
+        }
+        setExpandedSig(sig.id);
+        setPreviewLoading(true);
+        setPreviewData(null);
+        try {
+            const res = await fetch(`/api/bitsign/signatures/${sig.id}`);
+            if (!res.ok) throw new Error('Failed to fetch');
+            const data = await res.json();
+
+            const encryptedBuffer = new Uint8Array(base64ToBuffer(data.encrypted_payload) as ArrayBuffer);
+            const ivBuffer = new Uint8Array(base64ToBuffer(data.iv) as ArrayBuffer);
+            const decrypted = await decryptDocument(encryptedBuffer, ivBuffer, encryptionSeed);
+
+            if (sig.signature_type === 'TLDRAW') {
+                // SVG signature — render as text
+                const svgText = new TextDecoder().decode(decrypted);
+                const blob = new Blob([svgText], { type: 'image/svg+xml' });
+                setPreviewData({ url: URL.createObjectURL(blob), type: 'svg' });
+            } else if (sig.signature_type === 'DOCUMENT') {
+                const mimeType = sig.metadata?.mimeType || 'application/pdf';
+                const fileName = sig.metadata?.fileName || '';
+                if (mimeType.startsWith('image/') || fileName.match(/\.(png|jpg|jpeg|gif|webp)$/i)) {
+                    const blob = new Blob([decrypted], { type: mimeType.startsWith('image/') ? mimeType : 'image/png' });
+                    setPreviewData({ url: URL.createObjectURL(blob), type: 'image' });
+                } else if (mimeType === 'application/pdf' || fileName.match(/\.pdf$/i)) {
+                    const blob = new Blob([decrypted], { type: 'application/pdf' });
+                    setPreviewData({ url: URL.createObjectURL(blob), type: 'pdf' });
+                } else {
+                    setPreviewData({ url: '', type: 'unsupported' });
+                }
+            } else if (sig.signature_type === 'CAMERA') {
+                const mimeType = sig.metadata?.mimeType || 'image/png';
+                const blob = new Blob([decrypted], { type: mimeType });
+                setPreviewData({ url: URL.createObjectURL(blob), type: 'image' });
+            } else if (sig.signature_type === 'VIDEO') {
+                const mimeType = sig.metadata?.mimeType || 'video/webm';
+                const blob = new Blob([decrypted], { type: mimeType });
+                setPreviewData({ url: URL.createObjectURL(blob), type: 'video' });
+            } else {
+                setPreviewData({ url: '', type: 'unsupported' });
+            }
+        } catch (error) {
+            console.error('Preview failed:', error);
+            setPreviewData({ url: '', type: 'error' });
+        } finally {
+            setPreviewLoading(false);
         }
     };
 
@@ -567,69 +631,108 @@ export default function AccountPage() {
                                     <p className="text-sm text-zinc-600 mt-1">Create your first signature to get started.</p>
                                 </div>
                             ) : (
-                                signatures.map((sig, i) => (
-                                    <div key={sig.id} className="group relative border border-zinc-900 bg-black hover:bg-zinc-950 transition-colors p-5 grid md:grid-cols-12 gap-4 items-center rounded-md">
-                                        {/* Status Marker */}
-                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-zinc-900 group-hover:bg-white transition-colors rounded-l-md" />
+                                signatures.map((sig) => {
+                                    const isOnChain = sig.txid && !sig.txid.startsWith('pending-');
+                                    const isExpanded = expandedSig === sig.id;
+                                    return (
+                                    <div key={sig.id} className="border border-zinc-900 rounded-md overflow-hidden">
+                                        {/* Main row — clickable to expand */}
+                                        <button
+                                            onClick={() => previewSignature(sig)}
+                                            className="w-full text-left bg-black hover:bg-zinc-950 transition-colors p-4 flex items-center gap-4"
+                                        >
+                                            {/* Icon */}
+                                            <div className="text-zinc-500 shrink-0">
+                                                {sig.signature_type === 'TLDRAW' && <FiEdit3 size={18} />}
+                                                {sig.signature_type === 'CAMERA' && <FiCamera size={18} />}
+                                                {sig.signature_type === 'VIDEO' && <FiActivity size={18} />}
+                                                {sig.signature_type === 'DOCUMENT' && <FiFileText size={18} />}
+                                                {sig.signature_type === 'IDENTITY_MINT' && <FiCpu size={18} />}
+                                            </div>
 
-                                        {/* Col 1: Icon/Type */}
-                                        <div className="md:col-span-1 text-zinc-600 group-hover:text-white transition-colors pl-2">
-                                            {sig.signature_type === 'TLDRAW' && <FiEdit3 size={18} />}
-                                            {sig.signature_type === 'CAMERA' && <FiCamera size={18} />}
-                                            {sig.signature_type === 'VIDEO' && <FiActivity size={18} />}
-                                            {sig.signature_type === 'DOCUMENT' && <FiFileText size={18} />}
-                                            {sig.signature_type === 'IDENTITY_MINT' && <FiCpu size={18} />}
-                                        </div>
-
-                                        {/* Col 2: Info */}
-                                        <div className="md:col-span-6 space-y-0.5">
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-sm font-medium text-white">
+                                            {/* Name + date */}
+                                            <div className="flex-1 min-w-0">
+                                                <span className="block text-sm font-medium text-white truncate">
                                                     {sig.metadata?.fileName || sig.metadata?.type || sig.signature_type}
                                                 </span>
-                                                <span className="px-2 py-0.5 bg-zinc-900 text-[10px] text-zinc-400 rounded">Confirmed</span>
+                                                <span className="block text-xs text-zinc-600">
+                                                    {new Date(sig.created_at).toLocaleDateString()} at {new Date(sig.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
                                             </div>
-                                            <div className="font-mono text-xs text-zinc-600 truncate">
-                                                {sig.id.slice(0, 12)}...
-                                            </div>
-                                        </div>
 
-                                        {/* Col 3: Timestamp */}
-                                        <div className="md:col-span-3 text-right">
-                                            <span className="block text-sm text-zinc-400">
-                                                {new Date(sig.created_at).toLocaleDateString()}
-                                            </span>
-                                            <span className="block text-xs text-zinc-600">
-                                                {new Date(sig.created_at).toLocaleTimeString()}
-                                            </span>
-                                        </div>
-
-                                        {/* Col 4: Actions */}
-                                        <div className="md:col-span-2 flex justify-end gap-1.5">
-                                            {(sig.signature_type === 'DOCUMENT' || sig.signature_type === 'TLDRAW' || sig.signature_type === 'CAMERA' || sig.signature_type === 'VIDEO') && (
-                                                <button
-                                                    onClick={() => downloadSignature(sig.id, sig.metadata?.fileName, sig.metadata?.mimeType)}
-                                                    className="w-9 h-9 border border-zinc-800 rounded-md flex items-center justify-center text-zinc-600 hover:text-white hover:border-white transition-all bg-black"
-                                                    title="Download"
-                                                >
-                                                    <FiDownload size={14} />
-                                                </button>
-                                            )}
-                                            {sig.txid && !sig.txid.startsWith('pending-') ? (
-                                                <a
-                                                    href={`https://whatsonchain.com/tx/${sig.txid}`}
-                                                    target="_blank"
-                                                    className="w-9 h-9 border border-zinc-800 rounded-md flex items-center justify-center text-zinc-600 hover:text-white hover:border-white transition-all bg-black"
-                                                    title="Verify on blockchain"
-                                                >
-                                                    <FiExternalLink size={14} />
-                                                </a>
+                                            {/* Status */}
+                                            {isOnChain ? (
+                                                <span className="px-2 py-1 bg-green-950/30 text-green-400 text-xs rounded shrink-0">On chain</span>
                                             ) : (
-                                                <span className="px-2 py-0.5 bg-amber-950/30 text-amber-500 text-[10px] rounded">Pending</span>
+                                                <span className="px-2 py-1 bg-zinc-900 text-zinc-500 text-xs rounded shrink-0">Stored</span>
                                             )}
-                                        </div>
+
+                                            {/* Expand arrow */}
+                                            <div className="text-zinc-600 shrink-0">
+                                                {isExpanded ? <FiChevronUp size={16} /> : <FiChevronDown size={16} />}
+                                            </div>
+                                        </button>
+
+                                        {/* Expanded content */}
+                                        {isExpanded && (
+                                            <div className="border-t border-zinc-900 bg-zinc-950 p-4 space-y-4">
+                                                {/* Preview area */}
+                                                {previewLoading ? (
+                                                    <div className="flex items-center justify-center py-12">
+                                                        <div className="w-8 h-8 border-t-2 border-white animate-spin rounded-full opacity-20" />
+                                                    </div>
+                                                ) : previewData?.type === 'svg' ? (
+                                                    <div className="bg-white rounded-md p-4 flex items-center justify-center">
+                                                        <img src={previewData.url} alt="Signature" className="max-h-40 w-auto" />
+                                                    </div>
+                                                ) : previewData?.type === 'image' ? (
+                                                    <div className="bg-white rounded-md overflow-hidden">
+                                                        <img src={previewData.url} alt="Document" className="max-h-[400px] w-full object-contain" />
+                                                    </div>
+                                                ) : previewData?.type === 'pdf' ? (
+                                                    <iframe src={previewData.url} className="w-full h-[500px] rounded-md border border-zinc-800" />
+                                                ) : previewData?.type === 'video' ? (
+                                                    <video src={previewData.url} controls className="w-full max-h-[400px] rounded-md" />
+                                                ) : previewData?.type === 'error' ? (
+                                                    <p className="text-sm text-red-400 text-center py-4">Failed to load preview</p>
+                                                ) : previewData?.type === 'unsupported' ? (
+                                                    <p className="text-sm text-zinc-500 text-center py-4">Preview not available for this file type. Use download instead.</p>
+                                                ) : null}
+
+                                                {/* Actions bar */}
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); downloadSignature(sig.id, sig.metadata?.fileName, sig.metadata?.mimeType); }}
+                                                        className="px-3 py-2 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
+                                                    >
+                                                        <FiDownload size={14} /> Download
+                                                    </button>
+                                                    {sig.signature_type === 'DOCUMENT' && (
+                                                        <Link
+                                                            href="/user/documents/new"
+                                                            className="px-3 py-2 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
+                                                        >
+                                                            <FiSend size={14} /> Send for Signing
+                                                        </Link>
+                                                    )}
+                                                    {isOnChain && (
+                                                        <a
+                                                            href={`https://whatsonchain.com/tx/${sig.txid}`}
+                                                            target="_blank"
+                                                            className="px-3 py-2 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
+                                                        >
+                                                            <FiExternalLink size={14} /> View on Chain
+                                                        </a>
+                                                    )}
+                                                    <span className="text-xs text-zinc-700 font-mono ml-auto">
+                                                        {sig.id.slice(0, 12)}...
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                ))
+                                    );
+                                })
                             )}
                         </div>
                     </div>
