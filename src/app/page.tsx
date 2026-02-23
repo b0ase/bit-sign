@@ -1,26 +1,11 @@
-'use client';
-
-import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { FiEdit3, FiFileText, FiShield, FiCheck, FiPlus, FiArrowRight, FiUser, FiZap, FiLock } from 'react-icons/fi';
+import { cookies } from 'next/headers';
 import Link from 'next/link';
-import { SignatureDisplay, WalletSigningModal } from '@/components/bitsign';
+import { FiEdit3, FiShield, FiUser, FiZap, FiLock } from 'react-icons/fi';
+import { HeroAnimation } from '@/components/HeroAnimation';
 
-export default function BitSignPage() {
-  const [handle, setHandle] = useState<string | null>(null);
-  const [isSigningModalOpen, setIsSigningModalOpen] = useState(false);
-
-  useEffect(() => {
-    const cookies = document.cookie.split('; ');
-    const handleCookie = cookies.find(row => row.startsWith('handcash_handle='));
-    if (handleCookie) {
-      setHandle(handleCookie.split('=')[1]);
-    }
-  }, []);
-
-  const handleLogin = () => {
-    window.location.href = '/api/auth/handcash';
-  };
+export default async function BitSignPage() {
+  const cookieStore = await cookies();
+  const handle = cookieStore.get('handcash_handle')?.value || null;
 
   return (
     <main className="min-h-screen bg-black text-white selection:bg-zinc-800 selection:text-white overflow-hidden">
@@ -43,12 +28,7 @@ export default function BitSignPage() {
         </div>
 
         <div className="max-w-7xl mx-auto relative z-10 py-32">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-            className="flex flex-col items-center text-center"
-          >
+          <HeroAnimation>
             <div className="inline-flex items-center gap-3 px-5 py-2 bg-black/50 backdrop-blur-sm border border-zinc-800/60 text-sm text-zinc-400 mb-10 rounded-full">
               <FiShield className="text-zinc-500" size={14} />
               Document Signing on Bitcoin
@@ -75,16 +55,16 @@ export default function BitSignPage() {
                   </Link>
                 </div>
               ) : (
-                <button
-                  onClick={handleLogin}
+                <Link
+                  href="/api/auth/handcash"
                   className="px-10 py-4 bg-white text-black font-semibold text-sm rounded-md transition-all hover:bg-zinc-200 flex items-center gap-3 shadow-[0_0_40px_rgba(255,255,255,0.15)]"
                 >
                   <FiZap className="w-4 h-4 text-black" />
                   Sign in with HandCash
-                </button>
+                </Link>
               )}
             </div>
-          </motion.div>
+          </HeroAnimation>
         </div>
       </section>
 
@@ -147,17 +127,6 @@ export default function BitSignPage() {
           &copy; 2026 Bit-Sign
         </p>
       </footer>
-
-      {/* Modals */}
-      <WalletSigningModal
-        isOpen={isSigningModalOpen}
-        onClose={() => setIsSigningModalOpen(false)}
-        message="BIT-SIGN ATTESTATION: I hereby authorize the inscription of this record on the BSV blockchain."
-        onSignComplete={(res) => {
-          console.log('Signature Complete:', res);
-          setIsSigningModalOpen(false);
-        }}
-      />
     </main>
   );
 }
