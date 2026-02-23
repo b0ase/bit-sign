@@ -4,6 +4,7 @@ import { resolveUserHandle } from '@/lib/auth';
 
 /**
  * Server-side decrypt and stream a signature's encrypted payload.
+ * Supports v1 (server decrypts) and v2 (returns encrypted payload for client decryption).
  */
 export async function GET(
     request: NextRequest,
@@ -17,15 +18,45 @@ export async function GET(
             return NextResponse.json({ error: 'Please sign in again' }, { status: 401 });
         }
 
-        // Get the signature data
-        const { data: signature, error: sigError } = await supabaseAdmin
+        // Check if user owns the document OR has an access grant
+        let signature = null;
+        let isShared = false;
+
+        // Try direct ownership first
+        const { data: ownedSig } = await supabaseAdmin
             .from('bit_sign_signatures')
-            .select('id, user_handle, signature_type, encrypted_payload, iv, metadata')
+            .select('id, user_handle, signature_type, encrypted_payload, iv, metadata, encryption_version')
             .eq('id', id)
             .eq('user_handle', handle)
             .single();
 
-        if (sigError || !signature) {
+        if (ownedSig) {
+            signature = ownedSig;
+        } else {
+            // Check for access grant
+            const { data: grant } = await supabaseAdmin
+                .from('document_access_grants')
+                .select('document_id')
+                .eq('document_id', id)
+                .eq('grantee_handle', handle)
+                .is('revoked_at', null)
+                .maybeSingle();
+
+            if (grant) {
+                const { data: sharedSig } = await supabaseAdmin
+                    .from('bit_sign_signatures')
+                    .select('id, user_handle, signature_type, encrypted_payload, iv, metadata, encryption_version')
+                    .eq('id', id)
+                    .single();
+
+                if (sharedSig) {
+                    signature = sharedSig;
+                    isShared = true;
+                }
+            }
+        }
+
+        if (!signature) {
             return NextResponse.json({ error: 'Not found' }, { status: 404 });
         }
 
@@ -33,14 +64,49 @@ export async function GET(
             return NextResponse.json({ error: 'No encrypted data' }, { status: 404 });
         }
 
-        // Get the user's encryption key from DB
-        const { data: identity } = await supabaseAdmin
+        const encryptionVersion = signature.encryption_version || 1;
+
+        // v2: Return encrypted payload for client-side decryption
+        if (encryptionVersion === 2 || isShared) {
+            return NextResponse.json({
+                encryption_version: encryptionVersion,
+                encrypted_payload: signature.encrypted_payload,
+                iv: signature.iv,
+                signature_type: signature.signature_type,
+                metadata: signature.metadata,
+            });
+        }
+
+        // v1: Server-side decryption (legacy path)
+        const { data: identityData } = await supabaseAdmin
             .from('bit_sign_identities')
             .select('encryption_key')
             .eq('user_handle', handle)
             .maybeSingle();
 
-        if (!identity?.encryption_key) {
+        // Also check unified_users for the encryption_key
+        let encryptionKey = identityData?.encryption_key;
+
+        if (!encryptionKey) {
+            const { data: userIdentity } = await supabaseAdmin
+                .from('user_identities')
+                .select('unified_user_id')
+                .eq('provider', 'handcash')
+                .eq('provider_user_id', handle)
+                .maybeSingle();
+
+            if (userIdentity) {
+                const { data: unifiedUser } = await supabaseAdmin
+                    .from('unified_users')
+                    .select('encryption_key')
+                    .eq('id', userIdentity.unified_user_id)
+                    .single();
+
+                encryptionKey = unifiedUser?.encryption_key;
+            }
+        }
+
+        if (!encryptionKey) {
             return NextResponse.json({ error: 'No encryption key' }, { status: 400 });
         }
 
@@ -49,7 +115,7 @@ export async function GET(
         const ivBytes = Buffer.from(signature.iv, 'base64');
 
         const encoder = new TextEncoder();
-        const seedBytes = encoder.encode(identity.encryption_key);
+        const seedBytes = encoder.encode(encryptionKey);
         const hashBuffer = await crypto.subtle.digest('SHA-256', seedBytes);
 
         const key = await crypto.subtle.importKey(

@@ -2,875 +2,427 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { encryptDocument, bufferToBase64 } from '@/lib/attestation';
-import SovereignSignature from '@/components/SovereignSignature';
-import MediaCapture from '@/components/MediaCapture';
 import {
-    FiLock,
-    FiFileText,
-    FiEdit3,
-    FiActivity,
-    FiExternalLink,
-    FiCpu,
-    FiCamera,
-    FiDownload,
-    FiChevronDown,
-    FiChevronUp,
-    FiZap,
-    FiGithub,
-    FiX,
-    FiShield,
-    FiCheck,
-    FiArrowLeft
+  FiFileText, FiPlus, FiClock, FiCheck, FiAlertCircle,
+  FiExternalLink, FiEdit3, FiCopy, FiChevronDown, FiChevronUp,
+  FiShield, FiMail, FiUpload, FiArrowLeft
 } from 'react-icons/fi';
+import { SendEmailModal } from '@/components/SendEmailModal';
 
-interface Signature {
-    id: string;
-    signature_type: string;
-    txid: string;
-    created_at: string;
-    metadata: any;
-    wallet_signed?: boolean;
-    wallet_signature?: string;
-    wallet_address?: string;
+interface Signer {
+  name: string;
+  role: string;
+  order: number;
+  status: string;
+  signed_at: string | null;
+  signing_token?: string;
+  email?: string | null;
+  email_sent_at?: string | null;
+  email_sent_to?: string | null;
 }
 
-interface Identity {
-    token_id: string;
-    metadata: any;
-    avatar_url?: string;
-    github_handle?: string;
-    github_id?: string;
-    github_metadata?: any;
-    registered_signature_id?: string;
-    registered_signature_txid?: string;
+interface Envelope {
+  id: string;
+  title: string;
+  document_type: string;
+  status: string;
+  document_hash: string;
+  signers: Signer[];
+  inscription_txid: string | null;
+  created_at: string;
+  expires_at: string | null;
 }
 
-export default function AdvancedAccountPage() {
-    const [handle, setHandle] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [signatures, setSignatures] = useState<Signature[]>([]);
-    const [identity, setIdentity] = useState<Identity | null>(null);
-    const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
-    const [captureMode, setCaptureMode] = useState<'PHOTO' | 'VIDEO' | null>(null);
-    const [encryptionSeed, setEncryptionSeed] = useState<string | null>(null);
-    const [activeCaptureTab, setActiveCaptureTab] = useState<'biological' | 'camera' | 'video' | 'vault'>('biological');
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [expandedSig, setExpandedSig] = useState<string | null>(null);
-    const [previewData, setPreviewData] = useState<{ url: string; type: string } | null>(null);
-    const [previewLoading, setPreviewLoading] = useState(false);
-    const [registeredSignatureId, setRegisteredSignatureId] = useState<string | null>(null);
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
+  draft: { label: 'Draft', color: 'text-zinc-500 bg-zinc-900', icon: FiEdit3 },
+  pending: { label: 'Pending', color: 'text-amber-400 bg-amber-950', icon: FiClock },
+  partially_signed: { label: 'Partial', color: 'text-blue-400 bg-blue-950', icon: FiEdit3 },
+  completed: { label: 'Complete', color: 'text-green-400 bg-green-950', icon: FiCheck },
+  expired: { label: 'Expired', color: 'text-red-400 bg-red-950', icon: FiAlertCircle },
+};
 
-    const registerSignature = async (sigId: string) => {
-        setIsProcessing(true);
-        try {
-            const res = await fetch('/api/bitsign/register-signature', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ signature_id: sigId })
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to register');
-            setRegisteredSignatureId(sigId);
-        } catch (error: any) {
-            console.error('Register signature failed:', error);
-            alert(error?.message || 'Failed to register signature.');
-        } finally {
-            setIsProcessing(false);
-        }
-    };
+export default function DocumentsPage() {
+  const [created, setCreated] = useState<Envelope[]>([]);
+  const [toSign, setToSign] = useState<Envelope[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [handle, setHandle] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [sendModal, setSendModal] = useState<{
+    envelopeId: string;
+    signer: Signer;
+  } | null>(null);
 
-    const attestSignature = async (sigId: string) => {
-        setIsProcessing(true);
-        try {
-            const verifyRes = await fetch('/api/bitsign/handcash-verify', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    message: `I attest this item belongs to $${handle}`,
-                })
-            });
-            const verifyData = await verifyRes.json();
-            if (!verifyRes.ok) throw new Error(verifyData.error || 'Wallet verification failed');
-
-            const attestRes = await fetch(`/api/bitsign/signatures/${sigId}/attest`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    wallet_signature: verifyData.signature,
-                    wallet_address: verifyData.walletAddress,
-                    payment_txid: verifyData.paymentTxid,
-                })
-            });
-            const attestData = await attestRes.json();
-            if (!attestRes.ok) throw new Error(attestData.error || 'Attestation failed');
-
-            setSignatures(prev => prev.map(s =>
-                s.id === sigId ? { ...s, wallet_signed: true, wallet_address: verifyData.walletAddress } : s
-            ));
-        } catch (error: any) {
-            console.error('Attest failed:', error);
-            alert(error?.message || 'Failed to sign with wallet.');
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    const exportIdentity = async () => {
-        setIsProcessing(true);
-        try {
-            const manifest = {
-                handle: `$${handle}`,
-                dna: identity?.token_id,
-                attestations: signatures.map(s => ({
-                    type: s.signature_type,
-                    txid: s.txid,
-                    timestamp: s.created_at,
-                    label: s.metadata?.type
-                })),
-                timestamp: new Date().toISOString(),
-                protocol: "BIT-SIGN v1.0.4-genesis"
-            };
-
-            const response = await fetch('/api/bitsign/sign', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ manifest })
-            });
-
-            const { signature, publicKey, manifest: signedManifest } = await response.json();
-
-            const finalBundle = {
-                manifest: JSON.parse(signedManifest),
-                verification: {
-                    signature,
-                    publicKey,
-                    method: 'HandCash Data Signing (Identity Token)'
-                }
-            };
-
-            const blob = new Blob([JSON.stringify(finalBundle, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `bit-sign-identity-${handle}.json`;
-            a.click();
-        } catch (error) {
-            console.error('Export failed:', error);
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    useEffect(() => {
-        const cookies = document.cookie.split('; ');
-        const handleCookie = cookies.find(row => row.startsWith('handcash_handle='));
-        if (handleCookie) {
-            const h = handleCookie.split('=')[1];
-            setHandle(h);
-            fetchData(h);
-            fetchEncryptionSeed();
-        } else {
-            setLoading(false);
-        }
-    }, []);
-
-    const fetchEncryptionSeed = async () => {
-        try {
-            const res = await fetch('/api/bitsign/encryption-seed');
-            if (!res.ok) return;
-            const data = await res.json();
-            if (data.encryptionSeed) setEncryptionSeed(data.encryptionSeed);
-        } catch (error) {
-            console.error('Failed to fetch encryption seed:', error);
-        }
-    };
-
-    const fetchData = async (h: string) => {
-        try {
-            const res = await fetch(`/api/bitsign/signatures?handle=${h}`);
-            const data = await res.json();
-            if (data.signatures) setSignatures(data.signatures);
-            if (data.identity) {
-                setIdentity(data.identity);
-                if (data.identity.registered_signature_id) {
-                    setRegisteredSignatureId(data.identity.registered_signature_id);
-                }
-            }
-        } catch (error) {
-            console.error('Failed to fetch data:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleTldrawSave = async (signatureData: { svg: string; json: string }) => {
-        if (!handle) { alert('Please sign in first.'); return; }
-        if (!encryptionSeed) { alert('Encryption key not available. Please sign out and back in.'); return; }
-        setIsProcessing(true);
-        try {
-            const encoder = new TextEncoder();
-            const svgBuffer = encoder.encode(signatureData.svg).buffer;
-            const encrypted = await encryptDocument(svgBuffer, encryptionSeed);
-
-            const response = await fetch('/api/bitsign/inscribe', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    encryptedData: bufferToBase64(encrypted.encryptedData),
-                    iv: bufferToBase64(encrypted.iv.buffer),
-                    handle,
-                    signatureType: 'TLDRAW',
-                    metadata: { type: 'Hand-written Signature' }
-                })
-            });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Failed');
-
-            setSignatures(prev => [{
-                id: data.signature?.id || data.txid,
-                signature_type: 'TLDRAW',
-                txid: data.txid,
-                created_at: new Date().toISOString(),
-                metadata: { type: 'Hand-written Signature' }
-            }, ...prev]);
-
-            setIsSignatureModalOpen(false);
-        } catch (error) {
-            console.error('Signature failed:', error);
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    const handleMediaCapture = async (blob: Blob) => {
-        if (!handle) return;
-        if (!encryptionSeed) {
-            alert('Session expired. Please sign in again to upload new items.');
-            window.location.href = '/api/auth/handcash';
-            return;
-        }
-        setIsProcessing(true);
-        try {
-            const arrayBuffer = await blob.arrayBuffer();
-            const encrypted = await encryptDocument(arrayBuffer, encryptionSeed);
-
-            const type = captureMode === 'PHOTO' ? 'CAMERA' : 'VIDEO';
-            const label = captureMode === 'PHOTO' ? 'Camera Proof' : 'Video Witness';
-
-            const response = await fetch('/api/bitsign/inscribe', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    encryptedData: bufferToBase64(encrypted.encryptedData),
-                    iv: bufferToBase64(encrypted.iv.buffer),
-                    handle,
-                    signatureType: type,
-                    metadata: { type: label, mimeType: blob.type }
-                })
-            });
-            const data = await response.json();
-            if (response.status === 401) {
-                alert('Session expired. Please sign in again to upload new items.');
-                window.location.href = '/api/auth/handcash';
-                return;
-            }
-            if (!response.ok) throw new Error(data.error || 'Failed');
-
-            setSignatures(prev => [{
-                id: data.signature?.id || data.txid,
-                signature_type: type,
-                txid: data.txid,
-                created_at: new Date().toISOString(),
-                metadata: { type: label, mimeType: blob.type }
-            }, ...prev]);
-        } catch (error: any) {
-            console.error('Media capture failed:', error);
-            alert(error?.message || 'Failed to save. Please try again.');
-        } finally {
-            setCaptureMode(null);
-            setIsProcessing(false);
-        }
-    };
-
-    const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files;
-        if (!files || files.length === 0 || !handle) return;
-        if (!encryptionSeed) {
-            alert('Session expired. Please sign in again to upload new items.');
-            window.location.href = '/api/auth/handcash';
-            return;
-        }
-
-        setIsProcessing(true);
-        try {
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                const arrayBuffer = await file.arrayBuffer();
-                const encrypted = await encryptDocument(arrayBuffer, encryptionSeed);
-
-                const response = await fetch('/api/bitsign/inscribe', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        encryptedData: bufferToBase64(encrypted.encryptedData),
-                        iv: bufferToBase64(encrypted.iv.buffer),
-                        handle,
-                        signatureType: 'DOCUMENT',
-                        metadata: { type: 'Encrypted Document', fileName: file.name }
-                    })
-                });
-                const data = await response.json();
-                if (response.status === 401) {
-                    alert('Session expired. Please sign in again to upload new items.');
-                    window.location.href = '/api/auth/handcash';
-                    return;
-                }
-                if (!response.ok) throw new Error(data.error || 'Failed');
-
-                setSignatures(prev => [{
-                    id: data.signature?.id || data.txid,
-                    signature_type: 'DOCUMENT',
-                    txid: data.txid,
-                    created_at: new Date().toISOString(),
-                    metadata: { type: 'Encrypted Document', fileName: file.name }
-                }, ...prev]);
-            }
-        } catch (error: any) {
-            console.error('Document upload failed:', error);
-            alert(error?.message || 'Failed to upload. Please try again.');
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    const mintIdentity = async () => {
-        if (!handle) return;
-        setIsProcessing(true);
-        try {
-            const response = await fetch('/api/bitsign/inscribe', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    handle,
-                    signatureType: 'IDENTITY_MINT',
-                    metadata: { type: 'Digital DNA', symbol: `$${handle.toUpperCase()}-DNA` }
-                })
-            });
-            const data = await response.json();
-            setIdentity(data.identity);
-        } catch (error) {
-            console.error('Identity mint failed:', error);
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    const deleteSignature = async (sigId: string) => {
-        if (!confirm('Delete this item permanently?')) return;
-        try {
-            const res = await fetch(`/api/bitsign/signatures/${sigId}/delete`, { method: 'DELETE' });
-            if (!res.ok) {
-                const data = await res.json().catch(() => ({}));
-                throw new Error(data.error || 'Delete failed');
-            }
-            setSignatures(prev => prev.filter(s => s.id !== sigId));
-            if (expandedSig === sigId) {
-                setExpandedSig(null);
-                setPreviewData(null);
-            }
-        } catch (error) {
-            console.error('Delete failed:', error);
-            alert('Failed to delete. Please try again.');
-        }
-    };
-
-    const downloadSignature = async (sigId: string, fileName?: string) => {
-        try {
-            const a = document.createElement('a');
-            a.href = `/api/bitsign/signatures/${sigId}/preview`;
-            a.download = fileName || `bit-sign-${sigId.slice(0, 8)}`;
-            a.click();
-        } catch (error) {
-            console.error('Download failed:', error);
-            alert('Failed to download. Please try again.');
-        }
-    };
-
-    const previewSignature = async (sig: Signature) => {
-        if (expandedSig === sig.id) {
-            setExpandedSig(null);
-            setPreviewData(null);
-            return;
-        }
-        setExpandedSig(sig.id);
-        setPreviewLoading(true);
-        setPreviewData(null);
-
-        try {
-            const previewUrl = `/api/bitsign/signatures/${sig.id}/preview`;
-            const res = await fetch(previewUrl);
-            if (!res.ok) {
-                const errData = await res.json().catch(() => ({ error: 'Unknown error' }));
-                if (res.status === 422) {
-                    setPreviewData({ url: '', type: 'decrypt-failed' });
-                    return;
-                }
-                if (res.status === 404 && errData.error === 'No encrypted data') {
-                    setPreviewData({ url: '', type: 'no-data' });
-                    return;
-                }
-                if (res.status === 400) {
-                    setPreviewData({ url: '', type: 'no-key' });
-                    return;
-                }
-                throw new Error(errData.error || 'Failed to load');
-            }
-
-            const contentType = res.headers.get('content-type') || '';
-
-            if (sig.signature_type === 'TLDRAW' || contentType.includes('svg')) {
-                const blob = await res.blob();
-                setPreviewData({ url: URL.createObjectURL(blob), type: 'svg' });
-            } else if (contentType.startsWith('image/')) {
-                const blob = await res.blob();
-                setPreviewData({ url: URL.createObjectURL(blob), type: 'image' });
-            } else if (contentType === 'application/pdf') {
-                const blob = await res.blob();
-                setPreviewData({ url: URL.createObjectURL(blob), type: 'pdf' });
-            } else if (contentType.startsWith('video/')) {
-                const blob = await res.blob();
-                setPreviewData({ url: URL.createObjectURL(blob), type: 'video' });
-            } else {
-                setPreviewData({ url: '', type: 'unsupported' });
-            }
-        } catch (error) {
-            console.error('Preview failed:', error);
-            setPreviewData({ url: '', type: 'error' });
-        } finally {
-            setPreviewLoading(false);
-        }
-    };
-
-    const sendTestVerification = async () => {
-        if (!handle) return;
-        setIsProcessing(true);
-        try {
-            const response = await fetch('/api/bitsign/request', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    handle,
-                    message: "TEST VERIFICATION: Verify your Digital DNA connection.",
-                    fee: 0.01
-                })
-            });
-            const data = await response.json();
-            if (data.error) throw new Error(data.error);
-            window.open(data.paymentUrl, '_blank');
-        } catch (error) {
-            console.error('Test verification failed:', error);
-            alert('Failed to send test verification request');
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-[#050505] flex items-center justify-center">
-                <div className="w-12 h-12 border-t-2 border-white animate-spin rounded-full opacity-20"></div>
-            </div>
-        );
+  useEffect(() => {
+    const cookies = document.cookie.split('; ');
+    const handleCookie = cookies.find(row => row.startsWith('handcash_handle='));
+    if (handleCookie) {
+      const h = handleCookie.split('=')[1];
+      setHandle(h);
+      fetchEnvelopes();
+      fetchProfile(h);
+    } else {
+      setLoading(false);
     }
+  }, []);
 
-    if (!handle) {
-        return (
-            <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-6 text-center">
-                <h1 className="text-4xl font-bold mb-4 tracking-tight">Please sign in</h1>
-                <p className="text-zinc-400 mb-8 max-w-md text-base leading-relaxed">
-                    Connect your HandCash wallet to access advanced identity settings.
-                </p>
-                <a
-                    href="/api/auth/handcash?returnTo=/user/account/advanced"
-                    className="px-8 py-3 bg-white text-black font-medium rounded-md transition-all hover:bg-zinc-200 text-sm"
-                >
-                    Sign in with HandCash
-                </a>
-            </div>
-        );
+  const fetchEnvelopes = async () => {
+    try {
+      const res = await fetch('/api/envelopes');
+      const data = await res.json();
+      setCreated(data.created || []);
+      setToSign(data.to_sign || []);
+    } catch (error) {
+      console.error('Failed to fetch envelopes:', error);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const fetchProfile = async (h: string) => {
+    try {
+      const res = await fetch(`/api/bitsign/signatures?handle=${h}`);
+      const data = await res.json();
+      if (data.identity?.avatar_url) {
+        setAvatarUrl(data.identity.avatar_url);
+      }
+    } catch {
+      // Avatar not critical
+    }
+  };
+
+  const copySigningUrl = (token: string) => {
+    const url = `${window.location.origin}/sign/${token}`;
+    navigator.clipboard.writeText(url);
+    setCopiedToken(token);
+    setTimeout(() => setCopiedToken(null), 2000);
+  };
+
+  const getNextSigner = (signers: Signer[]): Signer | null => {
+    const sorted = [...signers].sort((a, b) => a.order - b.order);
+    return sorted.find(s => s.status !== 'signed') || null;
+  };
+
+  const totalCreated = created.length;
+  const pendingSignatures = created.filter(e => e.status !== 'completed' && e.status !== 'expired').length;
+  const completedCount = created.filter(e => e.status === 'completed').length;
+
+  const renderEnvelopeRow = (envelope: Envelope, isActionRequired = false) => {
+    const config = STATUS_CONFIG[envelope.status] || STATUS_CONFIG.pending;
+    const StatusIcon = config.icon;
+    const signedCount = envelope.signers.filter((s: any) => s.status === 'signed').length;
+    const isExpanded = expandedId === envelope.id;
+    const nextSigner = getNextSigner(envelope.signers);
 
     return (
-        <div className="min-h-screen bg-black text-white selection:bg-zinc-800 selection:text-white overflow-x-hidden">
-            <div className="relative z-10 p-6 pt-24 max-w-7xl mx-auto space-y-12 pb-40">
-                {/* Back Link + Header */}
-                <div className="space-y-6">
-                    <Link href="/user/account" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-white transition-colors">
-                        <FiArrowLeft size={14} /> Back to Dashboard
-                    </Link>
+      <div key={envelope.id} className={`border rounded-md ${isActionRequired ? 'border-amber-900/50' : 'border-zinc-900'} bg-black`}>
+        <div
+          className="group hover:bg-zinc-950 transition-colors p-5 grid md:grid-cols-12 gap-4 items-center relative cursor-pointer"
+          onClick={() => setExpandedId(isExpanded ? null : envelope.id)}
+        >
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-zinc-900 group-hover:bg-white transition-colors rounded-l-md" />
 
-                    <header className="grid lg:grid-cols-12 gap-8 border-b border-zinc-900 pb-12 items-end">
-                        <div className="lg:col-span-8 flex flex-col md:flex-row md:items-center gap-8">
-                            <div className="w-20 h-20 bg-black border border-zinc-800 flex items-center justify-center text-4xl shadow-lg rounded-lg shrink-0 relative overflow-hidden group">
-                                <div className="absolute inset-0 bg-zinc-900/0 group-hover:bg-zinc-900/20 transition-colors" />
-                                {identity?.avatar_url ? (
-                                    <img src={identity.avatar_url} alt={handle || ''} className="w-full h-full object-cover grayscale contrast-125" />
-                                ) : (
-                                    <span className="grayscale opacity-50">&#128100;</span>
-                                )}
-                                <div className="absolute bottom-1 right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
-                            </div>
+          <div className="md:col-span-1 text-zinc-600 group-hover:text-white transition-colors pl-2">
+            <FiFileText size={18} />
+          </div>
 
-                            <div className="space-y-3">
-                                <div>
-                                    <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-white">
-                                        ${handle}
-                                    </h1>
-                                    <p className="text-zinc-500 text-sm mt-1">Advanced Identity Settings</p>
-                                </div>
+          <div className="md:col-span-4 space-y-0.5">
+            <span className="text-sm font-medium text-white">{envelope.title}</span>
+            <div className="text-xs text-zinc-500">{envelope.document_type.replace(/_/g, ' ')}</div>
+          </div>
 
-                                {identity && (
-                                    <div className="flex items-center gap-4">
-                                        {identity.github_handle ? (
-                                            <div className="flex items-center gap-2 px-3 py-1.5 bg-zinc-950 border border-zinc-800 text-sm text-zinc-400 rounded-md">
-                                                <FiGithub className="text-white" />
-                                                Linked: <span className="text-white font-medium">{identity.github_handle}</span>
-                                            </div>
-                                        ) : (
-                                            <button
-                                                onClick={() => window.location.href = '/api/auth/github'}
-                                                className="flex items-center gap-2 px-3 py-1.5 bg-zinc-950 border border-zinc-800 hover:border-zinc-500 text-sm text-zinc-500 hover:text-white transition-all rounded-md group"
-                                            >
-                                                <FiGithub />
-                                                <span className="group-hover:translate-x-0.5 transition-transform">Link GitHub</span>
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+          <div className="md:col-span-2">
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded ${config.color}`}>
+              <StatusIcon size={10} />
+              {config.label}
+            </span>
+          </div>
 
-                        <div className="lg:col-span-4 flex flex-col items-start lg:items-end justify-between h-full gap-6">
-                            {identity && (
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={sendTestVerification}
-                                        disabled={isProcessing}
-                                        className="px-4 py-2 border border-zinc-800 bg-zinc-950 text-zinc-400 text-sm font-medium rounded-md hover:bg-zinc-900 hover:text-white transition-all flex items-center gap-2"
-                                    >
-                                        <FiZap /> Test Alert
-                                    </button>
-                                    <button
-                                        onClick={exportIdentity}
-                                        className="px-4 py-2 border border-zinc-800 bg-zinc-950 text-zinc-400 text-sm font-medium rounded-md hover:border-white/20 hover:text-white transition-all flex items-center gap-2"
-                                    >
-                                        <FiDownload /> Export Identity
-                                    </button>
-                                </div>
-                            )}
+          <div className="md:col-span-2 text-right">
+            <span className="text-sm text-zinc-500">{signedCount}/{envelope.signers.length} signed</span>
+          </div>
 
-                            {!identity ? (
-                                <button
-                                    onClick={mintIdentity}
-                                    disabled={isProcessing}
-                                    className="w-full lg:w-auto px-6 py-3 bg-white text-black hover:bg-zinc-200 font-medium text-sm rounded-md transition-all flex items-center justify-center gap-3"
-                                >
-                                    <FiCpu className="text-lg" />
-                                    <span>Mint Identity Token</span>
-                                </button>
-                            ) : (
-                                <div className="flex items-center gap-4 px-4 py-2.5 bg-zinc-950 border border-zinc-900 rounded-md">
-                                    <div className="text-right">
-                                        <span className="block text-xs text-zinc-500">Identity Token</span>
-                                        <span className="block font-mono text-sm text-white font-medium">{identity.metadata?.symbol || 'UNREGISTERED'}</span>
-                                    </div>
-                                    <a
-                                        href={`https://whatsonchain.com/tx/${identity.token_id}`}
-                                        target="_blank"
-                                        className="p-2 bg-zinc-900 text-zinc-500 hover:text-white transition-colors rounded-md"
-                                    >
-                                        <FiExternalLink />
-                                    </a>
-                                </div>
-                            )}
-                        </div>
-                    </header>
-                </div>
+          <div className="md:col-span-2 text-right flex items-center justify-end gap-2">
+            {isActionRequired && nextSigner?.signing_token && (
+              <Link
+                href={`/sign/${nextSigner.signing_token}`}
+                onClick={(e) => e.stopPropagation()}
+                className="px-3 py-1.5 bg-amber-500 text-black font-medium text-xs rounded-md hover:bg-amber-400 transition-all"
+              >
+                Sign Now
+              </Link>
+            )}
+            {envelope.inscription_txid && !envelope.inscription_txid.startsWith('pending-') && (
+              <a
+                href={`https://whatsonchain.com/tx/${envelope.inscription_txid}`}
+                target="_blank"
+                onClick={(e) => e.stopPropagation()}
+                className="w-8 h-8 border border-zinc-800 rounded-md flex items-center justify-center text-zinc-600 hover:text-white hover:border-white transition-all bg-black"
+                title="View on blockchain"
+              >
+                <FiExternalLink size={12} />
+              </a>
+            )}
+          </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-24">
-                    {/* Left Col: Verification Methods */}
-                    <div className="lg:col-span-4 space-y-8">
-                        <div className="space-y-4">
-                            <h3 className="text-sm font-medium text-zinc-400">Verification Methods</h3>
-                            <div className="grid grid-cols-2 gap-1">
-                                {[
-                                    { id: 'biological', label: 'Signature', sub: 'Hand-drawn', icon: FiEdit3 },
-                                    { id: 'camera', label: 'Photo', sub: 'Camera', icon: FiCamera },
-                                    { id: 'video', label: 'Video', sub: 'Recording', icon: FiActivity },
-                                    { id: 'vault', label: 'Document', sub: 'Upload', icon: FiLock }
-                                ].map((tab) => (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveCaptureTab(tab.id as any)}
-                                        className={`group relative p-5 border rounded-md flex flex-col items-center justify-center gap-2 transition-all ${activeCaptureTab === tab.id
-                                            ? 'bg-zinc-900 border-zinc-700 text-white'
-                                            : 'bg-black border-zinc-900 text-zinc-600 hover:border-zinc-700 hover:text-zinc-400'
-                                            }`}
-                                    >
-                                        <tab.icon className="text-xl" />
-                                        <div className="text-center">
-                                            <span className="block text-sm font-medium">{tab.label}</span>
-                                            <span className="block text-xs text-zinc-500">{tab.sub}</span>
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="border border-zinc-800 bg-zinc-950 rounded-md overflow-hidden">
-                            <div className="bg-black p-6 border border-zinc-900 space-y-6 min-h-[280px] flex flex-col justify-between rounded-md">
-                                <div className="space-y-3">
-                                    <h4 className="text-lg font-semibold text-white">
-                                        {activeCaptureTab === 'biological' && 'Hand-drawn Signature'}
-                                        {activeCaptureTab === 'camera' && 'Photo Verification'}
-                                        {activeCaptureTab === 'video' && 'Video Recording'}
-                                        {activeCaptureTab === 'vault' && 'Upload Documents'}
-                                    </h4>
-                                    <p className="text-sm text-zinc-500 leading-relaxed">
-                                        {activeCaptureTab === 'biological' && 'Draw your signature using the touchscreen or mouse. It will be encrypted and recorded on-chain.'}
-                                        {activeCaptureTab === 'camera' && 'Take a photo for identity verification. The image is encrypted before upload.'}
-                                        {activeCaptureTab === 'video' && 'Record a short video statement as proof of identity and intent.'}
-                                        {activeCaptureTab === 'vault' && 'Upload one or more documents to encrypt and anchor on the blockchain.'}
-                                    </p>
-                                </div>
-
-                                <div className="space-y-4">
-                                    {activeCaptureTab === 'biological' && (
-                                        <button onClick={() => setIsSignatureModalOpen(true)} className="w-full py-3 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2">
-                                            <FiEdit3 /> Draw Signature
-                                        </button>
-                                    )}
-                                    {activeCaptureTab === 'camera' && (
-                                        <button onClick={() => setCaptureMode('PHOTO')} className="w-full py-3 bg-zinc-900 border border-zinc-800 text-white font-medium text-sm rounded-md hover:bg-zinc-800 hover:border-zinc-700 transition-all flex items-center justify-center gap-2">
-                                            <FiCamera /> Take Photo
-                                        </button>
-                                    )}
-                                    {activeCaptureTab === 'video' && (
-                                        <button onClick={() => setCaptureMode('VIDEO')} className="w-full py-3 bg-zinc-900 border border-zinc-800 text-white font-medium text-sm rounded-md hover:bg-zinc-800 hover:border-zinc-700 transition-all flex items-center justify-center gap-2">
-                                            <FiActivity /> Record Video
-                                        </button>
-                                    )}
-                                    {activeCaptureTab === 'vault' && (
-                                        <label className="relative group block cursor-pointer">
-                                            <input type="file" multiple className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onChange={handleDocumentUpload} />
-                                            <div className="w-full py-3 bg-zinc-900 border border-zinc-800 text-white font-medium text-sm rounded-md group-hover:bg-zinc-800 group-hover:border-zinc-700 transition-all flex items-center justify-center gap-2">
-                                                <FiFileText /> Upload Files
-                                            </div>
-                                        </label>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="bg-black p-5 border border-zinc-900 rounded-md">
-                            <span className="block text-xs text-zinc-500 mb-1">Total Vault Items</span>
-                            <span className="block text-2xl font-semibold text-white">{signatures.length}</span>
-                        </div>
-                    </div>
-
-                    {/* Right Col: Vault Items */}
-                    <div className="lg:col-span-8 space-y-8">
-                        <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
-                            <h3 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
-                                <span className="w-2 h-2 bg-green-500 rounded-full"></span> Identity Vault
-                            </h3>
-                        </div>
-
-                        <div className="space-y-2">
-                            {signatures.length === 0 ? (
-                                <div className="py-24 flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-md text-center">
-                                    <FiEdit3 className="text-zinc-700 text-3xl mb-4" />
-                                    <p className="text-base text-zinc-400 font-medium">No vault items yet</p>
-                                    <p className="text-sm text-zinc-600 mt-1">Create your first signature or upload a document.</p>
-                                </div>
-                            ) : (
-                                signatures.map((sig) => {
-                                    const isOnChain = sig.txid && !sig.txid.startsWith('pending-');
-                                    const isExpanded = expandedSig === sig.id;
-                                    const isRegistered = sig.id === registeredSignatureId;
-                                    const isSigned = sig.wallet_signed;
-                                    return (
-                                    <div key={sig.id} className={`border rounded-md overflow-hidden ${isRegistered ? 'border-green-800' : 'border-zinc-900'}`}>
-                                        <button
-                                            onClick={() => previewSignature(sig)}
-                                            className="w-full text-left bg-black hover:bg-zinc-950 transition-colors p-4 flex items-center gap-4"
-                                        >
-                                            <div className="text-zinc-500 shrink-0">
-                                                {sig.signature_type === 'TLDRAW' && <FiEdit3 size={18} />}
-                                                {sig.signature_type === 'CAMERA' && <FiCamera size={18} />}
-                                                {sig.signature_type === 'VIDEO' && <FiActivity size={18} />}
-                                                {sig.signature_type === 'DOCUMENT' && <FiFileText size={18} />}
-                                                {sig.signature_type === 'IDENTITY_MINT' && <FiCpu size={18} />}
-                                            </div>
-
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm font-medium text-white truncate">
-                                                        {sig.metadata?.fileName || sig.metadata?.type || sig.signature_type}
-                                                    </span>
-                                                    {isRegistered && (
-                                                        <span className="px-1.5 py-0.5 bg-green-950 text-green-400 text-[10px] rounded shrink-0 flex items-center gap-1">
-                                                            <FiCheck size={10} /> Registered
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <span className="block text-xs text-zinc-600">
-                                                    {new Date(sig.created_at).toLocaleDateString()} at {new Date(sig.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                </span>
-                                            </div>
-
-                                            {isSigned ? (
-                                                <span className="px-2 py-1 bg-green-950/30 text-green-400 text-xs rounded shrink-0 flex items-center gap-1">
-                                                    <FiShield size={10} /> Signed
-                                                </span>
-                                            ) : isOnChain ? (
-                                                <span className="px-2 py-1 bg-green-950/30 text-green-400 text-xs rounded shrink-0">On chain</span>
-                                            ) : (
-                                                <span className="px-2 py-1 bg-zinc-900 text-zinc-500 text-xs rounded shrink-0">Unsigned</span>
-                                            )}
-
-                                            <div className="text-zinc-600 shrink-0">
-                                                {isExpanded ? <FiChevronUp size={16} /> : <FiChevronDown size={16} />}
-                                            </div>
-                                        </button>
-
-                                        {isExpanded && (
-                                            <div className="border-t border-zinc-900 bg-zinc-950 p-4 space-y-4">
-                                                {previewLoading ? (
-                                                    <div className="flex items-center justify-center py-12">
-                                                        <div className="w-8 h-8 border-t-2 border-white animate-spin rounded-full opacity-20" />
-                                                    </div>
-                                                ) : previewData?.type === 'svg' ? (
-                                                    <div className="bg-white rounded-md p-4 flex items-center justify-center">
-                                                        <img src={previewData.url} alt="Signature" className="max-h-40 w-auto" />
-                                                    </div>
-                                                ) : previewData?.type === 'image' ? (
-                                                    <div className="bg-white rounded-md overflow-hidden">
-                                                        <img src={previewData.url} alt="Document" className="max-h-[400px] w-full object-contain" />
-                                                    </div>
-                                                ) : previewData?.type === 'pdf' ? (
-                                                    <iframe src={previewData.url} className="w-full h-[500px] rounded-md border border-zinc-800" />
-                                                ) : previewData?.type === 'video' ? (
-                                                    <video src={previewData.url} controls className="w-full max-h-[400px] rounded-md" />
-                                                ) : previewData?.type === 'decrypt-failed' ? (
-                                                    <div className="text-center py-6 space-y-2">
-                                                        <FiLock className="mx-auto text-amber-500" size={24} />
-                                                        <p className="text-sm text-amber-400">Unable to decrypt</p>
-                                                        <p className="text-xs text-zinc-500 max-w-sm mx-auto">
-                                                            Your encryption key may have changed since this was uploaded.
-                                                            Try signing out and back in, then retry.
-                                                        </p>
-                                                    </div>
-                                                ) : previewData?.type === 'no-data' ? (
-                                                    <div className="text-center py-6 space-y-2">
-                                                        <FiFileText className="mx-auto text-zinc-600" size={24} />
-                                                        <p className="text-sm text-zinc-500">No encrypted data stored for this item</p>
-                                                    </div>
-                                                ) : previewData?.type === 'no-key' ? (
-                                                    <div className="text-center py-6 space-y-2">
-                                                        <FiLock className="mx-auto text-zinc-600" size={24} />
-                                                        <p className="text-sm text-zinc-500">Encryption key not available. Please sign in again.</p>
-                                                    </div>
-                                                ) : previewData?.type === 'error' ? (
-                                                    <p className="text-sm text-red-400 text-center py-4">Failed to load preview</p>
-                                                ) : previewData?.type === 'unsupported' ? (
-                                                    <p className="text-sm text-zinc-500 text-center py-4">Preview not available for this file type. Use download instead.</p>
-                                                ) : null}
-
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    {sig.signature_type === 'TLDRAW' && isOnChain && !isRegistered && (
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); registerSignature(sig.id); }}
-                                                            className="px-3 py-2 bg-white text-black text-sm font-medium rounded-md hover:bg-zinc-200 transition-all flex items-center gap-2"
-                                                        >
-                                                            <FiEdit3 size={14} /> Use as Signing Signature
-                                                        </button>
-                                                    )}
-                                                    {!isSigned && (
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); attestSignature(sig.id); }}
-                                                            className="px-3 py-2 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
-                                                        >
-                                                            <FiShield size={14} /> Sign with HandCash
-                                                        </button>
-                                                    )}
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); downloadSignature(sig.id, sig.metadata?.fileName); }}
-                                                        className="px-3 py-2 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
-                                                    >
-                                                        <FiDownload size={14} /> Download
-                                                    </button>
-                                                    {isOnChain && (
-                                                        <a
-                                                            href={`https://whatsonchain.com/tx/${sig.txid}`}
-                                                            target="_blank"
-                                                            className="px-3 py-2 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
-                                                        >
-                                                            <FiExternalLink size={14} /> View on Chain
-                                                        </a>
-                                                    )}
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); deleteSignature(sig.id); }}
-                                                        className="px-3 py-2 border border-red-900/30 bg-black text-red-900 text-sm rounded-md hover:text-red-400 hover:border-red-800 transition-all flex items-center gap-2 ml-auto"
-                                                    >
-                                                        <FiX size={14} /> Delete
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Modals & Overlays */}
-                {isSignatureModalOpen && (
-                    <SovereignSignature
-                        onSave={handleTldrawSave}
-                        onCancel={() => setIsSignatureModalOpen(false)}
-                    />
-                )}
-
-                {captureMode && (
-                    <MediaCapture
-                        mode={captureMode}
-                        onCapture={handleMediaCapture}
-                        onCancel={() => setCaptureMode(null)}
-                    />
-                )}
-
-                {isProcessing && (
-                    <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-2xl flex items-center justify-center">
-                        <div className="flex flex-col items-center gap-8">
-                            <div className="relative w-16 h-16">
-                                <div className="absolute inset-0 border-t-2 border-r-2 border-white animate-spin rounded-full opacity-20" />
-                                <div className="absolute inset-4 border-b-2 border-l-2 border-zinc-500 animate-[spin_4s_linear_infinite] rounded-full opacity-40" />
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    <FiCpu className="text-white text-lg animate-pulse" />
-                                </div>
-                            </div>
-                            <div className="text-center space-y-1">
-                                <span className="block text-base text-white font-medium">Processing...</span>
-                                <span className="block text-sm text-zinc-500">Encrypting and uploading</span>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
+          <div className="md:col-span-1 flex justify-end">
+            {isExpanded ? <FiChevronUp size={14} className="text-zinc-500" /> : <FiChevronDown size={14} className="text-zinc-500" />}
+          </div>
         </div>
+
+        {isExpanded && (
+          <div className="border-t border-zinc-900 p-5 space-y-4 bg-zinc-950/50">
+            <div className="space-y-2">
+              <h4 className="text-xs text-zinc-500 font-medium">Signers</h4>
+              {envelope.signers
+                .sort((a: Signer, b: Signer) => a.order - b.order)
+                .map((signer: Signer, i: number) => (
+                <div key={i} className="flex items-center justify-between py-2 border-b border-zinc-900 last:border-0">
+                  <div className="flex items-center gap-3">
+                    {signer.status === 'signed' ? (
+                      <FiCheck className="text-green-400" size={14} />
+                    ) : (
+                      <FiClock className="text-zinc-600" size={14} />
+                    )}
+                    <div>
+                      <span className="text-sm font-medium">{signer.name}</span>
+                      <span className="text-xs text-zinc-500 ml-2">{signer.role}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {signer.status === 'signed' ? (
+                      <span className="text-xs text-green-400">
+                        Signed {signer.signed_at ? new Date(signer.signed_at).toLocaleDateString() : ''}
+                      </span>
+                    ) : signer.signing_token ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSendModal({ envelopeId: envelope.id, signer });
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 border text-xs rounded-md transition-all ${
+                            signer.email_sent_at
+                              ? 'border-green-900 text-green-600 bg-green-950/20'
+                              : 'border-zinc-800 text-zinc-400 hover:text-white hover:border-white bg-black'
+                          }`}
+                        >
+                          {signer.email_sent_at ? (
+                            <><FiCheck size={10} /> Sent</>
+                          ) : (
+                            <><FiMail size={10} /> Send</>
+                          )}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copySigningUrl(signer.signing_token!);
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 border text-xs rounded-md transition-all ${
+                            copiedToken === signer.signing_token
+                              ? 'border-green-700 text-green-400 bg-green-950/30'
+                              : 'border-zinc-800 text-zinc-400 hover:text-white hover:border-white bg-black'
+                          }`}
+                        >
+                          {copiedToken === signer.signing_token ? (
+                            <><FiCheck size={10} /> Copied</>
+                          ) : (
+                            <><FiCopy size={10} /> Copy Link</>
+                          )}
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-zinc-600">Pending</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <Link
+                href={`/verify/${envelope.id}`}
+                className="inline-flex items-center gap-1.5 px-4 py-2 border border-zinc-800 text-zinc-400 hover:text-white hover:border-white text-xs rounded-md transition-all"
+              >
+                <FiShield size={10} /> Verify
+              </Link>
+
+              {envelope.status === 'completed' && (
+                <a
+                  href={`/api/envelopes/${envelope.id}/pdf`}
+                  target="_blank"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 border border-zinc-800 text-zinc-400 hover:text-white hover:border-white text-xs rounded-md transition-all"
+                >
+                  <FiFileText size={10} /> Download PDF
+                </a>
+              )}
+
+              <span className="font-mono text-xs text-zinc-600 ml-auto">
+                {envelope.document_hash.slice(0, 16)}...
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
     );
+  };
+
+  const handleEmailSent = () => {
+    fetchEnvelopes();
+    setSendModal(null);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center">
+        <div className="w-12 h-12 border-t-2 border-white animate-spin rounded-full opacity-20" />
+      </div>
+    );
+  }
+
+  if (!handle) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-6 text-center">
+        <h1 className="text-4xl font-bold mb-4 tracking-tight">Please sign in</h1>
+        <p className="text-zinc-400 mb-8 max-w-md text-base leading-relaxed">
+          Connect your HandCash wallet to access your documents.
+        </p>
+        <a
+          href="/api/auth/handcash?returnTo=/user/account/advanced"
+          className="px-8 py-3 bg-white text-black font-medium rounded-md transition-all hover:bg-zinc-200 text-sm"
+        >
+          Sign in with HandCash
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-black text-white overflow-x-hidden">
+      <div className="relative z-10 p-6 pt-24 max-w-6xl mx-auto space-y-12 pb-40">
+        {/* Back Link + Header */}
+        <div className="space-y-6">
+          <Link href="/user/account" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-white transition-colors">
+            <FiArrowLeft size={14} /> Back to Account
+          </Link>
+
+          <header className="flex flex-col md:flex-row md:items-end justify-between border-b border-zinc-900 pb-8 gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-black border border-zinc-800 flex items-center justify-center text-2xl rounded-lg shrink-0 relative overflow-hidden">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={handle} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-zinc-500">&#128100;</span>
+                )}
+              </div>
+              <div>
+                <h1 className="text-3xl md:text-4xl font-bold tracking-tight">${handle}</h1>
+                <p className="text-zinc-500 text-sm mt-1">Document Dashboard</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Link
+                href="/user/documents/new"
+                className="px-6 py-3 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200 transition-all flex items-center gap-2"
+              >
+                <FiPlus /> New Document
+              </Link>
+              <label className="relative group cursor-pointer">
+                <input
+                  type="file"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) {
+                      window.location.href = '/user/documents/new';
+                    }
+                  }}
+                  accept=".pdf,.doc,.docx,.txt,.html"
+                />
+                <div className="px-5 py-3 border border-zinc-800 bg-black text-zinc-400 text-sm font-medium rounded-md group-hover:text-white group-hover:border-zinc-600 transition-all flex items-center gap-2">
+                  <FiUpload size={14} /> Upload & Sign
+                </div>
+              </label>
+            </div>
+          </header>
+        </div>
+
+        {/* Stats Row */}
+        <div className="grid grid-cols-3 gap-px bg-zinc-900 border border-zinc-900 rounded-md overflow-hidden">
+          <div className="bg-black p-5">
+            <span className="block text-xs text-zinc-500 mb-1">Documents Created</span>
+            <span className="block text-2xl font-semibold text-white">{totalCreated}</span>
+          </div>
+          <div className="bg-black p-5">
+            <span className="block text-xs text-zinc-500 mb-1">Pending Signatures</span>
+            <span className="block text-2xl font-semibold text-amber-400">{pendingSignatures}</span>
+          </div>
+          <div className="bg-black p-5">
+            <span className="block text-xs text-zinc-500 mb-1">Completed</span>
+            <span className="block text-2xl font-semibold text-green-400">{completedCount}</span>
+          </div>
+        </div>
+
+        {/* Action Required */}
+        {toSign.length > 0 && (
+          <section className="space-y-4">
+            <h3 className="text-sm font-medium text-amber-500 flex items-center gap-2">
+              <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" /> Action Required ({toSign.length})
+            </h3>
+            <div className="space-y-2">
+              {toSign.map(e => renderEnvelopeRow(e, true))}
+            </div>
+          </section>
+        )}
+
+        {/* Your Documents */}
+        <section className="space-y-4">
+          <h3 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
+            <span className="w-2 h-2 bg-white rounded-full" /> Your Documents ({created.length})
+          </h3>
+          {created.length === 0 ? (
+            <div className="py-16 flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-md text-center">
+              <FiFileText className="text-zinc-700 text-3xl mb-4" />
+              <p className="text-base text-zinc-400 font-medium">No documents yet</p>
+              <p className="text-sm text-zinc-600 mt-1">
+                Create your first signing envelope to get started.
+              </p>
+              <Link
+                href="/user/documents/new"
+                className="mt-6 px-6 py-2.5 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200 transition-all flex items-center gap-2"
+              >
+                <FiPlus size={14} /> New Document
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {created.map(e => renderEnvelopeRow(e))}
+            </div>
+          )}
+        </section>
+
+        {/* Footer */}
+        <footer className="pt-16 border-t border-zinc-900">
+          <p className="text-[11px] tracking-[0.25em] uppercase text-zinc-700 text-center">
+            A Bitcoin Corporation Product
+          </p>
+        </footer>
+      </div>
+
+      {/* Send Email Modal */}
+      {sendModal && (
+        <SendEmailModal
+          isOpen={true}
+          onClose={() => setSendModal(null)}
+          onSent={handleEmailSent}
+          envelopeId={sendModal.envelopeId}
+          signerName={sendModal.signer.name}
+          signerRole={sendModal.signer.role}
+          signerEmail={sendModal.signer.email}
+          signingToken={sendModal.signer.signing_token!}
+        />
+      )}
+    </div>
+  );
 }

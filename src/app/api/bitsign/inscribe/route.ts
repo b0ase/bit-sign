@@ -9,7 +9,7 @@ import { inscribeBitSignData, hashData } from '@/lib/bsv-inscription';
  */
 export async function POST(request: NextRequest) {
     try {
-        const { encryptedData, iv, handle, metadata, signatureType = 'DOCUMENT' } = await request.json();
+        const { encryptedData, iv, handle, metadata, signatureType = 'DOCUMENT', encryption_version } = await request.json();
 
         const authToken = request.cookies.get('handcash_auth_token')?.value;
 
@@ -78,7 +78,8 @@ export async function POST(request: NextRequest) {
                 encrypted_payload: encryptedData,
                 iv: iv,
                 txid: txid,
-                metadata: metadata || {}
+                metadata: metadata || {},
+                encryption_version: encryption_version || 1,
             })
             .select()
             .single();
