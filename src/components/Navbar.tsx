@@ -29,13 +29,13 @@ export default function Navbar() {
                                 className="object-contain filter grayscale invert group-hover:invert-0 transition-all duration-300"
                             />
                         </div>
-                        <span className="font-mono text-xl tracking-tighter font-bold uppercase">Bit-Sign</span>
+                        <span className="text-lg tracking-tight font-semibold">Bit-Sign</span>
                     </Link>
 
                     <div className="hidden md:flex items-center gap-6">
-                        {handle && <Link href="/user/documents" className="text-xs uppercase font-mono text-neutral-400 hover:text-white transition-colors">Documents</Link>}
-                        <Link href="/docs" className="text-xs uppercase font-mono text-neutral-400 hover:text-white transition-colors">Docs</Link>
-                        <Link href="/pricing" className="text-xs uppercase font-mono text-neutral-400 hover:text-white transition-colors">Pricing</Link>
+                        {handle && <Link href="/user/documents" className="text-sm text-neutral-400 hover:text-white transition-colors">Documents</Link>}
+                        <Link href="/docs" className="text-sm text-neutral-400 hover:text-white transition-colors">Docs</Link>
+                        <Link href="/pricing" className="text-sm text-neutral-400 hover:text-white transition-colors">Pricing</Link>
                     </div>
                 </div>
 
@@ -43,17 +43,17 @@ export default function Navbar() {
                     {handle ? (
                         <Link
                             href="/user/account"
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-none border border-white/20 hover:border-white transition-all group"
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-white/20 hover:border-white transition-all group"
                         >
-                            <span className="font-mono text-[10px] text-neutral-400 group-hover:text-white transition-colors uppercase">Account</span>
-                            <span className="font-mono text-[10px] text-white font-bold tracking-widest">${handle}</span>
+                            <span className="text-sm text-neutral-400 group-hover:text-white transition-colors">Account</span>
+                            <span className="text-sm text-white font-medium">${handle}</span>
                         </Link>
                     ) : (
                         <Link
                             href="/api/auth/handcash"
-                            className="px-6 py-2 bg-white text-black font-mono text-xs font-bold uppercase hover:bg-neutral-200 transition-colors"
+                            className="px-5 py-2 bg-white text-black text-sm font-medium rounded-md hover:bg-neutral-200 transition-colors"
                         >
-                            Login with HandCash
+                            Sign in with HandCash
                         </Link>
                     )}
                 </div>

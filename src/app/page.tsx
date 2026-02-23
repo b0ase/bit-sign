@@ -17,13 +17,10 @@ export default function BitSignPage() {
   };
 
   return (
-    <main className="min-h-screen bg-black text-white font-mono selection:bg-zinc-800 selection:text-white overflow-hidden">
+    <main className="min-h-screen bg-black text-white selection:bg-zinc-800 selection:text-white overflow-hidden">
 
       {/* Hero Section */}
       <section className="relative pt-40 pb-32 px-8 bg-black">
-        {/* Armored Glass Reflection Effect */}
-        <div className="absolute inset-0 bg-gradient-to-b from-zinc-900/20 to-black pointer-events-none" />
-
         <div className="max-w-7xl mx-auto relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -31,48 +28,42 @@ export default function BitSignPage() {
             transition={{ duration: 0.8, ease: "easeOut" }}
             className="flex flex-col items-center text-center"
           >
-            <div className="mb-16 p-6 bg-black border border-zinc-800/60 shadow-[0_0_50px_-12px_rgba(255,255,255,0.05)] rounded-sm">
+            <div className="mb-12 p-6 bg-black border border-zinc-800/60 shadow-[0_0_50px_-12px_rgba(255,255,255,0.05)] rounded-md">
               <img src="/bit-sign-icon.png" alt="Bit-Sign Icon" className="w-20 h-20 filter grayscale contrast-125 brightness-75" />
             </div>
 
-            <div className="inline-flex items-center gap-3 px-8 py-3 bg-black border border-zinc-800 text-[10px] uppercase tracking-[0.5em] text-zinc-400 mb-16 font-mono shadow-xl">
-              <FiShield className="text-zinc-600" />
-              Sovereignty as a Service
+            <div className="inline-flex items-center gap-3 px-6 py-2.5 bg-black border border-zinc-800 text-sm text-zinc-400 mb-12 rounded-md">
+              <FiShield className="text-zinc-500" />
+              Document Signing on Bitcoin
             </div>
 
-            <h1 className="text-8xl md:text-[13rem] font-black uppercase tracking-tighter mb-12 italic leading-none text-transparent bg-clip-text bg-gradient-to-b from-zinc-100 to-zinc-800 drop-shadow-2xl">
-              BIT<span className="text-zinc-800">.</span>SIGN
+            <h1 className="text-6xl md:text-8xl font-bold tracking-tight mb-8 leading-none text-white">
+              Bit-Sign
             </h1>
 
-            <p className="text-xs md:text-sm text-zinc-600 uppercase tracking-[0.4em] max-w-3xl leading-loose mb-24 font-mono border-l-2 border-zinc-900 pl-6 text-left md:text-center md:border-l-0 md:pl-0">
-              The industrial-grade signing layer for the $402 narrative economy.
-              <span className="block mt-4 text-zinc-500">Immutable proof of intent for humans and AI agents.</span>
+            <p className="text-base md:text-lg text-zinc-400 max-w-2xl leading-relaxed mb-16">
+              Sign documents with blockchain-verified proof. Every signature is permanently recorded on-chain &mdash; immutable, instant, and verifiable by anyone.
             </p>
 
-            <div className="flex flex-wrap justify-center gap-12">
+            <div className="flex flex-wrap justify-center gap-6">
               {handle ? (
-                <div className="flex flex-col items-center gap-6">
-                  <div className="text-[9px] text-zinc-700 uppercase tracking-[0.3em] font-mono">Authenticated // <span className="text-zinc-300">${handle}</span></div>
+                <div className="flex flex-col items-center gap-4">
+                  <p className="text-sm text-zinc-500">Signed in as <span className="text-white font-medium">${handle}</span></p>
                   <Link
                     href="/user/account"
-                    className="group relative px-12 py-5 bg-zinc-950 text-zinc-300 border border-zinc-800 hover:border-zinc-400 font-black uppercase tracking-[0.25em] text-[10px] transition-all duration-500"
+                    className="group px-8 py-3 bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 font-medium text-sm rounded-md transition-all flex items-center gap-3"
                   >
-                    <span className="relative z-10 flex items-center gap-4 group-hover:text-white transition-colors">
-                      <FiUser className="w-4 h-4" />
-                      Access Dashboard
-                    </span>
-                    <div className="absolute inset-0 bg-white/[0.02] opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <FiUser className="w-4 h-4" />
+                    Go to Dashboard
                   </Link>
                 </div>
               ) : (
                 <button
                   onClick={handleLogin}
-                  className="group relative px-16 py-6 bg-white text-black font-black uppercase tracking-[0.25em] text-[11px] transition-all hover:bg-zinc-200 outline outline-4 outline-zinc-900/50 hover:outline-zinc-800"
+                  className="px-10 py-4 bg-white text-black font-semibold text-sm rounded-md transition-all hover:bg-zinc-200 flex items-center gap-3"
                 >
-                  <span className="relative z-10 flex items-center gap-4">
-                    <FiZap className="w-4 h-4 text-black" />
-                    Initialize with HandCash
-                  </span>
+                  <FiZap className="w-4 h-4 text-black" />
+                  Sign in with HandCash
                 </button>
               )}
             </div>
@@ -80,53 +71,49 @@ export default function BitSignPage() {
         </div>
       </section>
 
-      {/* Stats/Industrial Row - "The Beast" Dashboard styling */}
-      <section className="border-y border-zinc-900 bg-black py-24 px-8 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-[0.03]"></div>
-        <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-y-16 gap-x-24 relative z-10">
+      {/* Stats Row */}
+      <section className="border-y border-zinc-900 bg-black py-16 px-8">
+        <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-y-12 gap-x-16">
           {[
-            { label: 'Network Speed', val: '0.2s Confirmation' },
-            { label: 'Signature ID', val: 'BSV-Ordinal Standard' },
-            { label: 'SaaS Fee', val: '$0.01 / Sign' }
+            { label: 'Confirmation Speed', val: '0.2 seconds' },
+            { label: 'Signature Standard', val: 'BSV Ordinal' },
+            { label: 'Cost per Signature', val: '$0.01' }
           ].map((stat, i) => (
-            <div key={i} className="flex flex-col gap-4 border-l border-zinc-900/50 pl-8">
-              <div className="text-[9px] text-zinc-700 uppercase tracking-[0.35em] font-mono">{stat.label}</div>
-              <div className="text-2xl font-black italic uppercase tracking-wider text-white font-mono">{stat.val}</div>
+            <div key={i} className="flex flex-col gap-2 border-l border-zinc-800 pl-6">
+              <span className="text-sm text-zinc-500">{stat.label}</span>
+              <span className="text-2xl font-semibold text-white">{stat.val}</span>
             </div>
           ))}
         </div>
       </section>
 
-      {/* SaaS Feature Grid - Black on Black */}
-      <section className="py-40 px-8 bg-black">
-        <div className="max-w-7xl mx-auto grid md:grid-cols-3 bg-zinc-900/20 border border-zinc-900">
+      {/* Feature Grid */}
+      <section className="py-32 px-8 bg-black">
+        <div className="max-w-7xl mx-auto grid md:grid-cols-3 border border-zinc-900 rounded-md overflow-hidden">
           {[
             {
               icon: FiEdit3,
-              title: "GitHub Link",
-              desc: "Cryptographically sign every commit. Verify developer authorship on-chain."
+              title: "GitHub Signing",
+              desc: "Cryptographically sign every commit. Verify developer authorship on the blockchain."
             },
             {
               icon: FiLock,
-              title: "IP Anchor",
-              desc: "Secure your intellectual property in a sovereign vault. Permanent state."
+              title: "IP Protection",
+              desc: "Anchor your intellectual property with permanent, timestamped proof of ownership."
             },
             {
               icon: FiShield,
               title: "Token Registry",
-              desc: "Associate identity with shareholder tokens. Staked verification model."
+              desc: "Link identity to shareholder tokens with staked, on-chain verification."
             }
           ].map((item, i) => (
-            <div key={i} className="p-16 border-r border-b border-zinc-900 bg-black hover:bg-zinc-950 transition-all group space-y-10 relative">
-              <div className="absolute top-8 right-8 text-zinc-900 group-hover:text-zinc-800 transition-colors">
-                <item.icon size={64} className="opacity-20" />
-              </div>
-              <div className="w-10 h-10 border border-zinc-800 flex items-center justify-center text-zinc-600 group-hover:text-white group-hover:border-zinc-600 transition-all">
+            <div key={i} className="p-10 border-r border-b border-zinc-900 bg-black hover:bg-zinc-950 transition-all group space-y-6 relative last:border-r-0">
+              <div className="w-10 h-10 border border-zinc-800 rounded-md flex items-center justify-center text-zinc-500 group-hover:text-white group-hover:border-zinc-600 transition-all">
                 <item.icon size={18} />
               </div>
-              <div className="space-y-4">
-                <h3 className="text-xl font-black uppercase tracking-tight italic text-zinc-300 group-hover:text-white transition-colors">{item.title}</h3>
-                <p className="text-zinc-600 text-[10px] leading-relaxed uppercase tracking-[0.2em] font-mono group-hover:text-zinc-500 transition-colors">
+              <div className="space-y-3">
+                <h3 className="text-lg font-semibold text-zinc-200 group-hover:text-white transition-colors">{item.title}</h3>
+                <p className="text-sm text-zinc-500 leading-relaxed group-hover:text-zinc-400 transition-colors">
                   {item.desc}
                 </p>
               </div>
@@ -135,10 +122,10 @@ export default function BitSignPage() {
         </div>
       </section>
 
-      <footer className="border-t border-zinc-900 bg-black py-24 px-8 text-center">
-        <div className="text-[9px] text-zinc-800 uppercase tracking-[0.6em] font-bold">
-          © 2026 BIT-SIGN SYSTEM // $402
-        </div>
+      <footer className="border-t border-zinc-900 bg-black py-16 px-8 text-center">
+        <p className="text-sm text-zinc-600">
+          &copy; 2026 Bit-Sign
+        </p>
       </footer>
 
       {/* Modals */}
@@ -149,7 +136,6 @@ export default function BitSignPage() {
         onSignComplete={(res) => {
           console.log('Signature Complete:', res);
           setIsSigningModalOpen(false);
-          // Here we would trigger the actual inscription
         }}
       />
     </main>

@@ -156,7 +156,7 @@ export default function SignPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center">
-        <div className="w-12 h-12 border-t-2 border-white animate-spin opacity-20" />
+        <div className="w-12 h-12 border-t-2 border-white animate-spin rounded-full opacity-20" />
       </div>
     );
   }
@@ -165,8 +165,8 @@ export default function SignPage() {
     return (
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-6 text-center">
         <FiAlertCircle className="text-red-500 text-4xl mb-6" />
-        <h1 className="text-3xl font-mono font-black mb-4 tracking-tighter uppercase italic">Error</h1>
-        <p className="text-zinc-500 font-mono text-sm">{error}</p>
+        <h1 className="text-2xl font-bold mb-3 tracking-tight">Error</h1>
+        <p className="text-zinc-400 text-sm">{error}</p>
       </div>
     );
   }
@@ -174,28 +174,28 @@ export default function SignPage() {
   if (signResult) {
     return (
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-6 text-center">
-        <div className="max-w-lg space-y-8">
+        <div className="max-w-lg space-y-6">
           <FiCheck className="mx-auto text-green-400" size={48} />
-          <h1 className="text-4xl font-mono font-black tracking-tighter uppercase italic">Signed</h1>
-          <p className="text-zinc-500 font-mono text-[10px] tracking-[0.4em] uppercase">
+          <h1 className="text-3xl font-bold tracking-tight">Signed</h1>
+          <p className="text-zinc-400 text-sm">
             Your signature has been recorded for this document.
           </p>
 
           {signResult.wallet_verified && (
-            <div className="p-4 border border-green-900 bg-green-950/20">
-              <p className="font-mono text-[10px] text-green-400 uppercase tracking-widest flex items-center justify-center gap-2">
-                <FiShield size={12} /> Wallet Verified via {signResult.wallet_type}
+            <div className="p-4 border border-green-900 bg-green-950/20 rounded-md">
+              <p className="text-sm text-green-400 flex items-center justify-center gap-2">
+                <FiShield size={14} /> Wallet verified via {signResult.wallet_type}
               </p>
             </div>
           )}
 
           {signResult.all_signed && (
-            <div className="p-6 border border-green-900 bg-green-950/20 space-y-3">
+            <div className="p-6 border border-green-900 bg-green-950/20 space-y-3 rounded-md">
               <FiShield className="mx-auto text-green-400" size={24} />
-              <p className="font-mono text-xs text-green-400 uppercase tracking-widest">All Parties Have Signed</p>
+              <p className="text-sm text-green-400 font-medium">All parties have signed</p>
               {signResult.inscription_txid && (
                 <div className="space-y-2">
-                  <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">Blockchain Proof</p>
+                  <p className="text-xs text-zinc-500">Blockchain Proof</p>
                   <a
                     href={signResult.explorer_url}
                     target="_blank"
@@ -209,14 +209,14 @@ export default function SignPage() {
           )}
 
           {!signResult.all_signed && (
-            <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest">
+            <p className="text-sm text-zinc-500">
               Waiting for other signers to complete.
             </p>
           )}
 
           <Link
             href={`/verify/${envelope?.id}`}
-            className="inline-block px-8 py-3 bg-white text-black font-mono font-black uppercase text-xs tracking-widest hover:bg-zinc-200 transition-all"
+            className="inline-block px-6 py-3 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200 transition-all"
           >
             View Document Status
           </Link>
@@ -231,30 +231,30 @@ export default function SignPage() {
         {/* Header */}
         <header className="border-b border-zinc-900 pb-6 space-y-2">
           <div className="flex items-center gap-3">
-            <FiFileText className="text-zinc-600" size={20} />
-            <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-[0.4em]">
+            <FiFileText className="text-zinc-500" size={18} />
+            <p className="text-sm text-zinc-500">
               Signing Request
             </p>
           </div>
-          <h1 className="text-3xl font-mono font-black tracking-tighter uppercase italic">{envelope?.title}</h1>
-          <div className="flex gap-6 font-mono text-[10px] text-zinc-600 uppercase tracking-widest">
+          <h1 className="text-2xl font-bold tracking-tight">{envelope?.title}</h1>
+          <div className="flex gap-6 text-sm text-zinc-500">
             <span>From: {envelope?.created_by}</span>
-            <span>Hash: {envelope?.document_hash.slice(0, 16)}...</span>
+            <span className="font-mono text-xs">Hash: {envelope?.document_hash.slice(0, 16)}...</span>
           </div>
         </header>
 
         {/* Signer Info */}
-        <div className="p-4 border border-zinc-800 bg-zinc-950 flex items-center justify-between">
+        <div className="p-4 border border-zinc-800 bg-zinc-950 rounded-md flex items-center justify-between">
           <div>
-            <span className="block font-mono text-xs font-bold uppercase tracking-widest text-white">{signer?.name}</span>
-            <span className="block font-mono text-[10px] text-zinc-500 uppercase tracking-widest">{signer?.role}</span>
+            <span className="block text-sm font-medium text-white">{signer?.name}</span>
+            <span className="block text-xs text-zinc-500">{signer?.role}</span>
           </div>
           {signer?.status === 'signed' ? (
-            <span className="px-4 py-2 text-green-400 bg-green-950 text-[10px] font-mono uppercase tracking-widest flex items-center gap-2">
+            <span className="px-3 py-1.5 text-green-400 bg-green-950 text-xs rounded flex items-center gap-2">
               <FiCheck size={12} /> Already Signed
             </span>
           ) : (
-            <span className="px-4 py-2 text-amber-400 bg-amber-950 text-[10px] font-mono uppercase tracking-widest flex items-center gap-2">
+            <span className="px-3 py-1.5 text-amber-400 bg-amber-950 text-xs rounded flex items-center gap-2">
               <FiClock size={12} /> Awaiting Signature
             </span>
           )}
@@ -265,14 +265,14 @@ export default function SignPage() {
           {allSigners.map((s, i) => (
             <div
               key={i}
-              className={`p-3 border text-center ${
+              className={`p-3 border rounded-md text-center ${
                 s.status === 'signed'
                   ? 'border-green-900 bg-green-950/10'
                   : 'border-zinc-900 bg-zinc-950'
               }`}
             >
-              <span className="block font-mono text-[10px] text-zinc-500 uppercase tracking-widest">{s.role}</span>
-              <span className="block font-mono text-xs font-bold uppercase tracking-widest mt-1">{s.name || 'Pending'}</span>
+              <span className="block text-xs text-zinc-500">{s.role}</span>
+              <span className="block text-sm font-medium mt-1">{s.name || 'Pending'}</span>
               {s.status === 'signed' && <FiCheck className="mx-auto mt-1 text-green-400" size={12} />}
             </div>
           ))}
@@ -280,7 +280,7 @@ export default function SignPage() {
 
         {/* Document Preview */}
         {envelope?.document_html && (
-          <div className="border border-zinc-800 p-1">
+          <div className="border border-zinc-800 rounded-md overflow-hidden">
             <div className="bg-white text-black p-8 overflow-y-auto max-h-[600px]">
               <div dangerouslySetInnerHTML={{ __html: envelope.document_html }} />
             </div>
@@ -289,14 +289,14 @@ export default function SignPage() {
 
         {/* Drawn Signature Preview (if captured, before submission) */}
         {drawnSignature && !signing && !signResult && (
-          <div className="p-4 border border-zinc-800 bg-zinc-950 space-y-3">
-            <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">Your Drawn Signature</p>
-            <div className="bg-white p-4 flex items-center justify-center max-h-32">
+          <div className="p-4 border border-zinc-800 bg-zinc-950 space-y-3 rounded-md">
+            <p className="text-xs text-zinc-500">Your Drawn Signature</p>
+            <div className="bg-white p-4 rounded flex items-center justify-center max-h-32">
               <div dangerouslySetInnerHTML={{ __html: drawnSignature.svg }} className="max-h-24 [&>svg]:max-h-24 [&>svg]:w-auto" />
             </div>
             <div className="flex items-center gap-2">
               <FiCheck className="text-green-400" size={12} />
-              <span className="font-mono text-[10px] text-green-400 uppercase tracking-widest">Captured</span>
+              <span className="text-xs text-green-400">Captured</span>
             </div>
           </div>
         )}
@@ -306,11 +306,11 @@ export default function SignPage() {
           <div className="pt-4">
             <button
               onClick={() => setShowSignature(true)}
-              className="w-full py-4 bg-white text-black font-mono font-black uppercase text-sm tracking-widest hover:bg-zinc-200 transition-all flex items-center justify-center gap-3"
+              className="w-full py-3.5 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200 transition-all flex items-center justify-center gap-2"
             >
               <FiEdit3 /> Sign Document
             </button>
-            <p className="text-center font-mono text-[10px] text-zinc-600 uppercase tracking-widest mt-3">
+            <p className="text-center text-sm text-zinc-500 mt-3">
               By signing, you confirm you have reviewed and agree to this document.
             </p>
           </div>
@@ -338,13 +338,13 @@ export default function SignPage() {
           <div className="pt-4 space-y-3">
             <button
               onClick={() => setShowWalletVerify(true)}
-              className="w-full py-4 bg-green-900/30 border border-green-700/50 text-green-400 font-mono font-black uppercase text-sm tracking-widest hover:bg-green-900/50 transition-all flex items-center justify-center gap-3"
+              className="w-full py-3.5 bg-green-900/30 border border-green-700/50 text-green-400 font-medium text-sm rounded-md hover:bg-green-900/50 transition-all flex items-center justify-center gap-2"
             >
               <FiShield /> Verify with HandCash Wallet
             </button>
             <button
               onClick={handleSkipWallet}
-              className="w-full py-3 bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono uppercase text-xs tracking-widest hover:bg-zinc-800 transition-all"
+              className="w-full py-3 bg-zinc-900 border border-zinc-800 text-zinc-400 text-sm rounded-md hover:bg-zinc-800 transition-all"
             >
               Submit Without Wallet Verification
             </button>
@@ -354,11 +354,11 @@ export default function SignPage() {
         {/* Processing Overlay */}
         {signing && (
           <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-2xl flex items-center justify-center">
-            <div className="flex flex-col items-center gap-8">
+            <div className="flex flex-col items-center gap-6">
               <div className="w-16 h-16 border-t-2 border-white animate-spin rounded-full opacity-30" />
-              <div className="text-center space-y-2">
-                <span className="block font-mono text-sm text-white font-black uppercase tracking-[0.5em] italic">Signing</span>
-                <span className="block font-mono text-[10px] text-zinc-600 uppercase tracking-widest">Recording signature on blockchain...</span>
+              <div className="text-center space-y-1">
+                <span className="block text-base text-white font-medium">Signing...</span>
+                <span className="block text-sm text-zinc-500">Recording signature on blockchain</span>
               </div>
             </div>
           </div>

@@ -101,7 +101,7 @@ export default function DocumentsPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center">
-        <div className="w-12 h-12 border-t-2 border-white animate-spin opacity-20" />
+        <div className="w-12 h-12 border-t-2 border-white animate-spin rounded-full opacity-20" />
       </div>
     );
   }
@@ -109,12 +109,12 @@ export default function DocumentsPage() {
   if (!handle) {
     return (
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-6 text-center">
-        <h1 className="text-4xl font-mono font-black mb-6 tracking-tighter uppercase italic">Access Denied</h1>
-        <p className="text-zinc-500 font-mono text-[10px] tracking-[0.4em] uppercase mb-10">
+        <h1 className="text-3xl font-bold mb-4 tracking-tight">Sign in required</h1>
+        <p className="text-zinc-400 text-base mb-8">
           Connect your HandCash wallet to manage documents.
         </p>
-        <Link href="/api/auth/handcash" className="px-12 py-4 bg-white text-black font-mono font-bold uppercase text-xs tracking-widest hover:bg-zinc-200 transition-all">
-          Connect Wallet
+        <Link href="/api/auth/handcash" className="px-8 py-3 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200 transition-all">
+          Sign in with HandCash
         </Link>
       </div>
     );
@@ -130,36 +130,36 @@ export default function DocumentsPage() {
     const iNeedToSign = mySigner && mySigner.status !== 'signed' && nextSigner?.order === mySigner.order;
 
     return (
-      <div key={envelope.id} className="border border-zinc-900 bg-black">
+      <div key={envelope.id} className="border border-zinc-900 bg-black rounded-md">
         {/* Main Row */}
         <div
           className="group hover:bg-zinc-950 transition-colors p-5 grid md:grid-cols-12 gap-4 items-center relative cursor-pointer"
           onClick={() => setExpandedId(isExpanded ? null : envelope.id)}
         >
-          <div className="absolute left-0 top-0 bottom-0 w-1 bg-zinc-900 group-hover:bg-white transition-colors" />
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-zinc-900 group-hover:bg-white transition-colors rounded-l-md" />
 
-          <div className="md:col-span-1 text-zinc-600 group-hover:text-white transition-colors">
-            <FiFileText size={20} />
+          <div className="md:col-span-1 text-zinc-600 group-hover:text-white transition-colors pl-2">
+            <FiFileText size={18} />
           </div>
 
-          <div className="md:col-span-4 space-y-1">
-            <span className="font-mono font-black text-sm uppercase tracking-wider text-white">
+          <div className="md:col-span-4 space-y-0.5">
+            <span className="text-sm font-medium text-white">
               {envelope.title}
             </span>
-            <div className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest">
+            <div className="text-xs text-zinc-500">
               {envelope.document_type.replace(/_/g, ' ')}
             </div>
           </div>
 
           <div className="md:col-span-2">
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-[10px] font-mono uppercase tracking-widest ${config.color}`}>
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded ${config.color}`}>
               <StatusIcon size={10} />
               {config.label}
             </span>
           </div>
 
           <div className="md:col-span-2 text-right">
-            <span className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">
+            <span className="text-sm text-zinc-500">
               {signedCount}/{envelope.signers.length} signed
             </span>
           </div>
@@ -169,7 +169,7 @@ export default function DocumentsPage() {
               <Link
                 href={`/sign/${mySigner.signing_token}`}
                 onClick={(e) => e.stopPropagation()}
-                className="px-3 py-1.5 bg-white text-black font-mono font-black uppercase text-[10px] tracking-widest hover:bg-zinc-200 transition-all"
+                className="px-3 py-1.5 bg-white text-black font-medium text-xs rounded-md hover:bg-zinc-200 transition-all"
               >
                 Sign
               </Link>
@@ -179,7 +179,7 @@ export default function DocumentsPage() {
                 href={`https://whatsonchain.com/tx/${envelope.inscription_txid}`}
                 target="_blank"
                 onClick={(e) => e.stopPropagation()}
-                className="w-8 h-8 border border-zinc-800 flex items-center justify-center text-zinc-600 hover:text-white hover:border-white transition-all bg-black"
+                className="w-8 h-8 border border-zinc-800 rounded-md flex items-center justify-center text-zinc-600 hover:text-white hover:border-white transition-all bg-black"
                 title="View on blockchain"
               >
                 <FiExternalLink size={12} />
@@ -188,7 +188,7 @@ export default function DocumentsPage() {
           </div>
 
           <div className="md:col-span-1 flex justify-end">
-            {isExpanded ? <FiChevronUp size={14} className="text-zinc-600" /> : <FiChevronDown size={14} className="text-zinc-600" />}
+            {isExpanded ? <FiChevronUp size={14} className="text-zinc-500" /> : <FiChevronDown size={14} className="text-zinc-500" />}
           </div>
         </div>
 
@@ -197,7 +197,7 @@ export default function DocumentsPage() {
           <div className="border-t border-zinc-900 p-5 space-y-4 bg-zinc-950/50">
             {/* Signers */}
             <div className="space-y-2">
-              <h4 className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">Signers</h4>
+              <h4 className="text-xs text-zinc-500 font-medium">Signers</h4>
               {envelope.signers
                 .sort((a: Signer, b: Signer) => a.order - b.order)
                 .map((signer: Signer, i: number) => (
@@ -209,13 +209,13 @@ export default function DocumentsPage() {
                       <FiClock className="text-zinc-600" size={14} />
                     )}
                     <div>
-                      <span className="font-mono text-xs font-bold uppercase tracking-wider">{signer.name}</span>
-                      <span className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest ml-2">{signer.role}</span>
+                      <span className="text-sm font-medium">{signer.name}</span>
+                      <span className="text-xs text-zinc-500 ml-2">{signer.role}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     {signer.status === 'signed' ? (
-                      <span className="font-mono text-[10px] text-green-400 uppercase tracking-widest">
+                      <span className="text-xs text-green-400">
                         Signed {signer.signed_at ? new Date(signer.signed_at).toLocaleDateString() : ''}
                       </span>
                     ) : signer.signing_token ? (
@@ -225,7 +225,7 @@ export default function DocumentsPage() {
                             e.stopPropagation();
                             setSendModal({ envelopeId: envelope.id, signer });
                           }}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 border text-[10px] font-mono uppercase tracking-widest transition-all ${
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 border text-xs rounded-md transition-all ${
                             signer.email_sent_at
                               ? 'border-green-900 text-green-600 bg-green-950/20'
                               : 'border-zinc-800 text-zinc-400 hover:text-white hover:border-white bg-black'
@@ -242,7 +242,7 @@ export default function DocumentsPage() {
                             e.stopPropagation();
                             copySigningUrl(signer.signing_token!, signer.name);
                           }}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 border text-[10px] font-mono uppercase tracking-widest transition-all ${
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 border text-xs rounded-md transition-all ${
                             copiedToken === signer.signing_token
                               ? 'border-green-700 text-green-400 bg-green-950/30'
                               : 'border-zinc-800 text-zinc-400 hover:text-white hover:border-white bg-black'
@@ -256,7 +256,7 @@ export default function DocumentsPage() {
                         </button>
                       </div>
                     ) : (
-                      <span className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest">Pending</span>
+                      <span className="text-xs text-zinc-600">Pending</span>
                     )}
                   </div>
                 </div>
@@ -267,7 +267,7 @@ export default function DocumentsPage() {
             <div className="flex items-center gap-3 pt-2">
               <Link
                 href={`/verify/${envelope.id}`}
-                className="inline-flex items-center gap-1.5 px-4 py-2 border border-zinc-800 text-zinc-400 hover:text-white hover:border-white font-mono text-[10px] uppercase tracking-widest transition-all"
+                className="inline-flex items-center gap-1.5 px-4 py-2 border border-zinc-800 text-zinc-400 hover:text-white hover:border-white text-xs rounded-md transition-all"
               >
                 <FiShield size={10} /> Verify
               </Link>
@@ -276,14 +276,14 @@ export default function DocumentsPage() {
                 <a
                   href={`/api/envelopes/${envelope.id}/pdf`}
                   target="_blank"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 border border-zinc-800 text-zinc-400 hover:text-white hover:border-white font-mono text-[10px] uppercase tracking-widest transition-all"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 border border-zinc-800 text-zinc-400 hover:text-white hover:border-white text-xs rounded-md transition-all"
                 >
                   <FiFileText size={10} /> Download PDF
                 </a>
               )}
 
-              <span className="font-mono text-[10px] text-zinc-700 uppercase tracking-widest ml-auto">
-                Hash: {envelope.document_hash.slice(0, 16)}...
+              <span className="font-mono text-xs text-zinc-600 ml-auto">
+                {envelope.document_hash.slice(0, 16)}...
               </span>
             </div>
           </div>
@@ -303,14 +303,14 @@ export default function DocumentsPage() {
         {/* Header */}
         <header className="flex items-end justify-between border-b border-zinc-900 pb-8">
           <div>
-            <h1 className="text-5xl font-mono font-black tracking-tighter uppercase italic">Documents</h1>
-            <p className="text-zinc-600 font-mono text-[10px] tracking-[0.4em] uppercase mt-2">
-              Blockchain-Verified Signing Envelopes
+            <h1 className="text-4xl font-bold tracking-tight">Documents</h1>
+            <p className="text-zinc-500 text-sm mt-1">
+              Your signing envelopes
             </p>
           </div>
           <Link
             href="/user/documents/new"
-            className="px-8 py-4 bg-white text-black font-mono font-black uppercase text-xs tracking-[0.2em] hover:bg-zinc-200 transition-all flex items-center gap-3"
+            className="px-6 py-3 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200 transition-all flex items-center gap-2"
           >
             <FiPlus /> New Document
           </Link>
@@ -318,14 +318,14 @@ export default function DocumentsPage() {
 
         {/* Created Envelopes */}
         <section className="space-y-4">
-          <h3 className="text-[10px] font-mono font-black uppercase tracking-[0.4em] text-zinc-500 flex items-center gap-2">
-            <span className="w-1 h-1 bg-white" /> Your Documents ({created.length})
+          <h3 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
+            <span className="w-2 h-2 bg-white rounded-full" /> Your Documents ({created.length})
           </h3>
           {created.length === 0 ? (
-            <div className="py-20 flex flex-col items-center justify-center border border-dashed border-zinc-900 text-center">
-              <FiFileText className="text-zinc-800 text-4xl mb-4" />
-              <p className="font-mono text-sm text-zinc-500 uppercase tracking-[0.2em] font-bold">No documents yet</p>
-              <p className="font-mono text-xs text-zinc-700 uppercase tracking-widest mt-2">
+            <div className="py-16 flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-md text-center">
+              <FiFileText className="text-zinc-700 text-3xl mb-4" />
+              <p className="text-base text-zinc-400 font-medium">No documents yet</p>
+              <p className="text-sm text-zinc-600 mt-1">
                 Create your first signing envelope.
               </p>
             </div>
@@ -339,8 +339,8 @@ export default function DocumentsPage() {
         {/* To Sign */}
         {toSign.length > 0 && (
           <section className="space-y-4">
-            <h3 className="text-[10px] font-mono font-black uppercase tracking-[0.4em] text-amber-500 flex items-center gap-2">
-              <span className="w-1 h-1 bg-amber-500" /> Needs Your Signature
+            <h3 className="text-sm font-medium text-amber-500 flex items-center gap-2">
+              <span className="w-2 h-2 bg-amber-500 rounded-full" /> Needs Your Signature
             </h3>
             <div className="space-y-2">
               {toSign.map(renderEnvelopeRow)}
