@@ -55,13 +55,13 @@ export default async function BitSignPage() {
                   </Link>
                 </div>
               ) : (
-                <Link
+                <a
                   href="/api/auth/handcash"
                   className="px-10 py-4 bg-white text-black font-semibold text-sm rounded-md transition-all hover:bg-zinc-200 flex items-center gap-3 shadow-[0_0_40px_rgba(255,255,255,0.15)]"
                 >
                   <FiZap className="w-4 h-4 text-black" />
                   Sign in with HandCash
-                </Link>
+                </a>
               )}
             </div>
           </HeroAnimation>

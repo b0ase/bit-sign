@@ -508,12 +508,12 @@ export default function AccountPage() {
                 <p className="text-zinc-400 mb-8 max-w-md text-base leading-relaxed">
                     Connect your HandCash wallet to access your account.
                 </p>
-                <Link
+                <a
                     href="/api/auth/handcash?returnTo=/user/account"
                     className="px-8 py-3 bg-white text-black font-medium rounded-md transition-all hover:bg-zinc-200 text-sm"
                 >
                     Sign in with HandCash
-                </Link>
+                </a>
             </div>
         );
     }
@@ -904,12 +904,12 @@ export default function AccountPage() {
                         <span className="text-sm text-zinc-600">
                             {handle}
                         </span>
-                        <Link
+                        <a
                             href="/api/auth/logout"
                             className="text-sm text-red-900 hover:text-red-500 transition-colors"
                         >
                             Sign Out
-                        </Link>
+                        </a>
                     </div>
                     <p className="text-[11px] tracking-[0.25em] uppercase text-zinc-700 text-center">
                         A Bitcoin Corporation Product

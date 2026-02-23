@@ -15,6 +15,19 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Bit-Sign — Document Signing on Bitcoin",
   description: "Sign documents with blockchain-verified proof. Fast, secure, and permanent.",
+  openGraph: {
+    title: "Bit-Sign — Document Signing on Bitcoin",
+    description: "Sign documents with blockchain-verified proof. Fast, secure, and permanent.",
+    images: [{ url: "/bit-sign-online.jpg" }],
+    siteName: "Bit-Sign",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Bit-Sign — Document Signing on Bitcoin",
+    description: "Sign documents with blockchain-verified proof. Fast, secure, and permanent.",
+    images: ["/bit-sign-online.jpg"],
+  },
 };
 
 import Navbar from "@/components/Navbar";

@@ -172,7 +172,7 @@ export default function NewDocumentPage() {
     return (
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-6 text-center">
         <h1 className="text-3xl font-bold mb-4 tracking-tight">Sign in required</h1>
-        <Link href="/api/auth/handcash" className="px-8 py-3 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200">Sign in with HandCash</Link>
+        <a href="/api/auth/handcash" className="px-8 py-3 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200">Sign in with HandCash</a>
       </div>
     );
   }

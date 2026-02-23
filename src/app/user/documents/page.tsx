@@ -113,9 +113,9 @@ export default function DocumentsPage() {
         <p className="text-zinc-400 text-base mb-8">
           Connect your HandCash wallet to manage documents.
         </p>
-        <Link href="/api/auth/handcash" className="px-8 py-3 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200 transition-all">
+        <a href="/api/auth/handcash" className="px-8 py-3 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200 transition-all">
           Sign in with HandCash
-        </Link>
+        </a>
       </div>
     );
   }

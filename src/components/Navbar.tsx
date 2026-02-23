@@ -49,20 +49,20 @@ export default function Navbar() {
                                 <span className="text-sm text-neutral-400 group-hover:text-white transition-colors">Account</span>
                                 <span className="text-sm text-white font-medium">${handle}</span>
                             </Link>
-                            <Link
+                            <a
                                 href="/api/auth/logout"
                                 className="px-3 py-1.5 text-sm text-zinc-600 hover:text-red-400 transition-colors"
                             >
                                 Sign Out
-                            </Link>
+                            </a>
                         </>
                     ) : (
-                        <Link
+                        <a
                             href="/api/auth/handcash"
                             className="px-5 py-2 bg-white text-black text-sm font-medium rounded-md hover:bg-neutral-200 transition-colors"
                         >
                             Sign in with HandCash
-                        </Link>
+                        </a>
                     )}
                 </div>
             </div>
