@@ -1,34 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserAccount } from '@/lib/handcash';
-import { SEED_PHRASE } from '@/lib/attestation';
+import { supabaseAdmin } from '@/lib/supabase';
 
 /**
- * Returns a cryptographically signed seed for client-side encryption.
- * This seed is unique to the user but consistent across sessions.
+ * Returns a persistent encryption key for client-side encryption.
+ * The key is generated once per user and stored in the database,
+ * so it survives HandCash re-authentication (unlike session-derived keys).
  */
 export async function GET(request: NextRequest) {
     try {
         const authToken = request.cookies.get('handcash_auth_token')?.value;
-
         if (!authToken) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const userAccount = getUserAccount(authToken);
-        if (!userAccount) {
-            return NextResponse.json({ error: 'HandCash not configured' }, { status: 500 });
+        const handleCookie = request.cookies.get('handcash_handle')?.value;
+        if (!handleCookie) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // We sign a fixed string to get a repeatable, user-specific seed for encryption
-        const signature = await userAccount.profile.signData({
-            value: SEED_PHRASE,
-            format: 'utf-8'
-        });
+        // Check if user already has a stored encryption key
+        const { data: identity } = await supabaseAdmin
+            .from('bit_sign_identities')
+            .select('encryption_key')
+            .eq('user_handle', handleCookie)
+            .maybeSingle();
+
+        if (identity?.encryption_key) {
+            return NextResponse.json({
+                success: true,
+                encryptionSeed: identity.encryption_key,
+            });
+        }
+
+        // Generate a permanent encryption key (64 hex chars = 256 bits)
+        const keyBytes = new Uint8Array(32);
+        crypto.getRandomValues(keyBytes);
+        const encryptionKey = Array.from(keyBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+
+        // Store it — upsert in case identity row exists without key
+        if (identity) {
+            await supabaseAdmin
+                .from('bit_sign_identities')
+                .update({ encryption_key: encryptionKey })
+                .eq('user_handle', handleCookie);
+        } else {
+            // Create identity row with key (user hasn't minted yet)
+            await supabaseAdmin
+                .from('bit_sign_identities')
+                .insert({
+                    user_handle: handleCookie,
+                    encryption_key: encryptionKey,
+                    metadata: {},
+                });
+        }
 
         return NextResponse.json({
             success: true,
-            encryptionSeed: signature.signature,
-            publicKey: signature.publicKey
+            encryptionSeed: encryptionKey,
         });
     } catch (error: any) {
         console.error('Encryption Seed Error:', error);
