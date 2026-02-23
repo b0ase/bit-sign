@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { encryptDocument, bufferToBase64, decryptDocument, base64ToBuffer } from '@/lib/attestation';
+import { encryptDocument, bufferToBase64 } from '@/lib/attestation';
 import SovereignSignature from '@/components/SovereignSignature';
 import MediaCapture from '@/components/MediaCapture';
 import {
@@ -276,28 +276,15 @@ export default function AccountPage() {
         }
     };
 
-    const downloadSignature = async (sigId: string, fileName?: string, mimeType?: string) => {
-        if (!encryptionSeed) return;
+    const downloadSignature = async (sigId: string, fileName?: string) => {
         try {
-            const res = await fetch(`/api/bitsign/signatures/${sigId}`);
-            if (!res.ok) throw new Error('Failed to fetch');
-            const data = await res.json();
-
-            const encryptedBuffer = new Uint8Array(base64ToBuffer(data.encrypted_payload) as ArrayBuffer);
-            const ivBuffer = new Uint8Array(base64ToBuffer(data.iv) as ArrayBuffer);
-            const decrypted = await decryptDocument(encryptedBuffer, ivBuffer, encryptionSeed);
-
-            const type = mimeType || 'application/octet-stream';
-            const blob = new Blob([decrypted], { type });
-            const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url;
+            a.href = `/api/bitsign/signatures/${sigId}/preview`;
             a.download = fileName || `bit-sign-${sigId.slice(0, 8)}`;
             a.click();
-            URL.revokeObjectURL(url);
         } catch (error) {
             console.error('Download failed:', error);
-            alert('Failed to decrypt and download. Please try again.');
+            alert('Failed to download. Please try again.');
         }
     };
 
@@ -305,7 +292,6 @@ export default function AccountPage() {
         // Toggle off if already viewing this one
         if (expandedSig === sig.id) {
             setExpandedSig(null);
-            if (previewData?.url?.startsWith('blob:')) URL.revokeObjectURL(previewData.url);
             setPreviewData(null);
             return;
         }
@@ -313,58 +299,42 @@ export default function AccountPage() {
         setPreviewLoading(true);
         setPreviewData(null);
 
-        // If no encryption seed, just show metadata (no preview)
-        if (!encryptionSeed) {
-            setPreviewData({ url: '', type: 'no-key' });
-            setPreviewLoading(false);
-            return;
-        }
-
         try {
-            const res = await fetch(`/api/bitsign/signatures/${sig.id}`);
-            if (!res.ok) throw new Error('Failed to fetch signature data');
-            const data = await res.json();
+            // Use server-side decrypt endpoint — no client-side crypto needed
+            const previewUrl = `/api/bitsign/signatures/${sig.id}/preview`;
 
-            if (!data.encrypted_payload || !data.iv) {
-                setPreviewData({ url: '', type: 'no-data' });
-                return;
-            }
-
-            const encryptedBuffer = new Uint8Array(base64ToBuffer(data.encrypted_payload) as ArrayBuffer);
-            const ivBuffer = new Uint8Array(base64ToBuffer(data.iv) as ArrayBuffer);
-
-            let decrypted: ArrayBuffer;
-            try {
-                decrypted = await decryptDocument(encryptedBuffer, ivBuffer, encryptionSeed);
-            } catch (decryptError) {
-                console.error('Decryption failed (key may have changed):', decryptError);
-                setPreviewData({ url: '', type: 'decrypt-failed' });
-                return;
-            }
-
-            if (sig.signature_type === 'TLDRAW') {
-                const svgText = new TextDecoder().decode(decrypted);
-                const blob = new Blob([svgText], { type: 'image/svg+xml' });
-                setPreviewData({ url: URL.createObjectURL(blob), type: 'svg' });
-            } else if (sig.signature_type === 'DOCUMENT') {
-                const mimeType = sig.metadata?.mimeType || 'application/pdf';
-                const fileName = sig.metadata?.fileName || '';
-                if (mimeType.startsWith('image/') || fileName.match(/\.(png|jpg|jpeg|gif|webp)$/i)) {
-                    const blob = new Blob([decrypted], { type: mimeType.startsWith('image/') ? mimeType : 'image/png' });
-                    setPreviewData({ url: URL.createObjectURL(blob), type: 'image' });
-                } else if (mimeType === 'application/pdf' || fileName.match(/\.pdf$/i)) {
-                    const blob = new Blob([decrypted], { type: 'application/pdf' });
-                    setPreviewData({ url: URL.createObjectURL(blob), type: 'pdf' });
-                } else {
-                    setPreviewData({ url: '', type: 'unsupported' });
+            // Check if the endpoint works before setting the preview
+            const res = await fetch(previewUrl);
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({ error: 'Unknown error' }));
+                if (res.status === 422) {
+                    setPreviewData({ url: '', type: 'decrypt-failed' });
+                    return;
                 }
-            } else if (sig.signature_type === 'CAMERA') {
-                const mimeType = sig.metadata?.mimeType || 'image/png';
-                const blob = new Blob([decrypted], { type: mimeType });
+                if (res.status === 404 && errData.error === 'No encrypted data') {
+                    setPreviewData({ url: '', type: 'no-data' });
+                    return;
+                }
+                if (res.status === 400) {
+                    setPreviewData({ url: '', type: 'no-key' });
+                    return;
+                }
+                throw new Error(errData.error || 'Failed to load');
+            }
+
+            const contentType = res.headers.get('content-type') || '';
+
+            if (sig.signature_type === 'TLDRAW' || contentType.includes('svg')) {
+                const blob = await res.blob();
+                setPreviewData({ url: URL.createObjectURL(blob), type: 'svg' });
+            } else if (contentType.startsWith('image/')) {
+                const blob = await res.blob();
                 setPreviewData({ url: URL.createObjectURL(blob), type: 'image' });
-            } else if (sig.signature_type === 'VIDEO') {
-                const mimeType = sig.metadata?.mimeType || 'video/webm';
-                const blob = new Blob([decrypted], { type: mimeType });
+            } else if (contentType === 'application/pdf') {
+                const blob = await res.blob();
+                setPreviewData({ url: URL.createObjectURL(blob), type: 'pdf' });
+            } else if (contentType.startsWith('video/')) {
+                const blob = await res.blob();
                 setPreviewData({ url: URL.createObjectURL(blob), type: 'video' });
             } else {
                 setPreviewData({ url: '', type: 'unsupported' });
@@ -740,7 +710,7 @@ export default function AccountPage() {
                                                 {/* Actions bar */}
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <button
-                                                        onClick={(e) => { e.stopPropagation(); downloadSignature(sig.id, sig.metadata?.fileName, sig.metadata?.mimeType); }}
+                                                        onClick={(e) => { e.stopPropagation(); downloadSignature(sig.id, sig.metadata?.fileName); }}
                                                         className="px-3 py-2 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
                                                     >
                                                         <FiDownload size={14} /> Download
