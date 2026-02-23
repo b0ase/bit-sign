@@ -11,11 +11,12 @@ export async function GET(
 ) {
     try {
         const { id } = await params;
-        const authToken = request.cookies.get('handcash_auth_token')?.value;
         const handleCookie = request.cookies.get('handcash_handle')?.value;
+        const allCookieNames = request.cookies.getAll().map(c => c.name);
+        console.log('[Preview] cookies present:', allCookieNames, 'handle:', handleCookie || 'MISSING');
 
         if (!handleCookie) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            return NextResponse.json({ error: 'Unauthorized — no handle cookie', cookies: allCookieNames }, { status: 401 });
         }
 
         // Get the signature data

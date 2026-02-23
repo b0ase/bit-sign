@@ -7,11 +7,12 @@ export async function DELETE(
 ) {
     try {
         const { id } = await params;
-        const authToken = request.cookies.get('handcash_auth_token')?.value;
         const handleCookie = request.cookies.get('handcash_handle')?.value;
+        const allCookieNames = request.cookies.getAll().map(c => c.name);
+        console.log('[Delete] cookies present:', allCookieNames, 'handle:', handleCookie || 'MISSING');
 
         if (!handleCookie) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            return NextResponse.json({ error: 'Unauthorized — no handle cookie', cookies: allCookieNames }, { status: 401 });
         }
 
         // Only delete if it belongs to this user
