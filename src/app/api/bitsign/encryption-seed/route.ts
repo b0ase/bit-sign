@@ -9,11 +9,8 @@ import { supabaseAdmin } from '@/lib/supabase';
 export async function GET(request: NextRequest) {
     try {
         const authToken = request.cookies.get('handcash_auth_token')?.value;
-        if (!authToken) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
         const handleCookie = request.cookies.get('handcash_handle')?.value;
+
         if (!handleCookie) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
@@ -25,11 +22,17 @@ export async function GET(request: NextRequest) {
             .eq('user_handle', handleCookie)
             .maybeSingle();
 
+        // Return existing key (doesn't require auth token — user already proved identity)
         if (identity?.encryption_key) {
             return NextResponse.json({
                 success: true,
                 encryptionSeed: identity.encryption_key,
             });
+        }
+
+        // Creating a new key requires auth token
+        if (!authToken) {
+            return NextResponse.json({ error: 'Authentication required to initialize encryption' }, { status: 401 });
         }
 
         // Generate a permanent encryption key (64 hex chars = 256 bits)

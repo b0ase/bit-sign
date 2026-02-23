@@ -185,11 +185,9 @@ export default function AccountPage() {
     const fetchEncryptionSeed = async () => {
         try {
             const res = await fetch('/api/bitsign/encryption-seed');
-            if (res.status === 401) {
-                // Auth token expired — clear stale handle cookie and show login
-                document.cookie = 'handcash_handle=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-                setHandle(null);
-                setLoading(false);
+            if (!res.ok) {
+                // Auth token may be expired — encryption features unavailable
+                // but don't clear handle cookie (user can still view/delete/preview)
                 return;
             }
             const data = await res.json();
@@ -257,7 +255,12 @@ export default function AccountPage() {
     };
 
     const handleMediaCapture = async (blob: Blob) => {
-        if (!handle || !encryptionSeed) return;
+        if (!handle) return;
+        if (!encryptionSeed) {
+            alert('Session expired. Please sign in again to upload new items.');
+            window.location.href = '/api/auth/handcash';
+            return;
+        }
         setIsProcessing(true);
         try {
             const arrayBuffer = await blob.arrayBuffer();
@@ -278,6 +281,11 @@ export default function AccountPage() {
                 })
             });
             const data = await response.json();
+            if (response.status === 401) {
+                alert('Session expired. Please sign in again to upload new items.');
+                window.location.href = '/api/auth/handcash';
+                return;
+            }
             if (!response.ok) throw new Error(data.error || 'Failed');
 
             setSignatures(prev => [{
@@ -298,7 +306,12 @@ export default function AccountPage() {
 
     const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
-        if (!files || files.length === 0 || !handle || !encryptionSeed) return;
+        if (!files || files.length === 0 || !handle) return;
+        if (!encryptionSeed) {
+            alert('Session expired. Please sign in again to upload new items.');
+            window.location.href = '/api/auth/handcash';
+            return;
+        }
 
         setIsProcessing(true);
         try {
@@ -319,6 +332,11 @@ export default function AccountPage() {
                     })
                 });
                 const data = await response.json();
+                if (response.status === 401) {
+                    alert('Session expired. Please sign in again to upload new items.');
+                    window.location.href = '/api/auth/handcash';
+                    return;
+                }
                 if (!response.ok) throw new Error(data.error || 'Failed');
 
                 setSignatures(prev => [{
@@ -329,8 +347,9 @@ export default function AccountPage() {
                     metadata: { type: 'Encrypted Document', fileName: file.name }
                 }, ...prev]);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Document upload failed:', error);
+            alert(error?.message || 'Failed to upload. Please try again.');
         } finally {
             setIsProcessing(false);
         }
