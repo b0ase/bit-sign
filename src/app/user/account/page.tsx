@@ -119,6 +119,13 @@ export default function AccountPage() {
     const fetchEncryptionSeed = async () => {
         try {
             const res = await fetch('/api/bitsign/encryption-seed');
+            if (res.status === 401) {
+                // Auth token expired — clear stale handle cookie and show login
+                document.cookie = 'handcash_handle=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                setHandle(null);
+                setLoading(false);
+                return;
+            }
             const data = await res.json();
             if (data.encryptionSeed) setEncryptionSeed(data.encryptionSeed);
         } catch (error) {
@@ -158,12 +165,13 @@ export default function AccountPage() {
                     metadata: { type: 'Hand-written Signature' }
                 })
             });
-            const { txid } = await response.json();
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Failed');
 
             setSignatures(prev => [{
-                id: Math.random().toString(),
+                id: data.signature?.id || data.txid,
                 signature_type: 'TLDRAW',
-                txid,
+                txid: data.txid,
                 created_at: new Date().toISOString(),
                 metadata: { type: 'Hand-written Signature' }
             }, ...prev]);
@@ -197,12 +205,13 @@ export default function AccountPage() {
                     metadata: { type: label, mimeType: blob.type }
                 })
             });
-            const { txid } = await response.json();
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Failed');
 
             setSignatures(prev => [{
-                id: Math.random().toString(),
+                id: data.signature?.id || data.txid,
                 signature_type: type,
-                txid,
+                txid: data.txid,
                 created_at: new Date().toISOString(),
                 metadata: { type: label, mimeType: blob.type }
             }, ...prev]);
@@ -237,12 +246,13 @@ export default function AccountPage() {
                         metadata: { type: 'Encrypted Document', fileName: file.name }
                     })
                 });
-                const { txid } = await response.json();
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Failed');
 
                 setSignatures(prev => [{
-                    id: Math.random().toString(),
+                    id: data.signature?.id || data.txid,
                     signature_type: 'DOCUMENT',
-                    txid,
+                    txid: data.txid,
                     created_at: new Date().toISOString(),
                     metadata: { type: 'Encrypted Document', fileName: file.name }
                 }, ...prev]);
@@ -607,9 +617,9 @@ export default function AccountPage() {
                             <h3 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
                                 <span className="w-2 h-2 bg-green-500 rounded-full"></span> Signature History
                             </h3>
-                            <button className="text-sm text-zinc-600 hover:text-white transition-colors flex items-center gap-1.5">
+                            <Link href="/user/documents" className="text-sm text-zinc-600 hover:text-white transition-colors flex items-center gap-1.5">
                                 View Full History <FiExternalLink size={12} />
-                            </button>
+                            </Link>
                         </div>
 
                         <div className="space-y-2">
