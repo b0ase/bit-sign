@@ -641,8 +641,8 @@ export default function AccountPage() {
                                 </div>
                             </div>
                             <div className="text-center space-y-1">
-                                <span className="block text-base text-white font-medium">Inscribing...</span>
-                                <span className="block text-sm text-zinc-500">Writing to the blockchain</span>
+                                <span className="block text-base text-white font-medium">Processing...</span>
+                                <span className="block text-sm text-zinc-500">Encrypting and uploading</span>
                             </div>
                         </div>
                     </div>
