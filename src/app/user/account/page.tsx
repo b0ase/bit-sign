@@ -419,7 +419,7 @@ export default function AccountPage() {
                     Connect your HandCash wallet to access your account.
                 </p>
                 <Link
-                    href="/api/auth/handcash"
+                    href="/api/auth/handcash?returnTo=/user/account"
                     className="px-8 py-3 bg-white text-black font-medium rounded-md transition-all hover:bg-zinc-200 text-sm"
                 >
                     Sign in with HandCash
@@ -777,16 +777,21 @@ export default function AccountPage() {
                 </div>
 
                 {/* Session Footer */}
-                <footer className="pt-16 border-t border-zinc-900 flex justify-between items-center opacity-60 hover:opacity-100 transition-opacity">
-                    <span className="text-sm text-zinc-600">
-                        {handle}
-                    </span>
-                    <Link
-                        href="/api/auth/logout"
-                        className="text-sm text-red-900 hover:text-red-500 transition-colors"
-                    >
-                        Sign Out
-                    </Link>
+                <footer className="pt-16 border-t border-zinc-900 space-y-6">
+                    <div className="flex justify-between items-center opacity-60 hover:opacity-100 transition-opacity">
+                        <span className="text-sm text-zinc-600">
+                            {handle}
+                        </span>
+                        <Link
+                            href="/api/auth/logout"
+                            className="text-sm text-red-900 hover:text-red-500 transition-colors"
+                        >
+                            Sign Out
+                        </Link>
+                    </div>
+                    <p className="text-[11px] tracking-[0.25em] uppercase text-zinc-700 text-center">
+                        A Bitcoin Corporation Product
+                    </p>
                 </footer>
 
                 {/* Modals & Overlays */}

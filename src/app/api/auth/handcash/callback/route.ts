@@ -26,8 +26,11 @@ export async function GET(request: NextRequest) {
             // We continue even if DB fails so user can still use HandCash features
         }
 
-        // Create the response
-        const response = NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/`);
+        // Read returnTo from cookie, default to dashboard
+        const returnTo = request.cookies.get('auth_return_to')?.value || '/user/account';
+
+        // Create the response — redirect to where the user came from
+        const response = NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}${returnTo}`);
 
         // Set the auth token in an HTTP-only cookie
         response.cookies.set('handcash_auth_token', authToken, {
@@ -46,6 +49,9 @@ export async function GET(request: NextRequest) {
             maxAge: 60 * 60 * 24 * 30,
             path: '/',
         });
+
+        // Clear the returnTo cookie
+        response.cookies.delete('auth_return_to');
 
         return response;
     } catch (error) {

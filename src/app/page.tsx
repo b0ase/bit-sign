@@ -133,8 +133,11 @@ export default function BitSignPage() {
         </div>
       </section>
 
-      <footer className="border-t border-zinc-900 bg-black py-16 px-8 text-center">
-        <p className="text-sm text-zinc-600">
+      <footer className="border-t border-zinc-900 bg-black py-16 px-8 text-center space-y-2">
+        <p className="text-[11px] tracking-[0.25em] uppercase text-zinc-600">
+          A Bitcoin Corporation Product
+        </p>
+        <p className="text-sm text-zinc-700">
           &copy; 2026 Bit-Sign
         </p>
       </footer>
