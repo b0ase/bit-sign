@@ -358,17 +358,10 @@ export default function AccountPage() {
         }
     };
 
-    const handleStaleAuth = () => {
-        document.cookie = 'handcash_handle=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-        setHandle(null);
-        alert('Your session has expired. Please sign in again.');
-    };
-
     const deleteSignature = async (sigId: string) => {
         if (!confirm('Delete this item permanently?')) return;
         try {
             const res = await fetch(`/api/bitsign/signatures/${sigId}/delete`, { method: 'DELETE' });
-            if (res.status === 401) { handleStaleAuth(); return; }
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
                 throw new Error(data.error || 'Delete failed');
@@ -414,7 +407,6 @@ export default function AccountPage() {
             // Check if the endpoint works before setting the preview
             const res = await fetch(previewUrl);
             if (!res.ok) {
-                if (res.status === 401) { handleStaleAuth(); return; }
                 const errData = await res.json().catch(() => ({ error: 'Unknown error' }));
                 if (res.status === 422) {
                     setPreviewData({ url: '', type: 'decrypt-failed' });

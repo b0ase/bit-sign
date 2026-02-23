@@ -10,7 +10,7 @@ export async function DELETE(
         const authToken = request.cookies.get('handcash_auth_token')?.value;
         const handleCookie = request.cookies.get('handcash_handle')?.value;
 
-        if (!authToken || !handleCookie) {
+        if (!handleCookie) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
