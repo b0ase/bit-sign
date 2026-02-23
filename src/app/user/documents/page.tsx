@@ -5,8 +5,9 @@ import Link from 'next/link';
 import {
   FiFileText, FiPlus, FiClock, FiCheck, FiAlertCircle,
   FiExternalLink, FiEdit3, FiCopy, FiChevronDown, FiChevronUp,
-  FiSend, FiShield
+  FiSend, FiShield, FiMail
 } from 'react-icons/fi';
+import { SendEmailModal } from '@/components/SendEmailModal';
 
 interface Signer {
   name: string;
@@ -15,6 +16,9 @@ interface Signer {
   status: string;
   signed_at: string | null;
   signing_token?: string;
+  email?: string | null;
+  email_sent_at?: string | null;
+  email_sent_to?: string | null;
 }
 
 interface Envelope {
@@ -44,6 +48,10 @@ export default function DocumentsPage() {
   const [handle, setHandle] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [sendModal, setSendModal] = useState<{
+    envelopeId: string;
+    signer: Signer;
+  } | null>(null);
 
   useEffect(() => {
     const cookies = document.cookie.split('; ');
@@ -211,23 +219,42 @@ export default function DocumentsPage() {
                         Signed {signer.signed_at ? new Date(signer.signed_at).toLocaleDateString() : ''}
                       </span>
                     ) : signer.signing_token ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copySigningUrl(signer.signing_token!, signer.name);
-                        }}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 border text-[10px] font-mono uppercase tracking-widest transition-all ${
-                          copiedToken === signer.signing_token
-                            ? 'border-green-700 text-green-400 bg-green-950/30'
-                            : 'border-zinc-800 text-zinc-400 hover:text-white hover:border-white bg-black'
-                        }`}
-                      >
-                        {copiedToken === signer.signing_token ? (
-                          <><FiCheck size={10} /> Copied</>
-                        ) : (
-                          <><FiCopy size={10} /> Copy Link</>
-                        )}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSendModal({ envelopeId: envelope.id, signer });
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 border text-[10px] font-mono uppercase tracking-widest transition-all ${
+                            signer.email_sent_at
+                              ? 'border-green-900 text-green-600 bg-green-950/20'
+                              : 'border-zinc-800 text-zinc-400 hover:text-white hover:border-white bg-black'
+                          }`}
+                        >
+                          {signer.email_sent_at ? (
+                            <><FiCheck size={10} /> Sent</>
+                          ) : (
+                            <><FiMail size={10} /> Send</>
+                          )}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copySigningUrl(signer.signing_token!, signer.name);
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 border text-[10px] font-mono uppercase tracking-widest transition-all ${
+                            copiedToken === signer.signing_token
+                              ? 'border-green-700 text-green-400 bg-green-950/30'
+                              : 'border-zinc-800 text-zinc-400 hover:text-white hover:border-white bg-black'
+                          }`}
+                        >
+                          {copiedToken === signer.signing_token ? (
+                            <><FiCheck size={10} /> Copied</>
+                          ) : (
+                            <><FiCopy size={10} /> Copy Link</>
+                          )}
+                        </button>
+                      </div>
                     ) : (
                       <span className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest">Pending</span>
                     )}
@@ -263,6 +290,11 @@ export default function DocumentsPage() {
         )}
       </div>
     );
+  };
+
+  const handleEmailSent = () => {
+    fetchEnvelopes(); // Refresh to pick up email_sent_at
+    setSendModal(null);
   };
 
   return (
@@ -316,6 +348,20 @@ export default function DocumentsPage() {
           </section>
         )}
       </div>
+
+      {/* Send Email Modal */}
+      {sendModal && (
+        <SendEmailModal
+          isOpen={true}
+          onClose={() => setSendModal(null)}
+          onSent={handleEmailSent}
+          envelopeId={sendModal.envelopeId}
+          signerName={sendModal.signer.name}
+          signerRole={sendModal.signer.role}
+          signerEmail={sendModal.signer.email}
+          signingToken={sendModal.signer.signing_token!}
+        />
+      )}
     </div>
   );
 }
