@@ -286,6 +286,25 @@ export default function AccountPage() {
         }
     };
 
+    const deleteSignature = async (sigId: string) => {
+        if (!confirm('Delete this item permanently?')) return;
+        try {
+            const res = await fetch(`/api/bitsign/signatures/${sigId}/delete`, { method: 'DELETE' });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.error || 'Delete failed');
+            }
+            setSignatures(prev => prev.filter(s => s.id !== sigId));
+            if (expandedSig === sigId) {
+                setExpandedSig(null);
+                setPreviewData(null);
+            }
+        } catch (error) {
+            console.error('Delete failed:', error);
+            alert('Failed to delete. Please try again.');
+        }
+    };
+
     const downloadSignature = async (sigId: string, fileName?: string) => {
         try {
             const a = document.createElement('a');
@@ -742,9 +761,12 @@ export default function AccountPage() {
                                                             <FiExternalLink size={14} /> View on Chain
                                                         </a>
                                                     )}
-                                                    <span className="text-xs text-zinc-700 font-mono ml-auto">
-                                                        {sig.id.slice(0, 12)}...
-                                                    </span>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); deleteSignature(sig.id); }}
+                                                        className="px-3 py-2 border border-red-900/30 bg-black text-red-900 text-sm rounded-md hover:text-red-400 hover:border-red-800 transition-all flex items-center gap-2 ml-auto"
+                                                    >
+                                                        <FiX size={14} /> Delete
+                                                    </button>
                                                 </div>
                                             </div>
                                         )}
