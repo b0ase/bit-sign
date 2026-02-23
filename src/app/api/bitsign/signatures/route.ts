@@ -19,10 +19,10 @@ export async function GET(request: Request) {
 
         if (identityError) throw identityError;
 
-        // 2. Fetch Signature Chain
+        // 2. Fetch Signature Chain (exclude large encrypted_payload from list)
         const { data: signatures, error: sigError } = await supabaseAdmin
             .from('bit_sign_signatures')
-            .select('*')
+            .select('id, user_handle, signature_type, payload_hash, iv, txid, metadata, created_at')
             .eq('user_handle', handle)
             .order('created_at', { ascending: false });
 

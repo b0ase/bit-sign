@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { encryptDocument, bufferToBase64 } from '@/lib/attestation';
+import { encryptDocument, bufferToBase64, decryptDocument, base64ToBuffer } from '@/lib/attestation';
 import SovereignSignature from '@/components/SovereignSignature';
 import MediaCapture from '@/components/MediaCapture';
 import {
@@ -266,6 +266,31 @@ export default function AccountPage() {
             console.error('Identity mint failed:', error);
         } finally {
             setIsProcessing(false);
+        }
+    };
+
+    const downloadSignature = async (sigId: string, fileName?: string, mimeType?: string) => {
+        if (!encryptionSeed) return;
+        try {
+            const res = await fetch(`/api/bitsign/signatures/${sigId}`);
+            if (!res.ok) throw new Error('Failed to fetch');
+            const data = await res.json();
+
+            const encryptedBuffer = new Uint8Array(base64ToBuffer(data.encrypted_payload) as ArrayBuffer);
+            const ivBuffer = new Uint8Array(base64ToBuffer(data.iv) as ArrayBuffer);
+            const decrypted = await decryptDocument(encryptedBuffer, ivBuffer, encryptionSeed);
+
+            const type = mimeType || 'application/octet-stream';
+            const blob = new Blob([decrypted], { type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName || `bit-sign-${sigId.slice(0, 8)}`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Download failed:', error);
+            alert('Failed to decrypt and download. Please try again.');
         }
     };
 
@@ -579,8 +604,17 @@ export default function AccountPage() {
                                             </span>
                                         </div>
 
-                                        {/* Col 4: Action */}
-                                        <div className="md:col-span-2 flex justify-end">
+                                        {/* Col 4: Actions */}
+                                        <div className="md:col-span-2 flex justify-end gap-1.5">
+                                            {(sig.signature_type === 'DOCUMENT' || sig.signature_type === 'TLDRAW' || sig.signature_type === 'CAMERA' || sig.signature_type === 'VIDEO') && (
+                                                <button
+                                                    onClick={() => downloadSignature(sig.id, sig.metadata?.fileName, sig.metadata?.mimeType)}
+                                                    className="w-9 h-9 border border-zinc-800 rounded-md flex items-center justify-center text-zinc-600 hover:text-white hover:border-white transition-all bg-black"
+                                                    title="Download"
+                                                >
+                                                    <FiDownload size={14} />
+                                                </button>
+                                            )}
                                             {sig.txid && !sig.txid.startsWith('pending-') ? (
                                                 <a
                                                     href={`https://whatsonchain.com/tx/${sig.txid}`}
