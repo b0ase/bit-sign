@@ -14,7 +14,7 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { signing_token, signature_type, signature_data, signer_name, wallet_verification, payment_txid } = body;
+    const { signing_token, signature_type, signature_data, signer_name, wallet_verification, payment_txid, registered_signature_txid } = body;
 
     if (!signing_token || !signature_data) {
       return NextResponse.json({
@@ -78,6 +78,10 @@ export async function POST(
       data: signature_data,
       signer_name: signer_name || signer.name,
     };
+
+    if (registered_signature_txid) {
+      signatureRecord.registered_signature_txid = registered_signature_txid;
+    }
 
     // Store wallet verification if provided
     if (wallet_verification) {

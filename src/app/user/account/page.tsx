@@ -22,7 +22,9 @@ import {
     FiSettings,
     FiSend,
     FiEye,
-    FiX
+    FiX,
+    FiShield,
+    FiCheck
 } from 'react-icons/fi';
 
 interface Signature {
@@ -31,6 +33,9 @@ interface Signature {
     txid: string;
     created_at: string;
     metadata: any;
+    wallet_signed?: boolean;
+    wallet_signature?: string;
+    wallet_address?: string;
 }
 
 interface Identity {
@@ -40,6 +45,8 @@ interface Identity {
     github_handle?: string;
     github_id?: string;
     github_metadata?: any;
+    registered_signature_id?: string;
+    registered_signature_txid?: string;
 }
 
 export default function AccountPage() {
@@ -56,6 +63,65 @@ export default function AccountPage() {
     const [expandedSig, setExpandedSig] = useState<string | null>(null);
     const [previewData, setPreviewData] = useState<{ url: string; type: string } | null>(null);
     const [previewLoading, setPreviewLoading] = useState(false);
+    const [registeredSignatureId, setRegisteredSignatureId] = useState<string | null>(null);
+
+    const registerSignature = async (sigId: string) => {
+        setIsProcessing(true);
+        try {
+            const res = await fetch('/api/bitsign/register-signature', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ signature_id: sigId })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to register');
+            setRegisteredSignatureId(sigId);
+        } catch (error: any) {
+            console.error('Register signature failed:', error);
+            alert(error?.message || 'Failed to register signature.');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const attestSignature = async (sigId: string) => {
+        setIsProcessing(true);
+        try {
+            // Step 1: HandCash verify (sign a message + pay $0.01)
+            const verifyRes = await fetch('/api/bitsign/handcash-verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: `I attest this item belongs to $${handle}`,
+                })
+            });
+            const verifyData = await verifyRes.json();
+            if (!verifyRes.ok) throw new Error(verifyData.error || 'Wallet verification failed');
+
+            // Step 2: Store attestation
+            const attestRes = await fetch(`/api/bitsign/signatures/${sigId}/attest`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    wallet_signature: verifyData.signature,
+                    wallet_address: verifyData.walletAddress,
+                    payment_txid: verifyData.paymentTxid,
+                })
+            });
+            const attestData = await attestRes.json();
+            if (!attestRes.ok) throw new Error(attestData.error || 'Attestation failed');
+
+            // Update local state
+            setSignatures(prev => prev.map(s =>
+                s.id === sigId ? { ...s, wallet_signed: true, wallet_address: verifyData.walletAddress } : s
+            ));
+        } catch (error: any) {
+            console.error('Attest failed:', error);
+            alert(error?.message || 'Failed to sign with wallet.');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
 
     const exportIdentity = async () => {
         setIsProcessing(true);
@@ -138,7 +204,12 @@ export default function AccountPage() {
             const res = await fetch(`/api/bitsign/signatures?handle=${h}`);
             const data = await res.json();
             if (data.signatures) setSignatures(data.signatures);
-            if (data.identity) setIdentity(data.identity);
+            if (data.identity) {
+                setIdentity(data.identity);
+                if (data.identity.registered_signature_id) {
+                    setRegisteredSignatureId(data.identity.registered_signature_id);
+                }
+            }
         } catch (error) {
             console.error('Failed to fetch data:', error);
         } finally {
@@ -216,11 +287,11 @@ export default function AccountPage() {
                 created_at: new Date().toISOString(),
                 metadata: { type: label, mimeType: blob.type }
             }, ...prev]);
-
-            setCaptureMode(null);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Media capture failed:', error);
+            alert(error?.message || 'Failed to save. Please try again.');
         } finally {
+            setCaptureMode(null);
             setIsProcessing(false);
         }
     };
@@ -631,14 +702,14 @@ export default function AccountPage() {
                         </div>
                     </div>
 
-                    {/* Right Col: Signature History (8/12) */}
+                    {/* Right Col: Your Documents (8/12) */}
                     <div className="lg:col-span-8 space-y-8">
                         <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
                             <h3 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
-                                <span className="w-2 h-2 bg-green-500 rounded-full"></span> Signature History
+                                <span className="w-2 h-2 bg-green-500 rounded-full"></span> Your Documents
                             </h3>
                             <Link href="/user/documents" className="text-sm text-zinc-600 hover:text-white transition-colors flex items-center gap-1.5">
-                                View Full History <FiExternalLink size={12} />
+                                View All <FiExternalLink size={12} />
                             </Link>
                         </div>
 
@@ -653,8 +724,10 @@ export default function AccountPage() {
                                 signatures.map((sig) => {
                                     const isOnChain = sig.txid && !sig.txid.startsWith('pending-');
                                     const isExpanded = expandedSig === sig.id;
+                                    const isRegistered = sig.id === registeredSignatureId;
+                                    const isSigned = sig.wallet_signed;
                                     return (
-                                    <div key={sig.id} className="border border-zinc-900 rounded-md overflow-hidden">
+                                    <div key={sig.id} className={`border rounded-md overflow-hidden ${isRegistered ? 'border-green-800' : 'border-zinc-900'}`}>
                                         {/* Main row — clickable to expand */}
                                         <button
                                             onClick={() => previewSignature(sig)}
@@ -671,19 +744,30 @@ export default function AccountPage() {
 
                                             {/* Name + date */}
                                             <div className="flex-1 min-w-0">
-                                                <span className="block text-sm font-medium text-white truncate">
-                                                    {sig.metadata?.fileName || sig.metadata?.type || sig.signature_type}
-                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-medium text-white truncate">
+                                                        {sig.metadata?.fileName || sig.metadata?.type || sig.signature_type}
+                                                    </span>
+                                                    {isRegistered && (
+                                                        <span className="px-1.5 py-0.5 bg-green-950 text-green-400 text-[10px] rounded shrink-0 flex items-center gap-1">
+                                                            <FiCheck size={10} /> Registered
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <span className="block text-xs text-zinc-600">
                                                     {new Date(sig.created_at).toLocaleDateString()} at {new Date(sig.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                             </div>
 
-                                            {/* Status */}
-                                            {isOnChain ? (
+                                            {/* Signed/Unsigned status */}
+                                            {isSigned ? (
+                                                <span className="px-2 py-1 bg-green-950/30 text-green-400 text-xs rounded shrink-0 flex items-center gap-1">
+                                                    <FiShield size={10} /> Signed
+                                                </span>
+                                            ) : isOnChain ? (
                                                 <span className="px-2 py-1 bg-green-950/30 text-green-400 text-xs rounded shrink-0">On chain</span>
                                             ) : (
-                                                <span className="px-2 py-1 bg-zinc-900 text-zinc-500 text-xs rounded shrink-0">Stored</span>
+                                                <span className="px-2 py-1 bg-zinc-900 text-zinc-500 text-xs rounded shrink-0">Unsigned</span>
                                             )}
 
                                             {/* Expand arrow */}
@@ -739,6 +823,22 @@ export default function AccountPage() {
 
                                                 {/* Actions bar */}
                                                 <div className="flex items-center gap-2 flex-wrap">
+                                                    {sig.signature_type === 'TLDRAW' && isOnChain && !isRegistered && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); registerSignature(sig.id); }}
+                                                            className="px-3 py-2 bg-white text-black text-sm font-medium rounded-md hover:bg-zinc-200 transition-all flex items-center gap-2"
+                                                        >
+                                                            <FiEdit3 size={14} /> Use as Signing Signature
+                                                        </button>
+                                                    )}
+                                                    {!isSigned && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); attestSignature(sig.id); }}
+                                                            className="px-3 py-2 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
+                                                        >
+                                                            <FiShield size={14} /> Sign with HandCash
+                                                        </button>
+                                                    )}
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); downloadSignature(sig.id, sig.metadata?.fileName); }}
                                                         className="px-3 py-2 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"

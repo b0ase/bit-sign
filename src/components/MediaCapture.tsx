@@ -142,63 +142,63 @@ export default function MediaCapture({ mode, onCapture, onCancel }: MediaCapture
                     )}
 
                     {isRecording && (
-                        <div className="absolute top-6 left-6 flex items-center gap-3 px-4 py-2 bg-red-600 animate-pulse text-white font-mono text-[10px] font-black uppercase tracking-widest rounded-sm">
-                            <FiActivity /> Recording // 00:{recordingTime.toString().padStart(2, '0')}
+                        <div className="absolute top-6 left-6 flex items-center gap-3 px-4 py-2 bg-red-600 animate-pulse text-white text-sm font-medium rounded-md">
+                            <FiActivity /> Recording 0:{recordingTime.toString().padStart(2, '0')}
                         </div>
                     )}
                 </div>
 
-                <div className="p-10 flex items-center justify-between border-t border-white/[0.05] bg-zinc-950/50 backdrop-blur-md">
+                <div className="p-6 flex items-center justify-between border-t border-white/[0.05] bg-zinc-950/50 backdrop-blur-md">
                     <div className="space-y-1">
-                        <h3 className="font-mono font-black text-xs uppercase tracking-tight text-white">
-                            {mode === 'PHOTO' ? 'Visual Evidence' : 'Video Attestation'}
+                        <h3 className="text-sm font-medium text-white">
+                            {mode === 'PHOTO' ? 'Take Photo' : 'Record Video'}
                         </h3>
-                        <p className="font-mono text-[9px] text-zinc-500 uppercase tracking-widest leading-relaxed max-w-xs">
+                        <p className="text-xs text-zinc-500 max-w-xs">
                             {mode === 'PHOTO'
-                                ? 'Capture physical proof of identity or signed paper records.'
-                                : 'Record a statement of intent to be inscribed on-chain.'}
+                                ? 'Capture a photo for identity verification.'
+                                : 'Record a short video (max 10s).'}
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-4">
                         {!capturedBlob ? (
                             mode === 'PHOTO' ? (
                                 <button
                                     onClick={takePhoto}
-                                    className="w-20 h-20 bg-white text-black flex items-center justify-center rounded-full hover:scale-110 transition-transform active:scale-95 shadow-2xl"
+                                    className="w-16 h-16 bg-white text-black flex items-center justify-center rounded-full hover:scale-105 transition-transform active:scale-95 shadow-lg"
                                 >
-                                    <FiCamera size={32} />
+                                    <FiCamera size={24} />
                                 </button>
                             ) : (
                                 !isRecording ? (
                                     <button
                                         onClick={startRecording}
-                                        className="w-20 h-20 bg-red-600 text-white flex items-center justify-center rounded-full hover:scale-110 transition-transform active:scale-95 shadow-2xl border-4 border-white/20"
+                                        className="w-16 h-16 bg-red-600 text-white flex items-center justify-center rounded-full hover:scale-105 transition-transform active:scale-95 shadow-lg border-4 border-white/20"
                                     >
-                                        <FiVideo size={32} />
+                                        <FiVideo size={24} />
                                     </button>
                                 ) : (
                                     <button
                                         onClick={stopRecording}
-                                        className="w-20 h-20 bg-white text-black flex items-center justify-center rounded-full hover:scale-110 transition-transform active:scale-95 shadow-xl"
+                                        className="w-16 h-16 bg-white text-black flex items-center justify-center rounded-full hover:scale-105 transition-transform active:scale-95 shadow-lg"
                                     >
-                                        <div className="w-8 h-8 bg-current rounded-sm" />
+                                        <div className="w-6 h-6 bg-current rounded-sm" />
                                     </button>
                                 )
                             )
                         ) : (
-                            <div className="flex gap-4">
+                            <div className="flex gap-3">
                                 <button
                                     onClick={handleReset}
-                                    className="px-10 py-5 border border-white/10 text-white font-mono font-black uppercase text-[10px] tracking-widest hover:bg-white/5 transition-all flex items-center gap-3"
+                                    className="px-5 py-3 border border-zinc-700 text-white text-sm font-medium rounded-md hover:bg-zinc-800 transition-all flex items-center gap-2"
                                 >
-                                    <FiRotateCcw /> Retake
+                                    <FiRotateCcw size={14} /> Retake
                                 </button>
                                 <button
                                     onClick={handleConfirm}
-                                    className="px-10 py-5 bg-white text-black font-mono font-black uppercase text-[10px] tracking-widest hover:bg-zinc-200 transition-all flex items-center gap-3"
+                                    className="px-5 py-3 bg-white text-black text-sm font-medium rounded-md hover:bg-zinc-200 transition-all flex items-center gap-2"
                                 >
-                                    <FiCheck /> Inscribe Proof
+                                    <FiCheck size={14} /> Save
                                 </button>
                             </div>
                         )}

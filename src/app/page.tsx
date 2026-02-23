@@ -57,7 +57,9 @@ export default function BitSignPage() {
             </p>
 
             <div className="flex flex-wrap justify-center gap-6">
-              {handle ? (
+              {authLoading ? (
+                <div className="h-12" />
+              ) : handle ? (
                 <div className="flex flex-col items-center gap-4">
                   <p className="text-sm text-zinc-400">Signed in as <span className="text-white font-medium">${handle}</span></p>
                   <Link

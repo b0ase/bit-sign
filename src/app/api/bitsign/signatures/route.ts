@@ -22,7 +22,7 @@ export async function GET(request: Request) {
         // 2. Fetch Signature Chain (exclude large encrypted_payload from list)
         const { data: signatures, error: sigError } = await supabaseAdmin
             .from('bit_sign_signatures')
-            .select('id, user_handle, signature_type, payload_hash, iv, txid, metadata, created_at')
+            .select('id, user_handle, signature_type, payload_hash, iv, txid, metadata, created_at, wallet_signed, wallet_signature, wallet_address')
             .eq('user_handle', handle)
             .order('created_at', { ascending: false });
 

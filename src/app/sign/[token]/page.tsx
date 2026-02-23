@@ -53,8 +53,17 @@ export default function SignPage() {
     paymentTxid?: string;
   } | null>(null);
 
+  // Registered signature (pre-existing on-chain signature the user can reuse)
+  const [registeredSig, setRegisteredSig] = useState<{
+    svg: string;
+    txid: string;
+    id: string;
+  } | null>(null);
+  const [useRegistered, setUseRegistered] = useState(false);
+
   useEffect(() => {
     if (token) resolveToken();
+    fetchRegisteredSignature();
   }, [token]);
 
   const resolveToken = async () => {
@@ -74,6 +83,26 @@ export default function SignPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchRegisteredSignature = async () => {
+    try {
+      const res = await fetch('/api/bitsign/registered-signature');
+      const data = await res.json();
+      if (data.registered) {
+        setRegisteredSig({ svg: data.svg, txid: data.txid, id: data.id });
+      }
+    } catch {
+      // No registered signature — that's fine
+    }
+  };
+
+  // Sign with the pre-registered signature (skips drawing canvas)
+  const handleSignWithRegistered = () => {
+    if (!registeredSig) return;
+    setUseRegistered(true);
+    setDrawnSignature({ svg: registeredSig.svg, json: '' });
+    setShowWalletVerify(true);
   };
 
   // Step 1: Capture drawn signature
@@ -137,6 +166,7 @@ export default function SignPage() {
           signer_name: signer?.name,
           wallet_verification: wallet || undefined,
           payment_txid: paymentTxid || undefined,
+          registered_signature_txid: useRegistered ? registeredSig?.txid : undefined,
         }),
       });
 
@@ -328,16 +358,39 @@ export default function SignPage() {
           </div>
         )}
 
-        {/* Sign Button */}
+        {/* Sign Button — with registered signature option */}
         {signer?.status !== 'signed' && !drawnSignature && (
-          <div className="pt-4">
+          <div className="pt-4 space-y-4">
+            {registeredSig && (
+              <div className="p-4 border border-zinc-800 bg-zinc-950 rounded-md space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-zinc-400">Your Registered Signature</p>
+                  <span className="px-2 py-1 bg-green-950/30 text-green-400 text-xs rounded flex items-center gap-1">
+                    <FiShield size={10} /> On chain
+                  </span>
+                </div>
+                <div className="bg-white p-3 rounded flex items-center justify-center max-h-24">
+                  <div dangerouslySetInnerHTML={{ __html: registeredSig.svg }} className="max-h-20 [&>svg]:max-h-20 [&>svg]:w-auto" />
+                </div>
+                <button
+                  onClick={handleSignWithRegistered}
+                  className="w-full py-3.5 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200 transition-all flex items-center justify-center gap-2"
+                >
+                  <FiShield /> Sign with Your Registered Signature ($0.01)
+                </button>
+              </div>
+            )}
             <button
               onClick={() => setShowSignature(true)}
-              className="w-full py-3.5 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200 transition-all flex items-center justify-center gap-2"
+              className={`w-full py-3.5 font-medium text-sm rounded-md transition-all flex items-center justify-center gap-2 ${
+                registeredSig
+                  ? 'border border-zinc-800 bg-black text-zinc-400 hover:text-white hover:border-zinc-600'
+                  : 'bg-white text-black hover:bg-zinc-200'
+              }`}
             >
-              <FiEdit3 /> Sign Document
+              <FiEdit3 /> {registeredSig ? 'Draw a different signature' : 'Sign Document'}
             </button>
-            <p className="text-center text-sm text-zinc-500 mt-3">
+            <p className="text-center text-sm text-zinc-500">
               By signing, you confirm you have reviewed and agree to this document.
             </p>
           </div>
