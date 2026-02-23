@@ -144,7 +144,7 @@ export async function GET(
           {/* Created By */}
           <View style={styles.section}>
             <Text style={styles.label}>Created By</Text>
-            <Text style={styles.value}>${envelope.created_by_handle}</Text>
+            <Text style={styles.value}>{envelope.created_by_handle}</Text>
           </View>
 
           {/* Status */}

@@ -14,7 +14,7 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { signing_token, signature_type, signature_data, signer_name } = body;
+    const { signing_token, signature_type, signature_data, signer_name, wallet_verification } = body;
 
     if (!signing_token || !signature_data) {
       return NextResponse.json({
@@ -72,16 +72,26 @@ export async function POST(
       }, { status: 400 });
     }
 
-    // Record the signature
+    // Record the signature (drawn + optional wallet verification)
+    const signatureRecord: Record<string, any> = {
+      type: signature_type || 'drawn',
+      data: signature_data,
+      signer_name: signer_name || signer.name,
+    };
+
+    // Store wallet verification if provided
+    if (wallet_verification) {
+      signatureRecord.wallet_verified = true;
+      signatureRecord.wallet_type = wallet_verification.walletType;
+      signatureRecord.wallet_address = wallet_verification.walletAddress;
+      signatureRecord.wallet_signature = wallet_verification.signature;
+    }
+
     signers[signerIndex] = {
       ...signer,
       status: 'signed',
       signed_at: new Date().toISOString(),
-      signature_data: {
-        type: signature_type || 'drawn',
-        data: signature_data,
-        signer_name: signer_name || signer.name,
-      },
+      signature_data: signatureRecord,
     };
 
     // Determine new status
@@ -95,12 +105,19 @@ export async function POST(
 
     if (allSigned) {
       try {
+        // Include wallet-verified signers in inscription
+        const walletVerifiedSigners = signers
+          .filter((s: any) => s.signature_data?.wallet_verified)
+          .map((s: any) => `${s.name}:${s.signature_data.wallet_address}`);
+
         const result = await inscribeBitSignData({
           type: 'envelope_signing',
           envelopeId: id,
           envelopeTitle: envelope.title,
           documentHash: envelope.document_hash,
           signerName: signers.map((s: any) => s.name).join(', '),
+          walletAddress: walletVerifiedSigners.length > 0 ? walletVerifiedSigners.join(', ') : undefined,
+          walletType: walletVerifiedSigners.length > 0 ? 'handcash' : undefined,
           signedAt: new Date().toISOString(),
         });
 
@@ -135,6 +152,8 @@ export async function POST(
       role: signer.role,
       status: newStatus,
       all_signed: allSigned,
+      wallet_verified: !!wallet_verification,
+      wallet_type: wallet_verification?.walletType || null,
       inscription_txid: inscriptionTxid,
       explorer_url: inscriptionTxid ? `https://whatsonchain.com/tx/${inscriptionTxid}` : null,
     });

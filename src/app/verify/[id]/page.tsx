@@ -122,7 +122,7 @@ export default function VerifyPage() {
               <FiUser size={12} />
               <span className="text-[9px] font-mono uppercase tracking-widest">Created By</span>
             </div>
-            <span className="font-mono text-sm font-bold">${envelope.created_by}</span>
+            <span className="font-mono text-sm font-bold">{envelope.created_by}</span>
           </div>
           <div className="bg-black p-5 col-span-2">
             <div className="flex items-center gap-2 text-zinc-500 mb-2">

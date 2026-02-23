@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import SovereignSignature from '@/components/SovereignSignature';
+import { WalletSigningModal } from '@/components/bitsign/WalletSigningModal';
+import { generateSigningMessage } from './signing-message';
 import {
   FiCheck, FiClock, FiAlertCircle, FiFileText,
   FiEdit3, FiShield, FiExternalLink
@@ -40,6 +42,16 @@ export default function SignPage() {
   const [signing, setSigning] = useState(false);
   const [signResult, setSignResult] = useState<any>(null);
 
+  // Two-step signing: draw first, then optional wallet verify
+  const [drawnSignature, setDrawnSignature] = useState<{ svg: string; json: string } | null>(null);
+  const [showWalletVerify, setShowWalletVerify] = useState(false);
+  const [walletVerification, setWalletVerification] = useState<{
+    walletType: string;
+    walletAddress: string;
+    signature: string;
+    publicKey?: string;
+  } | null>(null);
+
   useEffect(() => {
     if (token) resolveToken();
   }, [token]);
@@ -63,10 +75,48 @@ export default function SignPage() {
     }
   };
 
-  const handleSign = async (signatureData: { svg: string; json: string }) => {
+  // Step 1: Capture drawn signature
+  const handleDrawnSignature = (signatureData: { svg: string; json: string }) => {
+    setDrawnSignature(signatureData);
+    setShowSignature(false);
+    // Show wallet verification step
+    setShowWalletVerify(true);
+  };
+
+  // Step 2: Wallet verification complete
+  const handleWalletVerify = (result: {
+    walletType: string;
+    walletAddress: string;
+    signature: string;
+    message: string;
+  }) => {
+    setWalletVerification({
+      walletType: result.walletType,
+      walletAddress: result.walletAddress,
+      signature: result.signature,
+    });
+    setShowWalletVerify(false);
+    // Submit with both signatures
+    submitSignature(drawnSignature!, {
+      walletType: result.walletType,
+      walletAddress: result.walletAddress,
+      signature: result.signature,
+    });
+  };
+
+  // Skip wallet verification and submit with drawn signature only
+  const handleSkipWallet = () => {
+    setShowWalletVerify(false);
+    submitSignature(drawnSignature!, null);
+  };
+
+  // Submit the full signature (drawn + optional wallet)
+  const submitSignature = async (
+    drawn: { svg: string; json: string },
+    wallet: { walletType: string; walletAddress: string; signature: string } | null
+  ) => {
     if (!envelope) return;
     setSigning(true);
-    setShowSignature(false);
 
     try {
       const res = await fetch(`/api/envelopes/${envelope.id}/sign`, {
@@ -74,9 +124,10 @@ export default function SignPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           signing_token: token,
-          signature_type: 'drawn',
-          signature_data: signatureData.svg,
+          signature_type: wallet ? 'drawn+wallet' : 'drawn',
+          signature_data: drawn.svg,
           signer_name: signer?.name,
+          wallet_verification: wallet || undefined,
         }),
       });
 
@@ -92,6 +143,15 @@ export default function SignPage() {
       setSigning(false);
     }
   };
+
+  // Generate the signing message for wallet verification
+  const signingMessage = envelope && signer
+    ? generateSigningMessage({
+        documentTitle: envelope.title,
+        documentHash: envelope.document_hash,
+        signerName: signer.name,
+      })
+    : '';
 
   if (loading) {
     return (
@@ -120,6 +180,14 @@ export default function SignPage() {
           <p className="text-zinc-500 font-mono text-[10px] tracking-[0.4em] uppercase">
             Your signature has been recorded for this document.
           </p>
+
+          {signResult.wallet_verified && (
+            <div className="p-4 border border-green-900 bg-green-950/20">
+              <p className="font-mono text-[10px] text-green-400 uppercase tracking-widest flex items-center justify-center gap-2">
+                <FiShield size={12} /> Wallet Verified via {signResult.wallet_type}
+              </p>
+            </div>
+          )}
 
           {signResult.all_signed && (
             <div className="p-6 border border-green-900 bg-green-950/20 space-y-3">
@@ -170,7 +238,7 @@ export default function SignPage() {
           </div>
           <h1 className="text-3xl font-mono font-black tracking-tighter uppercase italic">{envelope?.title}</h1>
           <div className="flex gap-6 font-mono text-[10px] text-zinc-600 uppercase tracking-widest">
-            <span>From: ${envelope?.created_by}</span>
+            <span>From: {envelope?.created_by}</span>
             <span>Hash: {envelope?.document_hash.slice(0, 16)}...</span>
           </div>
         </header>
@@ -219,8 +287,22 @@ export default function SignPage() {
           </div>
         )}
 
+        {/* Drawn Signature Preview (if captured, before submission) */}
+        {drawnSignature && !signing && !signResult && (
+          <div className="p-4 border border-zinc-800 bg-zinc-950 space-y-3">
+            <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">Your Drawn Signature</p>
+            <div className="bg-white p-4 flex items-center justify-center max-h-32">
+              <div dangerouslySetInnerHTML={{ __html: drawnSignature.svg }} className="max-h-24 [&>svg]:max-h-24 [&>svg]:w-auto" />
+            </div>
+            <div className="flex items-center gap-2">
+              <FiCheck className="text-green-400" size={12} />
+              <span className="font-mono text-[10px] text-green-400 uppercase tracking-widest">Captured</span>
+            </div>
+          </div>
+        )}
+
         {/* Sign Button */}
-        {signer?.status !== 'signed' && (
+        {signer?.status !== 'signed' && !drawnSignature && (
           <div className="pt-4">
             <button
               onClick={() => setShowSignature(true)}
@@ -237,9 +319,36 @@ export default function SignPage() {
         {/* Signature Modal */}
         {showSignature && (
           <SovereignSignature
-            onSave={handleSign}
+            onSave={handleDrawnSignature}
             onCancel={() => setShowSignature(false)}
           />
+        )}
+
+        {/* Wallet Verification Modal */}
+        <WalletSigningModal
+          isOpen={showWalletVerify}
+          onClose={handleSkipWallet}
+          onSignComplete={handleWalletVerify}
+          message={signingMessage}
+          title="Verify Your Identity"
+        />
+
+        {/* Skip Wallet / Submit buttons (shown after wallet modal closes without verifying) */}
+        {drawnSignature && !showWalletVerify && !signing && !signResult && !walletVerification && (
+          <div className="pt-4 space-y-3">
+            <button
+              onClick={() => setShowWalletVerify(true)}
+              className="w-full py-4 bg-green-900/30 border border-green-700/50 text-green-400 font-mono font-black uppercase text-sm tracking-widest hover:bg-green-900/50 transition-all flex items-center justify-center gap-3"
+            >
+              <FiShield /> Verify with HandCash Wallet
+            </button>
+            <button
+              onClick={handleSkipWallet}
+              className="w-full py-3 bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono uppercase text-xs tracking-widest hover:bg-zinc-800 transition-all"
+            >
+              Submit Without Wallet Verification
+            </button>
+          </div>
         )}
 
         {/* Processing Overlay */}

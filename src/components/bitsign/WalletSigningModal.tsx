@@ -261,7 +261,7 @@ export function WalletSigningModal({
                       <div className="flex-1 text-left">
                         <div className="font-medium text-white">HandCash</div>
                         <div className="text-xs text-green-400">
-                          Connected as ${handcashHandle}
+                          Connected as {handcashHandle}
                         </div>
                       </div>
                       <FiCheck className="text-green-400" />
