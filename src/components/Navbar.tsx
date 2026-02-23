@@ -26,7 +26,7 @@ export default function Navbar() {
                                 src="/bit-sign-icon.png"
                                 alt="Bit-Sign"
                                 fill
-                                className="object-contain filter grayscale invert group-hover:invert-0 transition-all duration-300"
+                                className="object-contain"
                             />
                         </div>
                         <span className="text-lg tracking-tight font-semibold">Bit-Sign</span>
