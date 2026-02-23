@@ -42,7 +42,7 @@ export default function SignPage() {
   const [signing, setSigning] = useState(false);
   const [signResult, setSignResult] = useState<any>(null);
 
-  // Two-step signing: draw first, then optional wallet verify
+  // Two-step signing: draw first, then wallet verify (pays $0.01)
   const [drawnSignature, setDrawnSignature] = useState<{ svg: string; json: string } | null>(null);
   const [showWalletVerify, setShowWalletVerify] = useState(false);
   const [walletVerification, setWalletVerification] = useState<{
@@ -50,6 +50,7 @@ export default function SignPage() {
     walletAddress: string;
     signature: string;
     publicKey?: string;
+    paymentTxid?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -83,37 +84,44 @@ export default function SignPage() {
     setShowWalletVerify(true);
   };
 
-  // Step 2: Wallet verification complete
+  // Step 2: Wallet verification complete (includes $0.01 payment)
   const handleWalletVerify = (result: {
     walletType: string;
     walletAddress: string;
     signature: string;
     message: string;
+    paymentTxid?: string;
   }) => {
     setWalletVerification({
       walletType: result.walletType,
       walletAddress: result.walletAddress,
       signature: result.signature,
+      paymentTxid: result.paymentTxid,
     });
     setShowWalletVerify(false);
-    // Submit with both signatures
+    // Submit with both signatures + payment proof
     submitSignature(drawnSignature!, {
       walletType: result.walletType,
       walletAddress: result.walletAddress,
       signature: result.signature,
-    });
+    }, result.paymentTxid);
   };
 
   // Skip wallet verification and submit with drawn signature only
   const handleSkipWallet = () => {
     setShowWalletVerify(false);
+  };
+
+  // Submit without wallet (fallback)
+  const handleSubmitWithoutWallet = () => {
     submitSignature(drawnSignature!, null);
   };
 
-  // Submit the full signature (drawn + optional wallet)
+  // Submit the full signature (drawn + wallet + payment)
   const submitSignature = async (
     drawn: { svg: string; json: string },
-    wallet: { walletType: string; walletAddress: string; signature: string } | null
+    wallet: { walletType: string; walletAddress: string; signature: string } | null,
+    paymentTxid?: string,
   ) => {
     if (!envelope) return;
     setSigning(true);
@@ -128,6 +136,7 @@ export default function SignPage() {
           signature_data: drawn.svg,
           signer_name: signer?.name,
           wallet_verification: wallet || undefined,
+          payment_txid: paymentTxid || undefined,
         }),
       });
 
@@ -182,10 +191,13 @@ export default function SignPage() {
           </p>
 
           {signResult.wallet_verified && (
-            <div className="p-4 border border-green-900 bg-green-950/20 rounded-md">
+            <div className="p-4 border border-green-900 bg-green-950/20 rounded-md space-y-2">
               <p className="text-sm text-green-400 flex items-center justify-center gap-2">
                 <FiShield size={14} /> Wallet verified via {signResult.wallet_type}
               </p>
+              {signResult.fee_paid && (
+                <p className="text-xs text-zinc-500">Attestation fee paid ($0.01)</p>
+              )}
             </div>
           )}
 
@@ -345,23 +357,27 @@ export default function SignPage() {
           onClose={handleSkipWallet}
           onSignComplete={handleWalletVerify}
           message={signingMessage}
-          title="Verify Your Identity"
+          title="Verify & Pay"
+          envelopeId={envelope?.id}
         />
 
-        {/* Skip Wallet / Submit buttons (shown after wallet modal closes without verifying) */}
+        {/* Post-signature buttons (shown after drawing, before submission) */}
         {drawnSignature && !showWalletVerify && !signing && !signResult && !walletVerification && (
           <div className="pt-4 space-y-3">
             <button
               onClick={() => setShowWalletVerify(true)}
-              className="w-full py-3.5 bg-green-900/30 border border-green-700/50 text-green-400 font-medium text-sm rounded-md hover:bg-green-900/50 transition-all flex items-center justify-center gap-2"
+              className="w-full py-3.5 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200 transition-all flex items-center justify-center gap-2"
             >
-              <FiShield /> Verify with HandCash Wallet
+              <FiShield /> Verify with HandCash & Sign ($0.01)
             </button>
+            <p className="text-center text-xs text-zinc-500">
+              Your identity will be verified and your signature recorded on the Bitcoin blockchain.
+            </p>
             <button
-              onClick={handleSkipWallet}
-              className="w-full py-3 bg-zinc-900 border border-zinc-800 text-zinc-400 text-sm rounded-md hover:bg-zinc-800 transition-all"
+              onClick={handleSubmitWithoutWallet}
+              className="w-full py-2.5 text-zinc-600 text-xs hover:text-zinc-400 transition-all"
             >
-              Submit Without Wallet Verification
+              Skip verification (signature won't be recorded on blockchain)
             </button>
           </div>
         )}

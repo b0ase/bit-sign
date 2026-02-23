@@ -14,7 +14,7 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { signing_token, signature_type, signature_data, signer_name, wallet_verification } = body;
+    const { signing_token, signature_type, signature_data, signer_name, wallet_verification, payment_txid } = body;
 
     if (!signing_token || !signature_data) {
       return NextResponse.json({
@@ -85,6 +85,10 @@ export async function POST(
       signatureRecord.wallet_type = wallet_verification.walletType;
       signatureRecord.wallet_address = wallet_verification.walletAddress;
       signatureRecord.wallet_signature = wallet_verification.signature;
+      if (payment_txid) {
+        signatureRecord.payment_txid = payment_txid;
+        signatureRecord.fee_paid = true;
+      }
     }
 
     signers[signerIndex] = {
@@ -154,6 +158,8 @@ export async function POST(
       all_signed: allSigned,
       wallet_verified: !!wallet_verification,
       wallet_type: wallet_verification?.walletType || null,
+      payment_txid: payment_txid || null,
+      fee_paid: !!payment_txid,
       inscription_txid: inscriptionTxid,
       explorer_url: inscriptionTxid ? `https://whatsonchain.com/tx/${inscriptionTxid}` : null,
     });

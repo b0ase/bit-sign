@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { renderDocument, getTemplate } from '@/lib/templates';
 import { hashData } from '@/lib/bsv-inscription';
-import { handCashConnect } from '@/lib/handcash';
+import { handCashConnect, getUserAccount } from '@/lib/handcash';
+import { sendSigningInvitation } from '@/lib/email';
 
 /**
  * POST /api/envelopes — Create a new signing envelope
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, template_id, variables, signers, expires_in_days, uploaded_file, uploaded_file_name } = body;
+    const { title, template_id, variables, signers, expires_in_days, uploaded_file, uploaded_file_name, fund_signers } = body;
 
     if (!title || !signers || !Array.isArray(signers) || signers.length === 0) {
       return NextResponse.json({
@@ -92,6 +93,37 @@ export async function POST(request: NextRequest) {
       url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://bit-sign.online'}/sign/${s.signing_token}`,
     }));
 
+    // Sender penny-ping: fund each signer $0.01 from sender's wallet
+    const fundedSigners: string[] = [];
+    if (fund_signers) {
+      const authToken = request.cookies.get('handcash_auth_token')?.value;
+      if (authToken) {
+        const senderAccount = getUserAccount(authToken);
+        if (senderAccount) {
+          const payments = enrichedSigners
+            .filter((s: any) => s.handle)
+            .map((s: any) => ({
+              destination: s.handle.replace(/^\$/, ''),
+              currencyCode: 'USD' as const,
+              sendAmount: 0.01,
+            }));
+
+          if (payments.length > 0) {
+            try {
+              await senderAccount.wallet.pay({
+                description: `Bit-Sign: Signing fee for "${title}" (${payments.length} signer${payments.length > 1 ? 's' : ''})`,
+                payments,
+              });
+              fundedSigners.push(...payments.map((p: any) => p.destination));
+              console.log(`[envelopes] Sender ${handle} funded ${payments.length} signers for "${title}"`);
+            } catch (payErr) {
+              console.warn(`[envelopes] Sender penny-ping failed:`, payErr);
+            }
+          }
+        }
+      }
+    }
+
     // Send HandCash notifications to signers with handles
     const notified: string[] = [];
     if (handCashConnect && process.env.HOUSE_AUTH_TOKEN) {
@@ -125,6 +157,29 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Auto-send emails to signers with email addresses
+    const emailed: string[] = [];
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bit-sign.online';
+    for (const s of enrichedSigners) {
+      if (s.email) {
+        try {
+          const signingUrl = `${baseUrl}/sign/${s.signing_token}`;
+          await sendSigningInvitation({
+            recipientEmail: s.email,
+            recipientName: s.name,
+            signerRole: s.role,
+            senderHandle: handle!,
+            documentTitle: title,
+            signingUrl,
+          });
+          emailed.push(s.email);
+          console.log(`[envelopes] Emailed signing link to ${s.email}`);
+        } catch (err) {
+          console.warn(`[envelopes] Failed to email ${s.email}:`, err);
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       envelope: {
@@ -136,6 +191,8 @@ export async function POST(request: NextRequest) {
       },
       signing_urls: signingUrls,
       notified_handles: notified,
+      emailed_addresses: emailed,
+      funded_signers: fundedSigners,
     }, { status: 201 });
   } catch (error: any) {
     console.error('[envelopes] Unexpected error:', error);

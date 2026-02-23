@@ -48,6 +48,7 @@ export default function NewDocumentPage() {
   const [result, setResult] = useState<any>(null);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [uploadedFile, setUploadedFile] = useState<{ name: string; dataUrl: string } | null>(null);
+  const [fundSigners, setFundSigners] = useState(false);
 
   useEffect(() => {
     const cookies = document.cookie.split('; ');
@@ -129,6 +130,7 @@ export default function NewDocumentPage() {
           order: i + 1,
         })),
         expires_in_days: 30,
+        fund_signers: fundSigners,
       };
 
       if (uploadedFile) {
@@ -392,6 +394,11 @@ export default function NewDocumentPage() {
                       <FiZap size={10} className="text-amber-500" /> Will receive a HandCash notification
                     </p>
                   )}
+                  {signer.email && !signer.handle && (
+                    <p className="text-xs text-zinc-500 flex items-center gap-1.5">
+                      <FiZap size={10} className="text-blue-400" /> Will receive a signing link via email (HandCash required to verify)
+                    </p>
+                  )}
                 </div>
               ))}
 
@@ -402,6 +409,31 @@ export default function NewDocumentPage() {
                 <FiPlus size={14} /> Add Signer
               </button>
             </div>
+
+            {/* Fund signers toggle */}
+            {signers.some(s => s.handle) && (
+              <div className="p-4 border border-zinc-800 bg-zinc-950 rounded-md">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={fundSigners}
+                    onChange={(e) => setFundSigners(e.target.checked)}
+                    className="w-4 h-4 rounded border-zinc-600 bg-zinc-900 text-green-500 focus:ring-0"
+                  />
+                  <div>
+                    <span className="text-sm text-white">Fund signers ($0.01 each)</span>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      Send each signer a penny to cover their blockchain attestation fee
+                    </p>
+                  </div>
+                </label>
+                {fundSigners && (
+                  <p className="text-xs text-amber-400 mt-2 ml-7">
+                    Total: ${(signers.filter(s => s.handle).length * 0.01).toFixed(2)} from your HandCash wallet
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="flex gap-3 pt-4">
               <button
@@ -432,13 +464,33 @@ export default function NewDocumentPage() {
               </p>
             </div>
 
-            {/* HandCash notifications */}
-            {result.notified_handles && result.notified_handles.length > 0 && (
-              <div className="p-4 border border-amber-900/50 bg-amber-950/10 rounded-md">
-                <p className="text-sm text-amber-400 flex items-center gap-2">
-                  <FiZap size={14} />
-                  Notified via HandCash: {result.notified_handles.map((h: string) => `$${h.replace(/^\$/, '')}`).join(', ')}
-                </p>
+            {/* Notifications */}
+            {(result.notified_handles?.length > 0 || result.emailed_addresses?.length > 0 || result.funded_signers?.length > 0) && (
+              <div className="space-y-2">
+                {result.notified_handles?.length > 0 && (
+                  <div className="p-3 border border-amber-900/50 bg-amber-950/10 rounded-md">
+                    <p className="text-sm text-amber-400 flex items-center gap-2">
+                      <FiZap size={14} />
+                      HandCash notification sent to: {result.notified_handles.map((h: string) => `$${h.replace(/^\$/, '')}`).join(', ')}
+                    </p>
+                  </div>
+                )}
+                {result.emailed_addresses?.length > 0 && (
+                  <div className="p-3 border border-blue-900/50 bg-blue-950/10 rounded-md">
+                    <p className="text-sm text-blue-400 flex items-center gap-2">
+                      <FiZap size={14} />
+                      Email sent to: {result.emailed_addresses.join(', ')}
+                    </p>
+                  </div>
+                )}
+                {result.funded_signers?.length > 0 && (
+                  <div className="p-3 border border-green-900/50 bg-green-950/10 rounded-md">
+                    <p className="text-sm text-green-400 flex items-center gap-2">
+                      <FiCheck size={14} />
+                      Funded: {result.funded_signers.map((h: string) => `$${h}`).join(', ')} ($0.01 each)
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

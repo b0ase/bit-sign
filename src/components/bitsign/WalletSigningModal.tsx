@@ -19,9 +19,11 @@ interface WalletSigningModalProps {
     walletAddress: string;
     signature: string;
     message: string;
+    paymentTxid?: string;
   }) => void;
   message: string;
   title?: string;
+  envelopeId?: string;
 }
 
 export function WalletSigningModal({
@@ -30,6 +32,7 @@ export function WalletSigningModal({
   onSignComplete,
   message,
   title = 'Verify with Wallet',
+  envelopeId,
 }: WalletSigningModalProps) {
   const [step, setStep] = useState<'select' | 'connecting' | 'signing' | 'success' | 'error'>('select');
   const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
@@ -125,7 +128,7 @@ export function WalletSigningModal({
       const response = await fetch('/api/bitsign/handcash-verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, envelope_id: envelopeId }),
       });
 
       const data = await response.json();
@@ -155,6 +158,7 @@ export function WalletSigningModal({
           walletAddress: data.walletAddress,
           signature: data.signature,
           message,
+          paymentTxid: data.paymentTxid,
         });
       }, 1000);
 
@@ -245,7 +249,8 @@ export function WalletSigningModal({
             {step === 'select' && (
               <div className="space-y-4">
                 <p className="text-zinc-400 text-sm">
-                  Select a wallet to verify your identity by signing a message.
+                  Verify your identity with your wallet to record your signature on the blockchain.
+                  {envelopeId && <span className="text-zinc-500"> A $0.01 attestation fee applies.</span>}
                 </p>
 
                 <div className="space-y-2">
@@ -282,41 +287,33 @@ export function WalletSigningModal({
                     </button>
                   )}
 
-                  {/* MetaMask */}
-                  <div className="relative group/disabled">
-                    <button
-                      disabled={true}
-                      className="w-full flex items-center gap-4 p-4 bg-zinc-800/50 opacity-40 grayscale cursor-not-allowed border border-zinc-700/50 rounded-lg transition-colors"
-                    >
-                      <div className="w-10 h-10 bg-zinc-700 rounded-lg flex items-center justify-center text-zinc-500 font-bold">
-                        M
-                      </div>
-                      <div className="flex-1 text-left">
-                        <div className="font-medium text-zinc-500">MetaMask</div>
-                        <div className="text-[10px] text-zinc-600 uppercase tracking-widest font-mono">
-                          Pending protocol support // Insecure
-                        </div>
-                      </div>
-                    </button>
-                  </div>
+                  {/* MetaMask - coming soon */}
+                  <button
+                    disabled={true}
+                    className="w-full flex items-center gap-4 p-4 bg-zinc-800/50 opacity-30 cursor-not-allowed border border-zinc-700/50 rounded-lg"
+                  >
+                    <div className="w-10 h-10 bg-zinc-700 rounded-lg flex items-center justify-center text-zinc-500 font-bold">
+                      M
+                    </div>
+                    <div className="flex-1 text-left">
+                      <div className="font-medium text-zinc-500">MetaMask</div>
+                      <div className="text-xs text-zinc-600">Coming soon</div>
+                    </div>
+                  </button>
 
-                  {/* Phantom */}
-                  <div className="relative group/disabled">
-                    <button
-                      disabled={true}
-                      className="w-full flex items-center gap-4 p-4 bg-zinc-800/50 opacity-40 grayscale cursor-not-allowed border border-zinc-700/50 rounded-lg transition-colors"
-                    >
-                      <div className="w-10 h-10 bg-zinc-700 rounded-lg flex items-center justify-center text-zinc-500 font-bold">
-                        P
-                      </div>
-                      <div className="flex-1 text-left">
-                        <div className="font-medium text-zinc-500">Phantom</div>
-                        <div className="text-[10px] text-zinc-600 uppercase tracking-widest font-mono">
-                          Pending protocol support // Insecure
-                        </div>
-                      </div>
-                    </button>
-                  </div>
+                  {/* Phantom - coming soon */}
+                  <button
+                    disabled={true}
+                    className="w-full flex items-center gap-4 p-4 bg-zinc-800/50 opacity-30 cursor-not-allowed border border-zinc-700/50 rounded-lg"
+                  >
+                    <div className="w-10 h-10 bg-zinc-700 rounded-lg flex items-center justify-center text-zinc-500 font-bold">
+                      P
+                    </div>
+                    <div className="flex-1 text-left">
+                      <div className="font-medium text-zinc-500">Phantom</div>
+                      <div className="text-xs text-zinc-600">Coming soon</div>
+                    </div>
+                  </button>
                 </div>
 
                 {/* Message preview */}

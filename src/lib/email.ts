@@ -65,7 +65,7 @@ function buildEmailHtml({
       <tr>
         <td style="padding: 0 40px 32px;">
           <div style="border-left: 3px solid #3f3f46; padding: 16px 20px; background: #18181b;">
-            <div style="font-family: monospace; font-size: 10px; color: #71717a; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;">Personal Message</div>
+            <div style="font-family: -apple-system, sans-serif; font-size: 11px; color: #71717a; margin-bottom: 8px;">Personal Message</div>
             <div style="font-family: -apple-system, sans-serif; font-size: 14px; color: #d4d4d8; line-height: 1.6;">${escapeHtml(message)}</div>
           </div>
         </td>
@@ -83,8 +83,8 @@ function buildEmailHtml({
           <!-- Header -->
           <tr>
             <td style="padding: 40px 40px 24px;">
-              <div style="font-family: monospace; font-size: 10px; color: #52525b; text-transform: uppercase; letter-spacing: 0.4em; margin-bottom: 16px;">Signing Invitation</div>
-              <div style="font-family: monospace; font-size: 22px; font-weight: 900; color: #ffffff; text-transform: uppercase; letter-spacing: -0.02em;">${escapeHtml(documentTitle)}</div>
+              <div style="font-family: -apple-system, sans-serif; font-size: 12px; color: #71717a; margin-bottom: 12px;">Signing Request</div>
+              <div style="font-family: -apple-system, sans-serif; font-size: 22px; font-weight: 700; color: #ffffff; letter-spacing: -0.02em;">${escapeHtml(documentTitle)}</div>
             </td>
           </tr>
 
@@ -94,18 +94,18 @@ function buildEmailHtml({
               <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #27272a;">
                 <tr>
                   <td style="padding: 12px 16px; border-bottom: 1px solid #27272a;">
-                    <span style="font-family: monospace; font-size: 10px; color: #71717a; text-transform: uppercase; letter-spacing: 0.1em;">From</span>
-                    <div style="font-family: monospace; font-size: 13px; color: #ffffff; font-weight: bold; margin-top: 4px;">$${escapeHtml(senderHandle)}</div>
+                    <span style="font-family: -apple-system, sans-serif; font-size: 11px; color: #71717a;">From</span>
+                    <div style="font-family: -apple-system, sans-serif; font-size: 14px; color: #ffffff; font-weight: 600; margin-top: 4px;">$${escapeHtml(senderHandle)}</div>
                   </td>
                   <td style="padding: 12px 16px; border-bottom: 1px solid #27272a; border-left: 1px solid #27272a;">
-                    <span style="font-family: monospace; font-size: 10px; color: #71717a; text-transform: uppercase; letter-spacing: 0.1em;">Your Role</span>
-                    <div style="font-family: monospace; font-size: 13px; color: #ffffff; font-weight: bold; margin-top: 4px;">${escapeHtml(signerRole)}</div>
+                    <span style="font-family: -apple-system, sans-serif; font-size: 11px; color: #71717a;">Your Role</span>
+                    <div style="font-family: -apple-system, sans-serif; font-size: 14px; color: #ffffff; font-weight: 600; margin-top: 4px;">${escapeHtml(signerRole)}</div>
                   </td>
                 </tr>
                 <tr>
                   <td colspan="2" style="padding: 12px 16px;">
-                    <span style="font-family: monospace; font-size: 10px; color: #71717a; text-transform: uppercase; letter-spacing: 0.1em;">Recipient</span>
-                    <div style="font-family: monospace; font-size: 13px; color: #ffffff; font-weight: bold; margin-top: 4px;">${escapeHtml(recipientName)}</div>
+                    <span style="font-family: -apple-system, sans-serif; font-size: 11px; color: #71717a;">Recipient</span>
+                    <div style="font-family: -apple-system, sans-serif; font-size: 14px; color: #ffffff; font-weight: 600; margin-top: 4px;">${escapeHtml(recipientName)}</div>
                   </td>
                 </tr>
               </table>
@@ -118,37 +118,37 @@ function buildEmailHtml({
           <!-- CTA Button -->
           <tr>
             <td style="padding: 0 40px 40px;" align="center">
-              <a href="${signingUrl}" target="_blank" style="display: inline-block; padding: 18px 48px; background: #ffffff; color: #000000; font-family: monospace; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.2em; text-decoration: none;">Sign Document</a>
+              <a href="${signingUrl}" target="_blank" style="display: inline-block; padding: 16px 48px; background: #ffffff; color: #000000; font-family: -apple-system, sans-serif; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 6px;">Review &amp; Sign Document</a>
             </td>
           </tr>
 
           <!-- How it works -->
           <tr>
             <td style="padding: 0 40px 32px;">
-              <div style="font-family: monospace; font-size: 10px; color: #52525b; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 16px;">How It Works</div>
+              <div style="font-family: -apple-system, sans-serif; font-size: 12px; color: #71717a; margin-bottom: 16px;">How it works</div>
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="padding: 8px 0; vertical-align: top; width: 24px;">
-                    <span style="font-family: monospace; font-size: 11px; color: #3f3f46;">1.</span>
+                    <span style="font-family: -apple-system, sans-serif; font-size: 13px; color: #52525b;">1.</span>
                   </td>
                   <td style="padding: 8px 0;">
-                    <span style="font-family: monospace; font-size: 12px; color: #a1a1aa;">Click the button above to review the document</span>
+                    <span style="font-family: -apple-system, sans-serif; font-size: 13px; color: #a1a1aa;">Click the button above to review the document</span>
                   </td>
                 </tr>
                 <tr>
                   <td style="padding: 8px 0; vertical-align: top; width: 24px;">
-                    <span style="font-family: monospace; font-size: 11px; color: #3f3f46;">2.</span>
+                    <span style="font-family: -apple-system, sans-serif; font-size: 13px; color: #52525b;">2.</span>
                   </td>
                   <td style="padding: 8px 0;">
-                    <span style="font-family: monospace; font-size: 12px; color: #a1a1aa;">Draw your signature on the signing pad</span>
+                    <span style="font-family: -apple-system, sans-serif; font-size: 13px; color: #a1a1aa;">Draw your signature on the signing pad</span>
                   </td>
                 </tr>
                 <tr>
                   <td style="padding: 8px 0; vertical-align: top; width: 24px;">
-                    <span style="font-family: monospace; font-size: 11px; color: #3f3f46;">3.</span>
+                    <span style="font-family: -apple-system, sans-serif; font-size: 13px; color: #52525b;">3.</span>
                   </td>
                   <td style="padding: 8px 0;">
-                    <span style="font-family: monospace; font-size: 12px; color: #a1a1aa;">Optionally verify with HandCash for blockchain identity</span>
+                    <span style="font-family: -apple-system, sans-serif; font-size: 13px; color: #a1a1aa;">Verify your identity with HandCash to record your signature on the blockchain ($0.01 fee)</span>
                   </td>
                 </tr>
               </table>
@@ -158,11 +158,10 @@ function buildEmailHtml({
           <!-- HandCash note -->
           <tr>
             <td style="padding: 0 40px 32px;">
-              <div style="padding: 16px; background: #18181b; border: 1px solid #27272a;">
-                <span style="font-family: monospace; font-size: 11px; color: #71717a; line-height: 1.6;">
-                  Don't have HandCash? You can still sign. Get HandCash at
-                  <a href="https://handcash.io" style="color: #22c55e; text-decoration: none;">handcash.io</a>
-                  for blockchain-verified identity.
+              <div style="padding: 16px; background: #18181b; border: 1px solid #27272a; border-radius: 6px;">
+                <span style="font-family: -apple-system, sans-serif; font-size: 13px; color: #a1a1aa; line-height: 1.6;">
+                  You'll need a <a href="https://handcash.io" style="color: #22c55e; text-decoration: none; font-weight: 600;">HandCash</a> wallet to verify your identity and sign.
+                  It takes 30 seconds to set up and your signature will be permanently recorded on the Bitcoin blockchain.
                 </span>
               </div>
             </td>
@@ -171,9 +170,9 @@ function buildEmailHtml({
           <!-- Footer -->
           <tr>
             <td style="padding: 24px 40px; border-top: 1px solid #27272a;">
-              <div style="font-family: monospace; font-size: 10px; color: #3f3f46; text-transform: uppercase; letter-spacing: 0.1em; line-height: 1.8;">
-                bit-sign protocol &mdash; blockchain-verified document signing<br>
-                <a href="https://bit-sign.online" style="color: #52525b; text-decoration: none;">bit-sign.online</a>
+              <div style="font-family: -apple-system, sans-serif; font-size: 12px; color: #52525b; line-height: 1.8;">
+                Bit-Sign &mdash; Document signing on Bitcoin<br>
+                <a href="https://bit-sign.online" style="color: #71717a; text-decoration: none;">bit-sign.online</a>
               </div>
             </td>
           </tr>
