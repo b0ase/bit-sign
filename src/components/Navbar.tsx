@@ -46,7 +46,7 @@ export default function Navbar() {
                                 href="/user/account"
                                 className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-white/20 hover:border-white transition-all group"
                             >
-                                <span className="text-sm text-neutral-400 group-hover:text-white transition-colors">Account</span>
+                                <span className="text-sm text-neutral-400 group-hover:text-white transition-colors">Dashboard</span>
                                 <span className="text-sm text-white font-medium">${handle}</span>
                             </Link>
                             <a

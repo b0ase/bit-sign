@@ -90,18 +90,18 @@ export default async function BitSignPage() {
           {[
             {
               icon: FiEdit3,
-              title: "GitHub Signing",
-              desc: "Cryptographically sign every commit. Verify developer authorship on the blockchain."
+              title: "Document Signing",
+              desc: "Upload any document and sign it with blockchain-verified proof. Every signature is permanent and tamper-proof."
             },
             {
               icon: FiLock,
-              title: "IP Protection",
-              desc: "Anchor your intellectual property with permanent, timestamped proof of ownership."
+              title: "Multi-Party Signing",
+              desc: "Send documents to multiple signers with ordered workflows. Track progress and get notified when complete."
             },
             {
               icon: FiShield,
-              title: "Token Registry",
-              desc: "Link identity to shareholder tokens with staked, on-chain verification."
+              title: "Instant Verification",
+              desc: "Anyone can verify a signed document with a link. On-chain proof confirms who signed, when, and that nothing changed."
             }
           ].map((item, i) => (
             <div key={i} className="p-10 border-r border-b border-zinc-900 bg-black hover:bg-zinc-950 transition-all group space-y-6 relative last:border-r-0">

@@ -95,6 +95,28 @@ export async function POST(
       }
     }
 
+    // Inscribe this individual signature on-chain
+    let individualInscriptionTxid = null;
+    try {
+      const individualResult = await inscribeBitSignData({
+        type: 'document_signature',
+        envelopeId: id,
+        envelopeTitle: envelope.title,
+        documentHash: envelope.document_hash,
+        signerName: `${signer_name || signer.name} (${signer.role}, #${signer.order})`,
+        walletAddress: wallet_verification?.walletAddress || undefined,
+        walletType: wallet_verification?.walletType || undefined,
+        signedAt: new Date().toISOString(),
+      });
+      individualInscriptionTxid = individualResult.txid;
+      signatureRecord.inscription_txid = individualResult.txid;
+      console.log(`[envelopes] Individual inscription for ${signer.name} on ${id}: ${individualResult.txid}`);
+    } catch (inscribeError) {
+      console.error('[envelopes] Individual inscription failed:', inscribeError);
+      signatureRecord.inscription_failed = true;
+      signatureRecord.inscription_error = String(inscribeError);
+    }
+
     signers[signerIndex] = {
       ...signer,
       status: 'signed',
@@ -107,13 +129,13 @@ export async function POST(
     const anySigned = signers.some((s: any) => s.status === 'signed');
     const newStatus = allSigned ? 'completed' : anySigned ? 'partially_signed' : 'pending';
 
-    // If all signed, attempt blockchain inscription
+    // If all signed, attempt summary blockchain inscription
     let inscriptionTxid = null;
     let inscribedAt = null;
+    let inscriptionFailed = false;
 
     if (allSigned) {
       try {
-        // Include wallet-verified signers in inscription
         const walletVerifiedSigners = signers
           .filter((s: any) => s.signature_data?.wallet_verified)
           .map((s: any) => `${s.name}:${s.signature_data.wallet_address}`);
@@ -133,20 +155,31 @@ export async function POST(
         inscribedAt = new Date().toISOString();
         console.log(`[envelopes] Inscribed envelope ${id}: ${result.txid}`);
       } catch (inscribeError) {
-        console.error('[envelopes] Inscription failed (signature still recorded):', inscribeError);
+        console.error('[envelopes] Summary inscription failed (signature still recorded):', inscribeError);
+        inscriptionFailed = true;
       }
     }
 
     // Update envelope
+    const updateData: Record<string, any> = {
+      signers,
+      status: newStatus,
+      inscription_txid: inscriptionTxid || envelope.inscription_txid,
+      inscribed_at: inscribedAt || envelope.inscribed_at,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (inscriptionFailed && !envelope.inscription_txid) {
+      updateData.metadata = {
+        ...(envelope.metadata || {}),
+        inscription_failed: true,
+        inscription_error: 'Summary inscription failed after all signers completed',
+      };
+    }
+
     const { error: updateError } = await supabaseAdmin
       .from('signing_envelopes')
-      .update({
-        signers,
-        status: newStatus,
-        inscription_txid: inscriptionTxid || envelope.inscription_txid,
-        inscribed_at: inscribedAt || envelope.inscribed_at,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('id', id);
 
     if (updateError) {
@@ -164,6 +197,8 @@ export async function POST(
       wallet_type: wallet_verification?.walletType || null,
       payment_txid: payment_txid || null,
       fee_paid: !!payment_txid,
+      individual_inscription_txid: individualInscriptionTxid,
+      individual_explorer_url: individualInscriptionTxid ? `https://whatsonchain.com/tx/${individualInscriptionTxid}` : null,
       inscription_txid: inscriptionTxid,
       explorer_url: inscriptionTxid ? `https://whatsonchain.com/tx/${inscriptionTxid}` : null,
     });

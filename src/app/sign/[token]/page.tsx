@@ -231,6 +231,19 @@ export default function SignPage() {
             </div>
           )}
 
+          {signResult.individual_inscription_txid && (
+            <div className="p-4 border border-green-900/50 bg-green-950/10 rounded-md space-y-2">
+              <p className="text-xs text-zinc-500">Your Signature Proof</p>
+              <a
+                href={signResult.individual_explorer_url}
+                target="_blank"
+                className="inline-flex items-center gap-2 text-white font-mono text-xs hover:underline"
+              >
+                {signResult.individual_inscription_txid.slice(0, 20)}... <FiExternalLink size={12} />
+              </a>
+            </div>
+          )}
+
           {signResult.all_signed && (
             <div className="p-6 border border-green-900 bg-green-950/20 space-y-3 rounded-md">
               <FiShield className="mx-auto text-green-400" size={24} />

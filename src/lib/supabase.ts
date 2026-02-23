@@ -62,13 +62,13 @@ export async function mapHandCashUser(profile: { handle: string, displayName?: s
             console.error('[Supabase] Error updating unified user:', userError);
         }
 
-        // Update encrypted auth token in bit_sign_identities if provided
+        // Store encrypted auth token on unified_users if provided
         if (authToken) {
             const encryptedToken = encrypt(authToken);
             await supabaseAdmin
-                .from('bit_sign_identities')
+                .from('unified_users')
                 .update({ encrypted_auth_token: encryptedToken })
-                .eq('user_handle', profile.handle);
+                .eq('id', identity.unified_user_id);
         }
 
         return user;
@@ -103,17 +103,13 @@ export async function mapHandCashUser(profile: { handle: string, displayName?: s
         console.error('[Supabase] Error linking HandCash identity:', linkError);
     }
 
-    // Store encrypted auth token in bit_sign_identities if provided
+    // Store encrypted auth token on unified_users if provided
     if (authToken) {
         const encryptedToken = encrypt(authToken);
-        // We upsert just in case the record exists from a previous session without token
         await supabaseAdmin
-            .from('bit_sign_identities')
-            .upsert({
-                user_handle: profile.handle,
-                token_id: 'pending_genesis', // Placeholder if creating new
-                encrypted_auth_token: encryptedToken
-            }, { onConflict: 'user_handle' });
+            .from('unified_users')
+            .update({ encrypted_auth_token: encryptedToken })
+            .eq('id', newUser.id);
     }
 
     return newUser;

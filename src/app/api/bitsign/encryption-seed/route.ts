@@ -15,17 +15,29 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Check if user already has a stored encryption key
+        // Look up the unified user by handle → user_identities → unified_users
         const { data: identity } = await supabaseAdmin
-            .from('bit_sign_identities')
-            .select('encryption_key')
-            .eq('user_handle', handle)
+            .from('user_identities')
+            .select('unified_user_id')
+            .eq('provider', 'handcash')
+            .eq('provider_user_id', handle)
             .maybeSingle();
 
-        if (identity?.encryption_key) {
+        if (!identity) {
+            return NextResponse.json({ error: 'User not found' }, { status: 404 });
+        }
+
+        // Check if user already has a stored encryption key on unified_users
+        const { data: user } = await supabaseAdmin
+            .from('unified_users')
+            .select('encryption_key')
+            .eq('id', identity.unified_user_id)
+            .single();
+
+        if (user?.encryption_key) {
             return NextResponse.json({
                 success: true,
-                encryptionSeed: identity.encryption_key,
+                encryptionSeed: user.encryption_key,
             });
         }
 
@@ -34,19 +46,14 @@ export async function GET(request: NextRequest) {
         crypto.getRandomValues(keyBytes);
         const encryptionKey = Array.from(keyBytes).map(b => b.toString(16).padStart(2, '0')).join('');
 
-        // Store it — upsert to handle both cases
-        const { error: upsertError } = await supabaseAdmin
-            .from('bit_sign_identities')
-            .upsert({
-                user_handle: handle,
-                token_id: 'pending',
-                encryption_key: encryptionKey,
-                metadata: {},
-            }, { onConflict: 'user_handle' });
+        // Store it on unified_users
+        const { error: updateError } = await supabaseAdmin
+            .from('unified_users')
+            .update({ encryption_key: encryptionKey })
+            .eq('id', identity.unified_user_id);
 
-        if (upsertError) {
-            console.error('[encryption-seed] Failed to store key:', upsertError);
-            // Still return the key so the user can work, but log the failure
+        if (updateError) {
+            console.error('[encryption-seed] Failed to store key:', updateError);
         }
 
         return NextResponse.json({

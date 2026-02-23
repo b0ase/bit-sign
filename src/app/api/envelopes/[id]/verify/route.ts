@@ -23,12 +23,13 @@ export async function GET(
       return NextResponse.json({ error: 'Envelope not found' }, { status: 404 });
     }
 
-    // Strip signing tokens from public response
+    // Strip signing tokens from public response, include per-signer inscription txids
     const publicSigners = (envelope.signers as any[]).map((s) => ({
       name: s.name,
       role: s.role,
       status: s.status,
       signed_at: s.signed_at,
+      inscription_txid: s.signature_data?.inscription_txid || null,
     }));
 
     // Verify blockchain inscription if present

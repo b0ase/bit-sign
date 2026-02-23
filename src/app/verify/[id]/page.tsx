@@ -23,6 +23,7 @@ interface VerificationData {
     role: string;
     status: string;
     signed_at: string | null;
+    inscription_txid: string | null;
   }[];
   blockchain: {
     verified: boolean;
@@ -154,14 +155,23 @@ export default function VerifyPage() {
               </div>
               <div className="text-right">
                 {signer.status === 'signed' ? (
-                  <>
-                    <span className="flex items-center gap-2 text-green-400 text-xs">
+                  <div className="space-y-1">
+                    <span className="flex items-center justify-end gap-2 text-green-400 text-xs">
                       <FiCheck size={12} /> Signed
                     </span>
-                    <span className="block text-xs text-zinc-600 mt-1">
+                    <span className="block text-xs text-zinc-600">
                       {new Date(signer.signed_at!).toLocaleString()}
                     </span>
-                  </>
+                    {signer.inscription_txid && (
+                      <a
+                        href={`https://whatsonchain.com/tx/${signer.inscription_txid}`}
+                        target="_blank"
+                        className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-white transition-colors"
+                      >
+                        <FiExternalLink size={10} /> On-chain proof
+                      </a>
+                    )}
+                  </div>
                 ) : (
                   <span className="flex items-center gap-2 text-zinc-500 text-xs">
                     <FiClock size={12} /> Pending
@@ -171,6 +181,20 @@ export default function VerifyPage() {
             </div>
           ))}
         </div>
+
+        {/* Blockchain Proof - Inscription Pending Warning */}
+        {allSigned && !blockchain && (
+          <div className="p-6 border border-amber-900/50 bg-amber-950/10 rounded-md space-y-2">
+            <div className="flex items-center gap-3">
+              <FiAlertCircle className="text-amber-400" size={20} />
+              <span className="text-sm font-medium text-amber-400">Blockchain inscription pending</span>
+            </div>
+            <p className="text-xs text-zinc-500">
+              All parties have signed, but the summary inscription has not been recorded on-chain yet.
+              Individual signer proofs may still be available above.
+            </p>
+          </div>
+        )}
 
         {/* Blockchain Proof */}
         {blockchain && (
