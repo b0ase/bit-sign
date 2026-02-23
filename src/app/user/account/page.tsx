@@ -147,7 +147,8 @@ export default function AccountPage() {
     };
 
     const handleTldrawSave = async (signatureData: { svg: string; json: string }) => {
-        if (!handle || !encryptionSeed) return;
+        if (!handle) { alert('Please sign in first.'); return; }
+        if (!encryptionSeed) { alert('Encryption key not available. Please sign out and back in.'); return; }
         setIsProcessing(true);
         try {
             const encoder = new TextEncoder();

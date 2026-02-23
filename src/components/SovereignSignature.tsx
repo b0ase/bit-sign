@@ -1,42 +1,203 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
-import { Tldraw, Editor } from 'tldraw';
-import 'tldraw/tldraw.css';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 
 interface SovereignSignatureProps {
     onSave: (signatureData: { svg: string; json: string }) => void;
     onCancel: () => void;
 }
 
-export default function SovereignSignature({ onSave, onCancel }: SovereignSignatureProps) {
-    const [editor, setEditor] = useState<Editor | null>(null);
-    const [saving, setSaving] = useState(false);
+interface Point {
+    x: number;
+    y: number;
+    pressure: number;
+}
 
-    const handleMount = useCallback((editor: Editor) => {
-        setEditor(editor);
-        editor.updateInstanceState({ isDebugMode: false });
-        editor.setCurrentTool('draw');
-    }, []);
+export default function SovereignSignature({ onSave, onCancel }: SovereignSignatureProps) {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [isDrawing, setIsDrawing] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [strokes, setStrokes] = useState<Point[][]>([]);
+    const currentStroke = useRef<Point[]>([]);
+
+    // Set up canvas size
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const resize = () => {
+            const rect = canvas.parentElement!.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            canvas.style.width = rect.width + 'px';
+            canvas.style.height = rect.height + 'px';
+            const ctx = canvas.getContext('2d')!;
+            ctx.scale(dpr, dpr);
+            redraw(ctx, rect.width, rect.height);
+        };
+
+        resize();
+        window.addEventListener('resize', resize);
+        return () => window.removeEventListener('resize', resize);
+    }, [strokes]);
+
+    const redraw = useCallback((ctx: CanvasRenderingContext2D, w: number, h: number) => {
+        ctx.clearRect(0, 0, w, h);
+
+        // Draw signature line
+        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(40, h - 60);
+        ctx.lineTo(w - 40, h - 60);
+        ctx.stroke();
+
+        // Draw all completed strokes
+        for (const stroke of strokes) {
+            drawStroke(ctx, stroke);
+        }
+        // Draw current in-progress stroke
+        if (currentStroke.current.length > 0) {
+            drawStroke(ctx, currentStroke.current);
+        }
+    }, [strokes]);
+
+    const drawStroke = (ctx: CanvasRenderingContext2D, points: Point[]) => {
+        if (points.length < 2) return;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        for (let i = 1; i < points.length; i++) {
+            const prev = points[i - 1];
+            const curr = points[i];
+            const width = 1 + curr.pressure * 4;
+
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = width;
+            ctx.beginPath();
+            ctx.moveTo(prev.x, prev.y);
+            ctx.lineTo(curr.x, curr.y);
+            ctx.stroke();
+        }
+    };
+
+    const getPoint = (e: React.PointerEvent): Point => {
+        const canvas = canvasRef.current!;
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top,
+            pressure: e.pressure || 0.5,
+        };
+    };
+
+    const handlePointerDown = (e: React.PointerEvent) => {
+        e.preventDefault();
+        const canvas = canvasRef.current!;
+        canvas.setPointerCapture(e.pointerId);
+        setIsDrawing(true);
+        currentStroke.current = [getPoint(e)];
+    };
+
+    const handlePointerMove = (e: React.PointerEvent) => {
+        if (!isDrawing) return;
+        e.preventDefault();
+        const point = getPoint(e);
+        currentStroke.current.push(point);
+
+        // Draw incrementally
+        const canvas = canvasRef.current!;
+        const ctx = canvas.getContext('2d')!;
+        const points = currentStroke.current;
+        if (points.length >= 2) {
+            const prev = points[points.length - 2];
+            const curr = points[points.length - 1];
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 1 + curr.pressure * 4;
+            ctx.beginPath();
+            ctx.moveTo(prev.x, prev.y);
+            ctx.lineTo(curr.x, curr.y);
+            ctx.stroke();
+        }
+    };
+
+    const handlePointerUp = (e: React.PointerEvent) => {
+        if (!isDrawing) return;
+        setIsDrawing(false);
+        if (currentStroke.current.length > 1) {
+            setStrokes(prev => [...prev, [...currentStroke.current]]);
+        }
+        currentStroke.current = [];
+    };
+
+    const handleClear = () => {
+        setStrokes([]);
+        currentStroke.current = [];
+        const canvas = canvasRef.current;
+        if (canvas) {
+            const ctx = canvas.getContext('2d')!;
+            const rect = canvas.parentElement!.getBoundingClientRect();
+            redraw(ctx, rect.width, rect.height);
+        }
+    };
+
+    const handleUndo = () => {
+        setStrokes(prev => prev.slice(0, -1));
+    };
 
     const handleSave = async () => {
-        if (!editor || saving) return;
-
-        const shapeIds = Array.from(editor.getCurrentPageShapeIds());
-        if (shapeIds.length === 0) {
+        if (strokes.length === 0) {
             alert('Please draw your signature before saving.');
             return;
         }
 
         setSaving(true);
         try {
-            const { blob } = await editor.toImage(shapeIds, { format: 'svg', background: false });
-            const svgString = await blob.text();
-            const documentJson = JSON.stringify(editor.getSnapshot());
+            // Generate SVG from strokes
+            const canvas = canvasRef.current!;
+            const rect = canvas.parentElement!.getBoundingClientRect();
+            const w = rect.width;
+            const h = rect.height;
+
+            // Find bounding box of all strokes
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (const stroke of strokes) {
+                for (const p of stroke) {
+                    minX = Math.min(minX, p.x);
+                    minY = Math.min(minY, p.y);
+                    maxX = Math.max(maxX, p.x);
+                    maxY = Math.max(maxY, p.y);
+                }
+            }
+
+            const pad = 20;
+            minX = Math.max(0, minX - pad);
+            minY = Math.max(0, minY - pad);
+            maxX = Math.min(w, maxX + pad);
+            maxY = Math.min(h, maxY + pad);
+            const svgW = maxX - minX;
+            const svgH = maxY - minY;
+
+            let paths = '';
+            for (const stroke of strokes) {
+                if (stroke.length < 2) continue;
+                let d = `M ${(stroke[0].x - minX).toFixed(1)} ${(stroke[0].y - minY).toFixed(1)}`;
+                for (let i = 1; i < stroke.length; i++) {
+                    d += ` L ${(stroke[i].x - minX).toFixed(1)} ${(stroke[i].y - minY).toFixed(1)}`;
+                }
+                const avgPressure = stroke.reduce((s, p) => s + p.pressure, 0) / stroke.length;
+                const sw = (1 + avgPressure * 4).toFixed(1);
+                paths += `<path d="${d}" stroke="black" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`;
+            }
+
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW.toFixed(0)} ${svgH.toFixed(0)}" width="${svgW.toFixed(0)}" height="${svgH.toFixed(0)}">${paths}</svg>`;
 
             onSave({
-                svg: svgString,
-                json: documentJson
+                svg,
+                json: JSON.stringify({ strokes, width: w, height: h }),
             });
         } catch (error) {
             console.error('Failed to export signature:', error);
@@ -47,7 +208,7 @@ export default function SovereignSignature({ onSave, onCancel }: SovereignSignat
     };
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col p-4 md:p-12 overflow-hidden">
+        <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md flex flex-col p-6 md:p-12 overflow-hidden">
             <header className="flex justify-between items-center mb-4">
                 <div>
                     <h2 className="text-xl font-semibold text-white">Draw Your Signature</h2>
@@ -70,42 +231,37 @@ export default function SovereignSignature({ onSave, onCancel }: SovereignSignat
                 </div>
             </header>
 
-            <div className="flex-1 border border-zinc-800 bg-zinc-950 relative rounded-md overflow-hidden min-h-[400px]">
-                <Tldraw
-                    onMount={handleMount}
-                    inferDarkMode
-                    hideUi={true}
+            <div className="flex-1 border border-zinc-800 bg-zinc-950 relative rounded-md overflow-hidden min-h-[300px] touch-none">
+                <canvas
+                    ref={canvasRef}
+                    className="absolute inset-0 cursor-crosshair"
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerLeave={handlePointerUp}
                 />
 
-                {/* Tool Bar */}
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1 bg-black/60 backdrop-blur-md p-1.5 border border-zinc-800 rounded-full z-[1000]">
+                {strokes.length === 0 && !isDrawing && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <p className="text-zinc-700 text-lg">Sign here</p>
+                    </div>
+                )}
+
+                {/* Toolbar */}
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
                     <button
-                        onClick={() => editor?.setCurrentTool('select')}
-                        className="w-9 h-9 flex items-center justify-center text-zinc-400 hover:text-white text-xs rounded-full hover:bg-zinc-800 transition-colors"
-                        title="Select"
+                        onClick={handleUndo}
+                        disabled={strokes.length === 0}
+                        className="px-4 py-2 bg-black/60 backdrop-blur-md border border-zinc-800 text-zinc-400 text-sm rounded-full hover:text-white hover:border-zinc-600 transition-all disabled:opacity-30"
                     >
-                        Sel
+                        Undo
                     </button>
                     <button
-                        onClick={() => editor?.setCurrentTool('draw')}
-                        className="w-9 h-9 flex items-center justify-center text-zinc-400 hover:text-white text-xs rounded-full hover:bg-zinc-800 transition-colors"
-                        title="Draw"
+                        onClick={handleClear}
+                        disabled={strokes.length === 0}
+                        className="px-4 py-2 bg-black/60 backdrop-blur-md border border-zinc-800 text-red-500/70 text-sm rounded-full hover:text-red-400 hover:border-red-900 transition-all disabled:opacity-30"
                     >
-                        Pen
-                    </button>
-                    <button
-                        onClick={() => editor?.setCurrentTool('eraser')}
-                        className="w-9 h-9 flex items-center justify-center text-zinc-400 hover:text-white text-xs rounded-full hover:bg-zinc-800 transition-colors"
-                        title="Eraser"
-                    >
-                        Ers
-                    </button>
-                    <button
-                        onClick={() => editor?.selectAll().deleteShapes(editor.getSelectedShapeIds())}
-                        className="w-9 h-9 flex items-center justify-center text-red-500/70 hover:text-red-400 text-xs rounded-full hover:bg-zinc-800 transition-colors"
-                        title="Clear all"
-                    >
-                        Clr
+                        Clear
                     </button>
                 </div>
             </div>
