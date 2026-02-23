@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { renderDocument, getTemplate } from '@/lib/templates';
 import { hashData } from '@/lib/bsv-inscription';
+import { handCashConnect } from '@/lib/handcash';
 
 /**
  * POST /api/envelopes — Create a new signing envelope
@@ -77,6 +78,39 @@ export async function POST(request: NextRequest) {
       url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://bit-sign.online'}/sign/${s.signing_token}`,
     }));
 
+    // Send HandCash notifications to signers with handles
+    const notified: string[] = [];
+    if (handCashConnect && process.env.HOUSE_AUTH_TOKEN) {
+      const houseAccount = handCashConnect.getAccountFromAuthToken(process.env.HOUSE_AUTH_TOKEN);
+      for (const s of enrichedSigners) {
+        if (s.handle) {
+          try {
+            const signingUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://bit-sign.online'}/sign/${s.signing_token}`;
+            const service = (houseAccount as any).handCashConnectService;
+            const requestParams = {
+              description: `Bit-Sign: ${handle} sent you "${title}" to sign`,
+              payments: [{
+                destination: s.handle.startsWith('$') ? s.handle : `$${s.handle}`,
+                currencyCode: 'USD',
+                sendAmount: 0.01,
+              }],
+              expiration: new Date(Date.now() + 30 * 86400000).toISOString(),
+              customData: {
+                message: `Please sign: ${title}`,
+                callbackUrl: signingUrl,
+                source: 'Bit-Sign',
+              },
+            };
+            const httpRequest = service.getRequest('POST', '/v1/connect/wallet/paymentRequest', requestParams);
+            await fetch(httpRequest.url, httpRequest);
+            notified.push(s.handle);
+          } catch (err) {
+            console.warn(`[envelopes] Failed to notify ${s.handle}:`, err);
+          }
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       envelope: {
@@ -87,6 +121,7 @@ export async function POST(request: NextRequest) {
         created_at: envelope.created_at,
       },
       signing_urls: signingUrls,
+      notified_handles: notified,
     }, { status: 201 });
   } catch (error: any) {
     console.error('[envelopes] Unexpected error:', error);

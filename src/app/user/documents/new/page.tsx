@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   FiArrowLeft, FiArrowRight, FiPlus, FiTrash2,
-  FiFileText, FiCopy, FiCheck
+  FiFileText, FiCopy, FiCheck, FiZap
 } from 'react-icons/fi';
 
 interface TemplateInfo {
@@ -61,14 +61,12 @@ export default function NewDocumentPage() {
   const handleSelectTemplate = (template: TemplateInfo) => {
     setSelectedTemplate(template);
 
-    // Pre-populate defaults
     const defaults: Record<string, string> = {};
     template.fields.forEach(f => {
       if (f.default) defaults[f.key] = f.default;
     });
     setVariables(defaults);
 
-    // Pre-populate signers from template roles
     setSigners(template.signers.map(s => ({
       name: '',
       email: '',
@@ -142,8 +140,8 @@ export default function NewDocumentPage() {
   if (!handle) {
     return (
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-6 text-center">
-        <h1 className="text-4xl font-mono font-black mb-6 tracking-tighter uppercase italic">Access Denied</h1>
-        <Link href="/api/auth/handcash" className="px-12 py-4 bg-white text-black font-mono font-bold uppercase text-xs tracking-widest">Connect Wallet</Link>
+        <h1 className="text-3xl font-bold mb-4 tracking-tight">Sign in required</h1>
+        <Link href="/api/auth/handcash" className="px-8 py-3 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200">Sign in with HandCash</Link>
       </div>
     );
   }
@@ -153,15 +151,15 @@ export default function NewDocumentPage() {
       <div className="relative z-10 p-6 pt-24 max-w-4xl mx-auto space-y-8 pb-40">
         {/* Header */}
         <header className="flex items-center gap-4 border-b border-zinc-900 pb-6">
-          <Link href="/user/documents" className="p-2 border border-zinc-800 hover:border-white transition-colors">
+          <Link href="/user/documents" className="p-2 border border-zinc-800 rounded-md hover:border-zinc-600 transition-colors">
             <FiArrowLeft size={16} />
           </Link>
           <div>
-            <h1 className="text-3xl font-mono font-black tracking-tighter uppercase italic">New Document</h1>
-            <p className="text-zinc-600 font-mono text-[10px] tracking-[0.4em] uppercase mt-1">
-              {step === 'template' && 'Select Template'}
-              {step === 'fields' && 'Fill Details'}
-              {step === 'signers' && 'Add Signers'}
+            <h1 className="text-2xl font-bold tracking-tight">New Document</h1>
+            <p className="text-zinc-500 text-sm mt-0.5">
+              {step === 'template' && 'Select a template'}
+              {step === 'fields' && 'Fill in details'}
+              {step === 'signers' && 'Add signers'}
               {step === 'review' && 'Complete'}
             </p>
           </div>
@@ -172,7 +170,7 @@ export default function NewDocumentPage() {
           {['template', 'fields', 'signers', 'review'].map((s, i) => (
             <div
               key={s}
-              className={`h-1 flex-1 ${
+              className={`h-1 flex-1 rounded-full ${
                 s === step ? 'bg-white' :
                 ['template', 'fields', 'signers', 'review'].indexOf(step) > i ? 'bg-zinc-600' : 'bg-zinc-900'
               }`}
@@ -182,25 +180,21 @@ export default function NewDocumentPage() {
 
         {/* Step 1: Template Selection */}
         {step === 'template' && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {templates.map((t) => (
               <button
                 key={t.id}
                 onClick={() => handleSelectTemplate(t)}
-                className="w-full text-left p-6 border border-zinc-900 bg-zinc-950 hover:bg-zinc-900 hover:border-zinc-700 transition-all group"
+                className="w-full text-left p-5 border border-zinc-900 bg-zinc-950 rounded-md hover:bg-zinc-900 hover:border-zinc-700 transition-all group"
               >
                 <div className="flex items-start gap-4">
-                  <FiFileText className="text-zinc-600 group-hover:text-white transition-colors mt-1" size={24} />
+                  <FiFileText className="text-zinc-600 group-hover:text-white transition-colors mt-0.5" size={22} />
                   <div>
-                    <h3 className="font-mono font-black text-lg uppercase tracking-wider">{t.name}</h3>
-                    <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest mt-1">{t.description}</p>
-                    <div className="flex gap-3 mt-3">
-                      <span className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest">
-                        {t.fields.length} fields
-                      </span>
-                      <span className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest">
-                        {t.signers.length} signers
-                      </span>
+                    <h3 className="font-semibold text-base">{t.name}</h3>
+                    <p className="text-sm text-zinc-500 mt-0.5">{t.description}</p>
+                    <div className="flex gap-3 mt-2">
+                      <span className="text-xs text-zinc-600">{t.fields.length} fields</span>
+                      <span className="text-xs text-zinc-600">{t.signers.length} signers</span>
                     </div>
                   </div>
                 </div>
@@ -213,19 +207,19 @@ export default function NewDocumentPage() {
         {step === 'fields' && selectedTemplate && (
           <div className="space-y-6">
             <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">Document Title</label>
+              <label className="block text-xs text-zinc-500 mb-1.5">Document Title</label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-4 py-3 bg-zinc-950 border border-zinc-800 font-mono text-sm text-white focus:border-white outline-none transition-colors"
+                className="w-full px-4 py-3 bg-zinc-950 border border-zinc-800 rounded-md text-sm text-white focus:border-white outline-none transition-colors"
               />
             </div>
 
             <div className="border-t border-zinc-900 pt-6 space-y-4">
               {selectedTemplate.fields.map((field) => (
                 <div key={field.key}>
-                  <label className="block text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">
+                  <label className="block text-xs text-zinc-500 mb-1.5">
                     {field.label} {field.required && <span className="text-red-500">*</span>}
                   </label>
                   <input
@@ -233,24 +227,24 @@ export default function NewDocumentPage() {
                     value={variables[field.key] || ''}
                     onChange={(e) => setVariables(prev => ({ ...prev, [field.key]: e.target.value }))}
                     placeholder={field.default || ''}
-                    className="w-full px-4 py-3 bg-zinc-950 border border-zinc-800 font-mono text-sm text-white placeholder:text-zinc-700 focus:border-white outline-none transition-colors"
+                    className="w-full px-4 py-3 bg-zinc-950 border border-zinc-800 rounded-md text-sm text-white placeholder:text-zinc-700 focus:border-white outline-none transition-colors"
                   />
                 </div>
               ))}
             </div>
 
-            <div className="flex gap-4 pt-4">
+            <div className="flex gap-3 pt-4">
               <button
                 onClick={() => setStep('template')}
-                className="px-6 py-3 border border-zinc-800 text-zinc-400 font-mono text-xs uppercase tracking-widest hover:border-white hover:text-white transition-all"
+                className="px-5 py-3 border border-zinc-800 text-zinc-400 text-sm rounded-md hover:border-zinc-600 hover:text-white transition-all flex items-center gap-2"
               >
-                <FiArrowLeft className="inline mr-2" /> Back
+                <FiArrowLeft size={14} /> Back
               </button>
               <button
                 onClick={async () => { await handlePreview(); setStep('signers'); }}
-                className="flex-1 py-3 bg-white text-black font-mono font-black uppercase text-xs tracking-widest hover:bg-zinc-200 transition-all flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200 transition-all flex items-center justify-center gap-2"
               >
-                Continue <FiArrowRight />
+                Continue <FiArrowRight size={14} />
               </button>
             </div>
           </div>
@@ -261,7 +255,7 @@ export default function NewDocumentPage() {
           <div className="space-y-6">
             {/* Document Preview */}
             {previewHtml && (
-              <div className="border border-zinc-800 p-1">
+              <div className="border border-zinc-800 rounded-md overflow-hidden">
                 <div className="bg-white text-black p-4 max-h-[300px] overflow-y-auto">
                   <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
                 </div>
@@ -269,12 +263,12 @@ export default function NewDocumentPage() {
             )}
 
             <div className="space-y-4">
-              <h3 className="text-[10px] font-mono font-black uppercase tracking-[0.4em] text-zinc-500">Signers</h3>
+              <h3 className="text-sm font-medium text-zinc-400">Signers</h3>
 
               {signers.map((signer, i) => (
-                <div key={i} className="p-4 border border-zinc-900 bg-zinc-950 space-y-3">
+                <div key={i} className="p-4 border border-zinc-900 bg-zinc-950 rounded-md space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs font-bold uppercase tracking-widest text-zinc-400">
+                    <span className="text-sm font-medium text-zinc-300">
                       {selectedTemplate.signers[i]?.label || `Signer ${i + 1}`}
                     </span>
                     {i >= selectedTemplate.signers.length && (
@@ -286,7 +280,7 @@ export default function NewDocumentPage() {
                       </button>
                     )}
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <input
                       type="text"
                       value={signer.name}
@@ -296,7 +290,7 @@ export default function NewDocumentPage() {
                         setSigners(updated);
                       }}
                       placeholder="Full Name *"
-                      className="px-3 py-2 bg-black border border-zinc-800 font-mono text-xs text-white placeholder:text-zinc-700 focus:border-white outline-none"
+                      className="px-3 py-2.5 bg-black border border-zinc-800 rounded-md text-sm text-white placeholder:text-zinc-700 focus:border-white outline-none"
                     />
                     <input
                       type="email"
@@ -306,8 +300,8 @@ export default function NewDocumentPage() {
                         updated[i] = { ...updated[i], email: e.target.value };
                         setSigners(updated);
                       }}
-                      placeholder="Email"
-                      className="px-3 py-2 bg-black border border-zinc-800 font-mono text-xs text-white placeholder:text-zinc-700 focus:border-white outline-none"
+                      placeholder="Email (optional)"
+                      className="px-3 py-2.5 bg-black border border-zinc-800 rounded-md text-sm text-white placeholder:text-zinc-700 focus:border-white outline-none"
                     />
                     <input
                       type="text"
@@ -317,34 +311,39 @@ export default function NewDocumentPage() {
                         updated[i] = { ...updated[i], handle: e.target.value };
                         setSigners(updated);
                       }}
-                      placeholder="$handle"
-                      className="px-3 py-2 bg-black border border-zinc-800 font-mono text-xs text-white placeholder:text-zinc-700 focus:border-white outline-none"
+                      placeholder="$handle (HandCash)"
+                      className="px-3 py-2.5 bg-black border border-zinc-800 rounded-md text-sm text-white placeholder:text-zinc-700 focus:border-white outline-none"
                     />
                   </div>
+                  {signer.handle && (
+                    <p className="text-xs text-zinc-500 flex items-center gap-1.5">
+                      <FiZap size={10} className="text-amber-500" /> Will receive a HandCash notification
+                    </p>
+                  )}
                 </div>
               ))}
 
               <button
                 onClick={() => setSigners(prev => [...prev, { name: '', email: '', handle: '', role: 'additional' }])}
-                className="w-full py-3 border border-dashed border-zinc-800 text-zinc-600 hover:text-white hover:border-zinc-600 font-mono text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 border border-dashed border-zinc-800 rounded-md text-zinc-500 hover:text-white hover:border-zinc-600 text-sm transition-all flex items-center justify-center gap-2"
               >
                 <FiPlus size={14} /> Add Signer
               </button>
             </div>
 
-            <div className="flex gap-4 pt-4">
+            <div className="flex gap-3 pt-4">
               <button
                 onClick={() => setStep('fields')}
-                className="px-6 py-3 border border-zinc-800 text-zinc-400 font-mono text-xs uppercase tracking-widest hover:border-white hover:text-white transition-all"
+                className="px-5 py-3 border border-zinc-800 text-zinc-400 text-sm rounded-md hover:border-zinc-600 hover:text-white transition-all flex items-center gap-2"
               >
-                <FiArrowLeft className="inline mr-2" /> Back
+                <FiArrowLeft size={14} /> Back
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={submitting || signers.some(s => !s.name)}
-                className="flex-1 py-3 bg-white text-black font-mono font-black uppercase text-xs tracking-widest hover:bg-zinc-200 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {submitting ? 'Creating...' : 'Create & Send'} <FiArrowRight />
+                {submitting ? 'Creating...' : 'Create & Send'} <FiArrowRight size={14} />
               </button>
             </div>
           </div>
@@ -353,28 +352,38 @@ export default function NewDocumentPage() {
         {/* Step 4: Result */}
         {step === 'review' && result && (
           <div className="space-y-8">
-            <div className="p-8 border border-green-900 bg-green-950/20 text-center space-y-4">
+            <div className="p-8 border border-green-900 bg-green-950/20 rounded-md text-center space-y-3">
               <FiCheck className="mx-auto text-green-400" size={40} />
-              <h2 className="font-mono font-black text-2xl uppercase tracking-wider">Envelope Created</h2>
-              <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">
+              <h2 className="font-semibold text-xl">Envelope Created</h2>
+              <p className="font-mono text-xs text-zinc-500">
                 Hash: {result.envelope.document_hash.slice(0, 16)}...
               </p>
             </div>
 
+            {/* HandCash notifications */}
+            {result.notified_handles && result.notified_handles.length > 0 && (
+              <div className="p-4 border border-amber-900/50 bg-amber-950/10 rounded-md">
+                <p className="text-sm text-amber-400 flex items-center gap-2">
+                  <FiZap size={14} />
+                  Notified via HandCash: {result.notified_handles.map((h: string) => `$${h.replace(/^\$/, '')}`).join(', ')}
+                </p>
+              </div>
+            )}
+
             <div className="space-y-3">
-              <h3 className="text-[10px] font-mono font-black uppercase tracking-[0.4em] text-zinc-500">Signing URLs</h3>
-              <p className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest">Send these to each signer:</p>
+              <h3 className="text-sm font-medium text-zinc-400">Signing Links</h3>
+              <p className="text-sm text-zinc-500">Share these with each signer:</p>
 
               {result.signing_urls.map((s: any, i: number) => (
-                <div key={i} className="flex items-center gap-3 p-4 bg-zinc-950 border border-zinc-900">
-                  <div className="flex-1 space-y-1">
-                    <span className="block font-mono text-xs font-bold uppercase tracking-widest text-white">{s.name}</span>
-                    <span className="block font-mono text-[10px] text-zinc-500 uppercase tracking-widest">{s.role}</span>
-                    <span className="block font-mono text-[10px] text-zinc-600 break-all">{s.url}</span>
+                <div key={i} className="flex items-center gap-3 p-4 bg-zinc-950 border border-zinc-900 rounded-md">
+                  <div className="flex-1 space-y-0.5">
+                    <span className="block text-sm font-medium text-white">{s.name}</span>
+                    <span className="block text-xs text-zinc-500">{s.role}</span>
+                    <span className="block font-mono text-xs text-zinc-600 break-all">{s.url}</span>
                   </div>
                   <button
                     onClick={() => copyUrl(s.url)}
-                    className="p-2 border border-zinc-800 hover:border-white transition-colors"
+                    className="p-2 border border-zinc-800 rounded-md hover:border-zinc-600 transition-colors"
                   >
                     {copiedUrl === s.url ? <FiCheck size={14} className="text-green-400" /> : <FiCopy size={14} />}
                   </button>
@@ -382,16 +391,16 @@ export default function NewDocumentPage() {
               ))}
             </div>
 
-            <div className="flex gap-4">
+            <div className="flex gap-3">
               <Link
                 href="/user/documents"
-                className="flex-1 py-3 border border-zinc-800 text-zinc-400 font-mono text-xs uppercase tracking-widest hover:border-white hover:text-white transition-all text-center"
+                className="flex-1 py-3 border border-zinc-800 text-zinc-400 text-sm rounded-md hover:border-zinc-600 hover:text-white transition-all text-center"
               >
                 View All Documents
               </Link>
               <Link
                 href={`/verify/${result.envelope.id}`}
-                className="flex-1 py-3 bg-white text-black font-mono font-black uppercase text-xs tracking-widest hover:bg-zinc-200 transition-all text-center"
+                className="flex-1 py-3 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200 transition-all text-center"
               >
                 View Envelope
               </Link>
