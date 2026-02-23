@@ -1,31 +1,22 @@
 import { NextResponse } from 'next/server';
-import { getCookieDomain } from '@/lib/auth';
 
 export async function GET() {
-    const response = NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/`);
-    const domain = getCookieDomain();
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bit-sign.online';
+    const response = NextResponse.redirect(appUrl);
 
-    // Clear cookies — must specify same domain they were set with
-    response.cookies.set('handcash_auth_token', '', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 0,
+    // Clear domain-scoped cookies (new format)
+    const domainOpts = {
         path: '/',
-        ...(domain && { domain }),
-    });
-    response.cookies.set('handcash_handle', '', {
-        httpOnly: false,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
         maxAge: 0,
-        path: '/',
-        ...(domain && { domain }),
-    });
+        domain: '.bit-sign.online',
+    } as const;
 
-    // Also clear any old host-only cookies (without domain)
-    response.cookies.delete('handcash_auth_token');
-    response.cookies.delete('handcash_handle');
+    response.headers.append('Set-Cookie', `handcash_auth_token=; Path=/; Max-Age=0; Domain=.bit-sign.online; HttpOnly; Secure; SameSite=Lax`);
+    response.headers.append('Set-Cookie', `handcash_handle=; Path=/; Max-Age=0; Domain=.bit-sign.online; Secure; SameSite=Lax`);
+
+    // Also clear old host-only cookies (no domain — browser matches exact host)
+    response.headers.append('Set-Cookie', `handcash_auth_token=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`);
+    response.headers.append('Set-Cookie', `handcash_handle=; Path=/; Max-Age=0; Secure; SameSite=Lax`);
 
     return response;
 }
