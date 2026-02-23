@@ -5,12 +5,18 @@ import { motion } from 'framer-motion';
 import { FiEdit3, FiFileText, FiShield, FiCheck, FiPlus, FiArrowRight, FiUser, FiZap, FiLock } from 'react-icons/fi';
 import Link from 'next/link';
 import { SignatureDisplay, WalletSigningModal } from '@/components/bitsign';
-import { useUserHandle } from '@/hooks/useUserHandle';
 
 export default function BitSignPage() {
-  const { handle, loading: authLoading } = useUserHandle();
+  const [handle, setHandle] = useState<string | null>(null);
   const [isSigningModalOpen, setIsSigningModalOpen] = useState(false);
-  const [signatures, setSignatures] = useState<any[]>([]);
+
+  useEffect(() => {
+    const cookies = document.cookie.split('; ');
+    const handleCookie = cookies.find(row => row.startsWith('handcash_handle='));
+    if (handleCookie) {
+      setHandle(handleCookie.split('=')[1]);
+    }
+  }, []);
 
   const handleLogin = () => {
     window.location.href = '/api/auth/handcash';
@@ -57,9 +63,7 @@ export default function BitSignPage() {
             </p>
 
             <div className="flex flex-wrap justify-center gap-6">
-              {authLoading ? (
-                <div className="h-12" />
-              ) : handle ? (
+              {handle ? (
                 <div className="flex flex-col items-center gap-4">
                   <p className="text-sm text-zinc-400">Signed in as <span className="text-white font-medium">${handle}</span></p>
                   <Link
