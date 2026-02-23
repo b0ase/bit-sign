@@ -302,28 +302,47 @@ export default function AccountPage() {
     };
 
     const previewSignature = async (sig: Signature) => {
-        if (!encryptionSeed) return;
         // Toggle off if already viewing this one
-        if (expandedSig === sig.id && previewData) {
+        if (expandedSig === sig.id) {
             setExpandedSig(null);
-            if (previewData.url.startsWith('blob:')) URL.revokeObjectURL(previewData.url);
+            if (previewData?.url?.startsWith('blob:')) URL.revokeObjectURL(previewData.url);
             setPreviewData(null);
             return;
         }
         setExpandedSig(sig.id);
         setPreviewLoading(true);
         setPreviewData(null);
+
+        // If no encryption seed, just show metadata (no preview)
+        if (!encryptionSeed) {
+            setPreviewData({ url: '', type: 'no-key' });
+            setPreviewLoading(false);
+            return;
+        }
+
         try {
             const res = await fetch(`/api/bitsign/signatures/${sig.id}`);
-            if (!res.ok) throw new Error('Failed to fetch');
+            if (!res.ok) throw new Error('Failed to fetch signature data');
             const data = await res.json();
+
+            if (!data.encrypted_payload || !data.iv) {
+                setPreviewData({ url: '', type: 'no-data' });
+                return;
+            }
 
             const encryptedBuffer = new Uint8Array(base64ToBuffer(data.encrypted_payload) as ArrayBuffer);
             const ivBuffer = new Uint8Array(base64ToBuffer(data.iv) as ArrayBuffer);
-            const decrypted = await decryptDocument(encryptedBuffer, ivBuffer, encryptionSeed);
+
+            let decrypted: ArrayBuffer;
+            try {
+                decrypted = await decryptDocument(encryptedBuffer, ivBuffer, encryptionSeed);
+            } catch (decryptError) {
+                console.error('Decryption failed (key may have changed):', decryptError);
+                setPreviewData({ url: '', type: 'decrypt-failed' });
+                return;
+            }
 
             if (sig.signature_type === 'TLDRAW') {
-                // SVG signature — render as text
                 const svgText = new TextDecoder().decode(decrypted);
                 const blob = new Blob([svgText], { type: 'image/svg+xml' });
                 setPreviewData({ url: URL.createObjectURL(blob), type: 'svg' });
@@ -693,6 +712,25 @@ export default function AccountPage() {
                                                     <iframe src={previewData.url} className="w-full h-[500px] rounded-md border border-zinc-800" />
                                                 ) : previewData?.type === 'video' ? (
                                                     <video src={previewData.url} controls className="w-full max-h-[400px] rounded-md" />
+                                                ) : previewData?.type === 'decrypt-failed' ? (
+                                                    <div className="text-center py-6 space-y-2">
+                                                        <FiLock className="mx-auto text-amber-500" size={24} />
+                                                        <p className="text-sm text-amber-400">Unable to decrypt</p>
+                                                        <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+                                                            Your encryption key may have changed since this was uploaded.
+                                                            Try signing out and back in, then retry.
+                                                        </p>
+                                                    </div>
+                                                ) : previewData?.type === 'no-data' ? (
+                                                    <div className="text-center py-6 space-y-2">
+                                                        <FiFileText className="mx-auto text-zinc-600" size={24} />
+                                                        <p className="text-sm text-zinc-500">No encrypted data stored for this item</p>
+                                                    </div>
+                                                ) : previewData?.type === 'no-key' ? (
+                                                    <div className="text-center py-6 space-y-2">
+                                                        <FiLock className="mx-auto text-zinc-600" size={24} />
+                                                        <p className="text-sm text-zinc-500">Encryption key not available. Please sign in again.</p>
+                                                    </div>
                                                 ) : previewData?.type === 'error' ? (
                                                     <p className="text-sm text-red-400 text-center py-4">Failed to load preview</p>
                                                 ) : previewData?.type === 'unsupported' ? (
