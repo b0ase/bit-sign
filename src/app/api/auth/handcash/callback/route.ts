@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handCashConnect } from '@/lib/handcash';
 import { mapHandCashUser } from '@/lib/supabase';
+import { getCookieDomain } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
     const authToken = request.nextUrl.searchParams.get('authToken');
@@ -19,26 +20,24 @@ export async function GET(request: NextRequest) {
                 handle: publicProfile.handle,
                 displayName: publicProfile.displayName,
                 avatarUrl: publicProfile.avatarUrl,
-            }, authToken); // Pass auth token for encryption
+            }, authToken);
             console.log(`[HandCash/Auth] User ${publicProfile.handle} persisted in Supabase with sovereign token`);
         } catch (dbError) {
             console.error(`[HandCash/Auth] Database persistence failed for ${publicProfile.handle}:`, dbError);
-            // We continue even if DB fails so user can still use HandCash features
         }
 
-        // Read returnTo from cookie, default to dashboard
         const returnTo = request.cookies.get('auth_return_to')?.value || '/user/account';
-
-        // Create the response — redirect to where the user came from
         const response = NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}${returnTo}`);
+        const domain = getCookieDomain();
 
         // Set the auth token in an HTTP-only cookie
         response.cookies.set('handcash_auth_token', authToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
-            maxAge: 60 * 60 * 24 * 30, // 30 days
+            maxAge: 60 * 60 * 24 * 30,
             path: '/',
+            ...(domain && { domain }),
         });
 
         // Set the handle in a public cookie for the UI
@@ -48,6 +47,7 @@ export async function GET(request: NextRequest) {
             sameSite: 'lax',
             maxAge: 60 * 60 * 24 * 30,
             path: '/',
+            ...(domain && { domain }),
         });
 
         // Clear the returnTo cookie

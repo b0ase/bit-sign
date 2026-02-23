@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { resolveUserHandle } from '@/lib/auth';
 
 export async function DELETE(
     request: NextRequest,
@@ -7,12 +8,10 @@ export async function DELETE(
 ) {
     try {
         const { id } = await params;
-        const handleCookie = request.cookies.get('handcash_handle')?.value;
-        const allCookieNames = request.cookies.getAll().map(c => c.name);
-        console.log('[Delete] cookies present:', allCookieNames, 'handle:', handleCookie || 'MISSING');
+        const handle = await resolveUserHandle(request);
 
-        if (!handleCookie) {
-            return NextResponse.json({ error: 'Unauthorized — no handle cookie', cookies: allCookieNames }, { status: 401 });
+        if (!handle) {
+            return NextResponse.json({ error: 'Please sign in again' }, { status: 401 });
         }
 
         // Only delete if it belongs to this user
@@ -20,7 +19,7 @@ export async function DELETE(
             .from('bit_sign_signatures')
             .delete()
             .eq('id', id)
-            .eq('user_handle', handleCookie);
+            .eq('user_handle', handle);
 
         if (error) throw error;
 

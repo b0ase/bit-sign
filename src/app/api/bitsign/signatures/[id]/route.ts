@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { resolveUserHandle } from '@/lib/auth';
 
 export async function GET(
     request: NextRequest,
@@ -7,13 +8,8 @@ export async function GET(
 ) {
     try {
         const { id } = await params;
-        const authToken = request.cookies.get('handcash_auth_token')?.value;
-        if (!authToken) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const handleCookie = request.cookies.get('handcash_handle')?.value;
-        if (!handleCookie) {
+        const handle = await resolveUserHandle(request);
+        if (!handle) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -21,7 +17,7 @@ export async function GET(
             .from('bit_sign_signatures')
             .select('id, user_handle, signature_type, encrypted_payload, iv, metadata')
             .eq('id', id)
-            .eq('user_handle', handleCookie)
+            .eq('user_handle', handle)
             .single();
 
         if (error || !signature) {

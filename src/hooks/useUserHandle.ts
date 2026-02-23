@@ -29,10 +29,8 @@ export function useUserHandle() {
     }, []);
 
     const logout = () => {
-        document.cookie = "handcash_auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-        document.cookie = "handcash_handle=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-        setHandle(null);
-        window.location.reload();
+        // Use server-side logout to properly clear domain-scoped cookies
+        window.location.href = '/api/auth/logout';
     };
 
     return { handle, loading, logout };

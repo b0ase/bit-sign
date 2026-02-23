@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { resolveUserHandle } from '@/lib/auth';
 
 /**
  * GET /api/bitsign/registered-signature
@@ -8,10 +9,9 @@ import { supabaseAdmin } from '@/lib/supabase';
  */
 export async function GET(request: NextRequest) {
   try {
-    const authToken = request.cookies.get('handcash_auth_token')?.value;
-    const handleCookie = request.cookies.get('handcash_handle')?.value;
+    const handle = await resolveUserHandle(request);
 
-    if (!authToken || !handleCookie) {
+    if (!handle) {
       return NextResponse.json({ registered: false }, { status: 200 });
     }
 
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const { data: identity } = await supabaseAdmin
       .from('bit_sign_identities')
       .select('registered_signature_id, registered_signature_txid, encryption_key')
-      .eq('user_handle', handleCookie)
+      .eq('user_handle', handle)
       .maybeSingle();
 
     if (!identity?.registered_signature_id) {
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       .from('bit_sign_signatures')
       .select('id, encrypted_payload, iv, signature_type, txid')
       .eq('id', identity.registered_signature_id)
-      .eq('user_handle', handleCookie)
+      .eq('user_handle', handle)
       .single();
 
     if (!signature || !signature.encrypted_payload || !signature.iv) {

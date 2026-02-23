@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { resolveUserHandle } from '@/lib/auth';
 
 /**
  * Returns a persistent encryption key for client-side encryption.
@@ -8,10 +9,9 @@ import { supabaseAdmin } from '@/lib/supabase';
  */
 export async function GET(request: NextRequest) {
     try {
-        const authToken = request.cookies.get('handcash_auth_token')?.value;
-        const handleCookie = request.cookies.get('handcash_handle')?.value;
+        const handle = await resolveUserHandle(request);
 
-        if (!handleCookie) {
+        if (!handle) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -19,10 +19,9 @@ export async function GET(request: NextRequest) {
         const { data: identity } = await supabaseAdmin
             .from('bit_sign_identities')
             .select('encryption_key')
-            .eq('user_handle', handleCookie)
+            .eq('user_handle', handle)
             .maybeSingle();
 
-        // Return existing key (doesn't require auth token — user already proved identity)
         if (identity?.encryption_key) {
             return NextResponse.json({
                 success: true,
@@ -30,28 +29,22 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        // Creating a new key requires auth token
-        if (!authToken) {
-            return NextResponse.json({ error: 'Authentication required to initialize encryption' }, { status: 401 });
-        }
-
         // Generate a permanent encryption key (64 hex chars = 256 bits)
         const keyBytes = new Uint8Array(32);
         crypto.getRandomValues(keyBytes);
         const encryptionKey = Array.from(keyBytes).map(b => b.toString(16).padStart(2, '0')).join('');
 
-        // Store it — upsert in case identity row exists without key
+        // Store it
         if (identity) {
             await supabaseAdmin
                 .from('bit_sign_identities')
                 .update({ encryption_key: encryptionKey })
-                .eq('user_handle', handleCookie);
+                .eq('user_handle', handle);
         } else {
-            // Create identity row with key (user hasn't minted yet)
             await supabaseAdmin
                 .from('bit_sign_identities')
                 .insert({
-                    user_handle: handleCookie,
+                    user_handle: handle,
                     encryption_key: encryptionKey,
                     metadata: {},
                 });

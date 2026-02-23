@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { resolveUserHandle } from '@/lib/auth';
 
 /**
  * POST /api/bitsign/register-signature
@@ -8,10 +9,9 @@ import { supabaseAdmin } from '@/lib/supabase';
  */
 export async function POST(request: NextRequest) {
   try {
-    const authToken = request.cookies.get('handcash_auth_token')?.value;
-    const handleCookie = request.cookies.get('handcash_handle')?.value;
+    const handle = await resolveUserHandle(request);
 
-    if (!authToken || !handleCookie) {
+    if (!handle) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       .from('bit_sign_signatures')
       .select('id, user_handle, signature_type, txid')
       .eq('id', signature_id)
-      .eq('user_handle', handleCookie)
+      .eq('user_handle', handle)
       .single();
 
     if (sigError || !signature) {
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
         registered_signature_id: signature.id,
         registered_signature_txid: signature.txid,
       })
-      .eq('user_handle', handleCookie);
+      .eq('user_handle', handle);
 
     if (updateError) {
       console.error('[register-signature] Update error:', updateError);

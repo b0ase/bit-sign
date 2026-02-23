@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { resolveUserHandle } from '@/lib/auth';
 
 /**
  * Server-side decrypt and stream a signature's encrypted payload.
- * This avoids sending large base64 JSON to the client.
  */
 export async function GET(
     request: NextRequest,
@@ -11,12 +11,10 @@ export async function GET(
 ) {
     try {
         const { id } = await params;
-        const handleCookie = request.cookies.get('handcash_handle')?.value;
-        const allCookieNames = request.cookies.getAll().map(c => c.name);
-        console.log('[Preview] cookies present:', allCookieNames, 'handle:', handleCookie || 'MISSING');
+        const handle = await resolveUserHandle(request);
 
-        if (!handleCookie) {
-            return NextResponse.json({ error: 'Unauthorized — no handle cookie', cookies: allCookieNames }, { status: 401 });
+        if (!handle) {
+            return NextResponse.json({ error: 'Please sign in again' }, { status: 401 });
         }
 
         // Get the signature data
@@ -24,7 +22,7 @@ export async function GET(
             .from('bit_sign_signatures')
             .select('id, user_handle, signature_type, encrypted_payload, iv, metadata')
             .eq('id', id)
-            .eq('user_handle', handleCookie)
+            .eq('user_handle', handle)
             .single();
 
         if (sigError || !signature) {
@@ -39,7 +37,7 @@ export async function GET(
         const { data: identity } = await supabaseAdmin
             .from('bit_sign_identities')
             .select('encryption_key')
-            .eq('user_handle', handleCookie)
+            .eq('user_handle', handle)
             .maybeSingle();
 
         if (!identity?.encryption_key) {
@@ -50,7 +48,6 @@ export async function GET(
         const encryptedBytes = Buffer.from(signature.encrypted_payload, 'base64');
         const ivBytes = Buffer.from(signature.iv, 'base64');
 
-        // Derive the AES key the same way the client does
         const encoder = new TextEncoder();
         const seedBytes = encoder.encode(identity.encryption_key);
         const hashBuffer = await crypto.subtle.digest('SHA-256', seedBytes);
