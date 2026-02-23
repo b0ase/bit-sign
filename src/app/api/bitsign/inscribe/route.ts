@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserAccount } from '@/lib/handcash';
 import { supabaseAdmin } from '@/lib/supabase';
+import { inscribeBitSignData, hashData } from '@/lib/bsv-inscription';
 
 /**
  * Handles on-chain inscription of encrypted Sovereign Safe Box items
- * NOW USES USER'S OWN WALLET for payment/inscription
+ * Uses real BSV blockchain inscription via OP_RETURN
  */
 export async function POST(request: NextRequest) {
     try {
         const { encryptedData, iv, handle, metadata, signatureType = 'DOCUMENT' } = await request.json();
 
-        // Get User Auth Token from Cookies
         const authToken = request.cookies.get('handcash_auth_token')?.value;
 
         if (!authToken) {
@@ -22,14 +22,32 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Failed to resolve user account' }, { status: 401 });
         }
 
-        // TODO: In a real BSV app, we would construct a tx here and have the user sign/broadcast it via SDK
-        // For now, we simulate the "Inscription" but using the User's credentials validates they are active.
+        // Calculate real SHA-256 hash of the payload
+        const payloadForHash = encryptedData || JSON.stringify({ handle, signatureType, metadata });
+        const payloadHash = await hashData(payloadForHash);
 
-        // 1. Inscribe the data on-chain
-        // Mocking the inscription TXID
-        const txid = `tx-${Math.random().toString(16).slice(2)}`;
+        // Attempt real blockchain inscription
+        let txid: string;
+        let inscriptionResult = null;
 
-        // 2. Handle Identity Minting Special Case
+        try {
+            inscriptionResult = await inscribeBitSignData({
+                type: 'signature_registration',
+                signatureHash: payloadHash,
+                signatureType: signatureType === 'TLDRAW' ? 'drawn' : 'typed',
+                ownerName: handle,
+                walletType: 'handcash',
+                createdAt: new Date().toISOString(),
+            });
+            txid = inscriptionResult.txid;
+            console.log(`[inscribe] Real inscription: ${txid}`);
+        } catch (inscribeError) {
+            // Fallback: record in DB without blockchain if key not configured
+            console.warn('[inscribe] Blockchain inscription failed, recording locally:', inscribeError);
+            txid = `pending-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        }
+
+        // Handle Identity Minting
         if (signatureType === 'IDENTITY_MINT') {
             const { data: identity, error: idError } = await supabaseAdmin
                 .from('bit_sign_identities')
@@ -46,7 +64,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: true, txid, identity });
         }
 
-        // 3. Regular Signature Chain Inscription
+        // Regular Signature Chain Inscription
         if (!encryptedData || !iv) {
             return NextResponse.json({ error: 'Missing attestation payload' }, { status: 400 });
         }
@@ -56,7 +74,7 @@ export async function POST(request: NextRequest) {
             .insert({
                 user_handle: handle,
                 signature_type: signatureType,
-                payload_hash: 'sha256_placeholder', // Should be calculated
+                payload_hash: payloadHash,
                 encrypted_payload: encryptedData,
                 iv: iv,
                 txid: txid,
@@ -70,7 +88,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             success: true,
             txid: txid,
-            signature: signature
+            signature: signature,
+            inscription: inscriptionResult ? {
+                dataHash: inscriptionResult.dataHash,
+                explorerUrl: inscriptionResult.blockchainExplorerUrl,
+            } : null,
         });
     } catch (error: any) {
         console.error('Safe Box Inscription Error:', error);

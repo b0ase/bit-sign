@@ -33,6 +33,7 @@ export default function Navbar() {
                     </Link>
 
                     <div className="hidden md:flex items-center gap-6">
+                        {handle && <Link href="/user/documents" className="text-xs uppercase font-mono text-neutral-400 hover:text-white transition-colors">Documents</Link>}
                         <Link href="/docs" className="text-xs uppercase font-mono text-neutral-400 hover:text-white transition-colors">Docs</Link>
                         <Link href="/pricing" className="text-xs uppercase font-mono text-neutral-400 hover:text-white transition-colors">Pricing</Link>
                     </div>
