@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { resolveUserHandle } from '@/lib/auth';
+import { createStrand } from '@/lib/identity-strands';
 
 /**
  * POST /api/bitsign/register-signature
@@ -53,6 +54,29 @@ export async function POST(request: NextRequest) {
     if (updateError) {
       console.error('[register-signature] Update error:', updateError);
       return NextResponse.json({ error: 'Failed to register signature' }, { status: 500 });
+    }
+
+    // Create registered_signature strand
+    try {
+      const { data: identity } = await supabaseAdmin
+        .from('bit_sign_identities')
+        .select('id, token_id')
+        .eq('user_handle', handle)
+        .maybeSingle();
+
+      if (identity) {
+        await createStrand({
+          identityId: identity.id,
+          rootTxid: identity.token_id,
+          strandType: 'registered_signature',
+          signatureId: signature.id,
+          label: 'Registered Signature',
+          metadata: { txid: signature.txid },
+          userHandle: handle,
+        });
+      }
+    } catch (strandErr) {
+      console.warn('[register-signature] Strand creation failed (non-fatal):', strandErr);
     }
 
     return NextResponse.json({

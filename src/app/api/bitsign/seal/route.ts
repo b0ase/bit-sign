@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { resolveUserHandle } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { inscribeBitSignData, hashData } from '@/lib/bsv-inscription';
+import { createStrand } from '@/lib/identity-strands';
 
 /**
  * POST /api/bitsign/seal
@@ -97,6 +98,29 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (sealError) throw sealError;
+
+    // Create vault_item/SEALED_DOCUMENT strand
+    try {
+      const { data: identity } = await supabaseAdmin
+        .from('bit_sign_identities')
+        .select('id, token_id')
+        .eq('user_handle', handle)
+        .maybeSingle();
+
+      if (identity) {
+        await createStrand({
+          identityId: identity.id,
+          rootTxid: identity.token_id,
+          strandType: 'vault_item',
+          strandSubtype: 'SEALED_DOCUMENT',
+          signatureId: sealed.id,
+          label: 'Sealed Document',
+          userHandle: handle,
+        });
+      }
+    } catch (strandErr) {
+      console.warn('[seal] Strand creation failed (non-fatal):', strandErr);
+    }
 
     return NextResponse.json({
       success: true,

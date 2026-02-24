@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUserAccount } from '@/lib/handcash';
 import { supabaseAdmin } from '@/lib/supabase';
 import { inscribeBitSignData, hashData } from '@/lib/bsv-inscription';
+import { linkExistingVaultItems, createStrand } from '@/lib/identity-strands';
 
 /**
  * Handles storage (and optional on-chain inscription) of vault items.
@@ -61,19 +62,46 @@ export async function POST(request: NextRequest) {
 
         // Handle Identity Minting
         if (signatureType === 'IDENTITY_MINT') {
+            // Use $HANDLE symbol (not $HANDLE-DNA)
+            const tokenSymbol = `$${handle.toUpperCase()}`;
+            const identityMetadata = { ...metadata, symbol: tokenSymbol };
+
+            // Attempt identity_root on-chain inscription
+            let rootTxid = txid;
+            try {
+                const rootInscription = await inscribeBitSignData({
+                    type: 'identity_root',
+                    userHandle: handle,
+                    tokenSymbol,
+                    walletType: 'handcash',
+                    createdAt: new Date().toISOString(),
+                });
+                rootTxid = rootInscription.txid;
+                console.log(`[inscribe] Identity root inscription: ${rootTxid}`);
+            } catch (rootErr) {
+                console.warn('[inscribe] Identity root inscription failed (using original txid):', rootErr);
+            }
+
             const { data: identity, error: idError } = await supabaseAdmin
                 .from('bit_sign_identities')
                 .insert({
                     user_handle: handle,
-                    token_id: txid,
-                    metadata: metadata || {}
+                    token_id: rootTxid,
+                    metadata: identityMetadata,
                 })
                 .select()
                 .single();
 
             if (idError) throw idError;
 
-            return NextResponse.json({ success: true, txid, identity });
+            // Retroactively link existing vault items as strands
+            try {
+                await linkExistingVaultItems(identity.id, rootTxid, handle);
+            } catch (linkErr) {
+                console.warn('[inscribe] linkExistingVaultItems failed (non-fatal):', linkErr);
+            }
+
+            return NextResponse.json({ success: true, txid: rootTxid, identity });
         }
 
         // Determine storage mode
@@ -99,6 +127,29 @@ export async function POST(request: NextRequest) {
             .single();
 
         if (sigError) throw sigError;
+
+        // Auto-create strand if user has an identity
+        try {
+            const { data: existingIdentity } = await supabaseAdmin
+                .from('bit_sign_identities')
+                .select('id, token_id')
+                .eq('user_handle', handle)
+                .maybeSingle();
+
+            if (existingIdentity && signature) {
+                await createStrand({
+                    identityId: existingIdentity.id,
+                    rootTxid: existingIdentity.token_id,
+                    strandType: 'vault_item',
+                    strandSubtype: signatureType,
+                    signatureId: signature.id,
+                    label: metadata?.type || signatureType,
+                    userHandle: handle,
+                });
+            }
+        } catch (strandErr) {
+            console.warn('[inscribe] Auto-strand creation failed (non-fatal):', strandErr);
+        }
 
         return NextResponse.json({
             success: true,

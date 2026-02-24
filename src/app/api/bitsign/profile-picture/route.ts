@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveUserHandle } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { createStrand } from '@/lib/identity-strands';
 
 /**
  * POST /api/bitsign/profile-picture
@@ -42,6 +43,28 @@ export async function POST(request: NextRequest) {
       .eq('user_handle', handle);
 
     if (updateError) throw updateError;
+
+    // Create profile_photo strand
+    try {
+      const { data: identity } = await supabaseAdmin
+        .from('bit_sign_identities')
+        .select('id, token_id')
+        .eq('user_handle', handle)
+        .maybeSingle();
+
+      if (identity) {
+        await createStrand({
+          identityId: identity.id,
+          rootTxid: identity.token_id,
+          strandType: 'profile_photo',
+          signatureId: signatureId,
+          label: 'Profile Photo',
+          userHandle: handle,
+        });
+      }
+    } catch (strandErr) {
+      console.warn('[profile-picture] Strand creation failed (non-fatal):', strandErr);
+    }
 
     return NextResponse.json({ success: true, avatarUrl });
   } catch (error: any) {

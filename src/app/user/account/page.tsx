@@ -61,6 +61,19 @@ interface Identity {
     github_metadata?: any;
     registered_signature_id?: string;
     registered_signature_txid?: string;
+    identity_strength?: number;
+}
+
+interface Strand {
+    id: string;
+    strand_type: string;
+    strand_subtype?: string;
+    strand_txid?: string;
+    label?: string;
+    signature_id?: string;
+    provider_handle?: string;
+    created_at: string;
+    metadata?: any;
 }
 
 interface SharedDocument {
@@ -95,6 +108,7 @@ export default function AccountPage() {
     const [shareModal, setShareModal] = useState<{ documentId: string; documentType: string; itemType?: string; itemLabel?: string } | null>(null);
     const [sharedWithMe, setSharedWithMe] = useState<SharedDocument[]>([]);
     const [registeredSignatureSvg, setRegisteredSignatureSvg] = useState<string | null>(null);
+    const [strands, setStrands] = useState<Strand[]>([]);
 
     // Workspace state
     const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
@@ -122,6 +136,13 @@ export default function AccountPage() {
             s.signature_type === 'SEALED_DOCUMENT'
         );
     }, [signatures]);
+
+    const getStrengthLabel = (score: number) => {
+        if (score >= 20) return { level: 4, label: 'Sovereign', color: 'text-amber-400' };
+        if (score >= 10) return { level: 3, label: 'Strong', color: 'text-green-400' };
+        if (score >= 5) return { level: 2, label: 'Verified', color: 'text-blue-400' };
+        return { level: 1, label: 'Basic', color: 'text-zinc-400' };
+    };
 
     const registerSignature = async (sigId: string) => {
         setIsProcessing(true);
@@ -181,9 +202,30 @@ export default function AccountPage() {
     const exportIdentity = async () => {
         setIsProcessing(true);
         try {
+            const strength = identity?.identity_strength || 0;
+            const strengthInfo = getStrengthLabel(strength);
             const manifest = {
                 handle: `$${handle}`,
-                dna: identity?.token_id,
+                root: {
+                    token_id: identity?.token_id,
+                    symbol: identity?.metadata?.symbol || `$${handle?.toUpperCase()}`,
+                },
+                strands: strands.map(s => ({
+                    type: s.strand_type,
+                    subtype: s.strand_subtype,
+                    strand_txid: s.strand_txid,
+                    label: s.label,
+                    timestamp: s.created_at,
+                })),
+                identity_strength: {
+                    score: strength,
+                    level: strengthInfo.level,
+                    label: strengthInfo.label,
+                },
+                chain: [
+                    identity?.token_id,
+                    ...strands.filter(s => s.strand_txid).map(s => s.strand_txid),
+                ].filter(Boolean),
                 attestations: signatures.map(s => ({
                     type: s.signature_type,
                     txid: s.txid,
@@ -191,7 +233,7 @@ export default function AccountPage() {
                     label: s.metadata?.type
                 })),
                 timestamp: new Date().toISOString(),
-                protocol: "BIT-SIGN v1.0.4-genesis"
+                protocol: "BIT-SIGN v2.0.0-strands"
             };
 
             const response = await fetch('/api/bitsign/sign', {
@@ -415,11 +457,12 @@ export default function AccountPage() {
             const data = await res.json();
             if (data.signatures) setSignatures(data.signatures);
             if (data.identity) {
-                setIdentity(data.identity);
+                setIdentity({ ...data.identity, identity_strength: data.identity_strength || data.identity.identity_strength || 0 });
                 if (data.identity.registered_signature_id) {
                     setRegisteredSignatureId(data.identity.registered_signature_id);
                 }
             }
+            if (data.strands) setStrands(data.strands);
         } catch (error) {
             console.error('Failed to fetch data:', error);
         } finally {
@@ -599,7 +642,7 @@ export default function AccountPage() {
                 body: JSON.stringify({
                     handle,
                     signatureType: 'IDENTITY_MINT',
-                    metadata: { type: 'Digital DNA', symbol: `$${handle.toUpperCase()}-DNA` }
+                    metadata: { type: 'Identity Root', symbol: `$${handle.toUpperCase()}` }
                 })
             });
             const data = await response.json();
@@ -854,18 +897,34 @@ export default function AccountPage() {
                                 <span>Mint Identity Token</span>
                             </button>
                         ) : (
-                            <div className="flex items-center gap-4 px-4 py-2.5 bg-zinc-950 border border-zinc-900 rounded-md">
-                                <div className="text-right">
-                                    <span className="block text-xs text-zinc-500">Identity Token</span>
-                                    <span className="block font-mono text-sm text-white font-medium">{identity.metadata?.symbol || 'UNREGISTERED'}</span>
+                            <div className="flex items-center gap-3">
+                                {(() => {
+                                    const s = getStrengthLabel(identity.identity_strength || 0);
+                                    return (
+                                        <div className="flex items-center gap-2 px-3 py-2.5 bg-zinc-950 border border-zinc-900 rounded-md">
+                                            <FiShield className={s.color} size={16} />
+                                            <div className="text-right">
+                                                <span className="block text-xs text-zinc-500">Strength</span>
+                                                <span className={`block text-sm font-medium ${s.color}`}>
+                                                    Lv.{s.level} {s.label}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                                <div className="flex items-center gap-4 px-4 py-2.5 bg-zinc-950 border border-zinc-900 rounded-md">
+                                    <div className="text-right">
+                                        <span className="block text-xs text-zinc-500">Identity Token</span>
+                                        <span className="block font-mono text-sm text-white font-medium">{identity.metadata?.symbol || 'UNREGISTERED'}</span>
+                                    </div>
+                                    <a
+                                        href={`https://whatsonchain.com/tx/${identity.token_id}`}
+                                        target="_blank"
+                                        className="p-2 bg-zinc-900 text-zinc-500 hover:text-white transition-colors rounded-md"
+                                    >
+                                        <FiExternalLink />
+                                    </a>
                                 </div>
-                                <a
-                                    href={`https://whatsonchain.com/tx/${identity.token_id}`}
-                                    target="_blank"
-                                    className="p-2 bg-zinc-900 text-zinc-500 hover:text-white transition-colors rounded-md"
-                                >
-                                    <FiExternalLink />
-                                </a>
                             </div>
                         )}
                     </div>
@@ -958,10 +1017,14 @@ export default function AccountPage() {
                 </div>
 
                 {/* Stats row */}
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                     <div className="bg-black p-4 border border-zinc-900 rounded-md">
                         <span className="block text-xs text-zinc-500 mb-1">Vault Items</span>
                         <span className="block text-2xl font-semibold text-white">{signatures.length}</span>
+                    </div>
+                    <div className="bg-black p-4 border border-zinc-900 rounded-md">
+                        <span className="block text-xs text-zinc-500 mb-1">Strands</span>
+                        <span className="block text-2xl font-semibold text-white">{strands.length}</span>
                     </div>
                     <div className="bg-black p-4 border border-zinc-900 rounded-md">
                         <span className="block text-xs text-zinc-500 mb-1">Inbox</span>

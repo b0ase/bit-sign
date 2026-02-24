@@ -11,7 +11,7 @@ const WHATSONCHAIN_API = 'https://api.whatsonchain.com/v1/bsv/main';
 const FETCH_TIMEOUT_MS = 30000;
 
 export interface BitSignInscriptionData {
-  type: 'signature_registration' | 'document_signature' | 'envelope_signing';
+  type: 'signature_registration' | 'document_signature' | 'envelope_signing' | 'identity_root' | 'identity_strand';
 
   // For signature registration
   signatureId?: string;
@@ -31,6 +31,14 @@ export interface BitSignInscriptionData {
   walletType?: string;
   createdAt?: string;
   signedAt?: string;
+
+  // For identity_root / identity_strand
+  userHandle?: string;
+  tokenSymbol?: string;
+  rootTxid?: string;
+  strandType?: string;
+  strandSubtype?: string;
+  strandLabel?: string;
 }
 
 export interface BitSignInscriptionResult {
@@ -150,6 +158,20 @@ function generateBitSignJson(data: BitSignInscriptionData): string {
     inscriptionData.signerWallet = data.walletAddress;
     inscriptionData.walletType = data.walletType;
     inscriptionData.signedAt = data.signedAt;
+  } else if (data.type === 'identity_root') {
+    inscriptionData.version = '2.0';
+    inscriptionData.schema = '401-identity-root-v1';
+    inscriptionData.userHandle = data.userHandle;
+    inscriptionData.tokenSymbol = data.tokenSymbol;
+    inscriptionData.walletType = data.walletType || 'handcash';
+  } else if (data.type === 'identity_strand') {
+    inscriptionData.version = '2.0';
+    inscriptionData.schema = '401-identity-strand-v1';
+    inscriptionData.rootTxid = data.rootTxid;
+    inscriptionData.strandType = data.strandType;
+    if (data.strandSubtype) inscriptionData.strandSubtype = data.strandSubtype;
+    if (data.strandLabel) inscriptionData.strandLabel = data.strandLabel;
+    if (data.userHandle) inscriptionData.userHandle = data.userHandle;
   }
 
   return JSON.stringify(inscriptionData, null, 2);

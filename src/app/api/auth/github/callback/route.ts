@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { supabaseAdmin } from '@/lib/supabase';
+import { createStrand } from '@/lib/identity-strands';
 
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
@@ -61,9 +62,31 @@ export async function GET(request: NextRequest) {
             .eq('user_handle', handle);
 
         if (updateError) {
-            // If identity record doesn't exist yet, we might need to upsert or just wait for DNA mint
-            // For now, we assume users link after DNA mint, or we just fail gracefully if no DNA yet
             console.error('Supabase update error:', updateError);
+        }
+
+        // 5. Create oauth/github strand if identity exists
+        try {
+            const { data: identity } = await supabaseAdmin
+                .from('bit_sign_identities')
+                .select('id, token_id')
+                .eq('user_handle', handle)
+                .maybeSingle();
+
+            if (identity) {
+                await createStrand({
+                    identityId: identity.id,
+                    rootTxid: identity.token_id,
+                    strandType: 'oauth',
+                    strandSubtype: 'github',
+                    providerHandle: githubHandle,
+                    providerId: githubId,
+                    label: `GitHub @${githubHandle}`,
+                    userHandle: handle,
+                });
+            }
+        } catch (strandErr) {
+            console.warn('[github-callback] Strand creation failed (non-fatal):', strandErr);
         }
 
         return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}${state}`);

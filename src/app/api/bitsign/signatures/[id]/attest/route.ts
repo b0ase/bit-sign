@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { resolveUserHandle } from '@/lib/auth';
+import { createStrand } from '@/lib/identity-strands';
 
 /**
  * POST /api/bitsign/signatures/[id]/attest
@@ -28,7 +29,7 @@ export async function POST(
     // Verify signature belongs to user
     const { data: signature, error: sigError } = await supabaseAdmin
       .from('bit_sign_signatures')
-      .select('id, user_handle')
+      .select('id, user_handle, signature_type, metadata')
       .eq('id', id)
       .eq('user_handle', handle)
       .single();
@@ -50,6 +51,39 @@ export async function POST(
     if (updateError) {
       console.error('[attest] Update error:', updateError);
       return NextResponse.json({ error: 'Failed to record attestation' }, { status: 500 });
+    }
+
+    // Retroactively create strand for pre-upgrade items
+    try {
+      const { data: identity } = await supabaseAdmin
+        .from('bit_sign_identities')
+        .select('id, token_id')
+        .eq('user_handle', handle)
+        .maybeSingle();
+
+      if (identity) {
+        // Check if strand already exists for this signature
+        const { data: existingStrand } = await supabaseAdmin
+          .from('bit_sign_strands')
+          .select('id')
+          .eq('identity_id', identity.id)
+          .eq('signature_id', id)
+          .maybeSingle();
+
+        if (!existingStrand) {
+          await createStrand({
+            identityId: identity.id,
+            rootTxid: identity.token_id,
+            strandType: 'vault_item',
+            strandSubtype: signature.signature_type,
+            signatureId: id,
+            label: signature.metadata?.type || signature.signature_type,
+            userHandle: handle,
+          });
+        }
+      }
+    } catch (strandErr) {
+      console.warn('[attest] Retroactive strand creation failed (non-fatal):', strandErr);
     }
 
     return NextResponse.json({

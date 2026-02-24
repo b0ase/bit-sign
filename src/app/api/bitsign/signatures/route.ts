@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { getStrandsForIdentity } from '@/lib/identity-strands';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -28,9 +29,17 @@ export async function GET(request: Request) {
 
         if (sigError) throw sigError;
 
+        // 3. Fetch strands if identity exists
+        let strands: any[] = [];
+        if (identity) {
+            strands = await getStrandsForIdentity(identity.id);
+        }
+
         return NextResponse.json({
             identity,
-            signatures: signatures || []
+            signatures: signatures || [],
+            strands,
+            identity_strength: identity?.identity_strength || 0,
         });
     } catch (error: any) {
         console.error('[SignaturesAPI] Error:', error);
