@@ -478,7 +478,15 @@ export default function AccountPage() {
                     metadata: { type: label, mimeType: blob.type }
                 })
             });
-            const data = await response.json();
+            if (response.status === 413) {
+                throw new Error('File too large. Videos must be under 3MB. Try a shorter recording.');
+            }
+            let data: any;
+            try {
+                data = await response.json();
+            } catch {
+                throw new Error(`Upload failed (${response.status}). The file may be too large.`);
+            }
             if (response.status === 401) {
                 alert('Session expired. Please sign in again to upload new items.');
                 window.location.href = '/api/auth/handcash';
@@ -542,7 +550,15 @@ export default function AccountPage() {
                         metadata: { type: 'Document', fileName: file.name, mimeType: file.type }
                     })
                 });
-                const data = await response.json();
+                if (response.status === 413) {
+                    throw new Error(`${file.name} is too large. Files must be under 3MB.`);
+                }
+                let data: any;
+                try {
+                    data = await response.json();
+                } catch {
+                    throw new Error(`Upload failed (${response.status}). ${file.name} may be too large.`);
+                }
                 if (response.status === 401) {
                     alert('Session expired. Please sign in again to upload new items.');
                     window.location.href = '/api/auth/handcash';
