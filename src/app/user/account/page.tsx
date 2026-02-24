@@ -740,11 +740,11 @@ export default function AccountPage() {
                                 <div className="flex items-center gap-2 flex-wrap">
                                     {[
                                         { id: 'github', label: 'GitHub', icon: FiGithub, active: true, linked: !!identity.github_handle, handle: identity.github_handle, authUrl: '/api/auth/github' },
-                                        { id: 'google', label: 'Google', icon: FiMail, active: false, linked: false },
-                                        { id: 'twitter', label: 'X', icon: FiTwitter, active: false, linked: false },
-                                        { id: 'linkedin', label: 'LinkedIn', icon: FiLinkedin, active: false, linked: false },
-                                        { id: 'discord', label: 'Discord', icon: FiMessageCircle, active: false, linked: false },
-                                        { id: 'microsoft', label: 'Microsoft', icon: FiMonitor, active: false, linked: false },
+                                        { id: 'google', label: 'Google', icon: FiMail, active: true, linked: false, authUrl: '/api/auth/google' },
+                                        { id: 'twitter', label: 'X', icon: FiTwitter, active: true, linked: false, authUrl: '/api/auth/twitter' },
+                                        { id: 'linkedin', label: 'LinkedIn', icon: FiLinkedin, active: true, linked: false, authUrl: '/api/auth/linkedin' },
+                                        { id: 'discord', label: 'Discord', icon: FiMessageCircle, active: true, linked: false, authUrl: '/api/auth/discord' },
+                                        { id: 'microsoft', label: 'Microsoft', icon: FiMonitor, active: true, linked: false, authUrl: '/api/auth/microsoft' },
                                     ].map((provider) => {
                                         if (provider.linked && provider.handle) {
                                             return (

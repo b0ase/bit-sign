@@ -45,6 +45,10 @@ export default function DocumentCanvas({
     const [editingTextId, setEditingTextId] = useState<string | null>(null);
     const [dragOver, setDragOver] = useState(false);
 
+    // Keep a ref to latest elements so async callbacks don't use stale closures
+    const elementsRef = useRef(elements);
+    elementsRef.current = elements;
+
     // Drag/resize state
     const dragRef = useRef<{
         elementId: string;
@@ -103,7 +107,7 @@ export default function DocumentCanvas({
         if (data.signatureType === 'TLDRAW' && data.previewUrl) {
             fetchSignatureSvg(data.signatureId).then(svg => {
                 if (svg) {
-                    onElementsChange(elements.map(el =>
+                    onElementsChange(elementsRef.current.map(el =>
                         el.id === newElement.id ? { ...el, signatureSvg: svg } : el
                     ));
                 }
