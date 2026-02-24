@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { bufferToBase64 } from '@/lib/attestation';
 import SovereignSignature from '@/components/SovereignSignature';
 import MediaCapture from '@/components/MediaCapture';
+import PhoneCaptureModal from '@/components/PhoneCaptureModal';
 import E2ESetupBanner from '@/components/E2ESetupBanner';
 import ShareModal from '@/components/ShareModal';
 import SignatureExplorer from '@/components/SignatureExplorer';
@@ -33,7 +34,9 @@ import {
     FiLinkedin,
     FiMail,
     FiMessageCircle,
-    FiMonitor
+    FiMonitor,
+    FiSmartphone,
+    FiEye
 } from 'react-icons/fi';
 
 interface Signature {
@@ -78,6 +81,8 @@ export default function AccountPage() {
     const [identity, setIdentity] = useState<Identity | null>(null);
     const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
     const [captureMode, setCaptureMode] = useState<'PHOTO' | 'VIDEO' | null>(null);
+    const [showDeviceChoice, setShowDeviceChoice] = useState<'PHOTO' | 'VIDEO' | null>(null);
+    const [phoneCaptureMode, setPhoneCaptureMode] = useState<'PHOTO' | 'VIDEO' | null>(null);
     const [encryptionSeed, setEncryptionSeed] = useState<string | null>(null);
     const [uploadInputKey, setUploadInputKey] = useState(0);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -458,15 +463,16 @@ export default function AccountPage() {
         }
     };
 
-    const handleMediaCapture = async (blob: Blob) => {
+    const handleMediaCapture = async (blob: Blob, modeOverride?: 'PHOTO' | 'VIDEO') => {
         if (!handle) return;
         setIsProcessing(true);
         try {
             const arrayBuffer = await blob.arrayBuffer();
             const base64 = bufferToBase64(arrayBuffer);
 
-            const type = captureMode === 'PHOTO' ? 'CAMERA' : 'VIDEO';
-            const label = captureMode === 'PHOTO' ? 'Camera Proof' : 'Video Witness';
+            const activeMode = modeOverride || captureMode;
+            const type = activeMode === 'PHOTO' ? 'CAMERA' : 'VIDEO';
+            const label = activeMode === 'PHOTO' ? 'Camera Proof' : 'Video Witness';
 
             const response = await fetch('/api/bitsign/inscribe', {
                 method: 'POST',
@@ -784,11 +790,11 @@ export default function AccountPage() {
                                 <div className="flex items-center gap-2 flex-wrap">
                                     {[
                                         { id: 'github', label: 'GitHub', icon: FiGithub, active: true, linked: !!identity.github_handle, handle: identity.github_handle, authUrl: '/api/auth/github' },
-                                        { id: 'google', label: 'Google', icon: FiMail, active: true, linked: false, authUrl: '/api/auth/google' },
-                                        { id: 'twitter', label: 'X', icon: FiTwitter, active: true, linked: false, authUrl: '/api/auth/twitter' },
-                                        { id: 'linkedin', label: 'LinkedIn', icon: FiLinkedin, active: true, linked: false, authUrl: '/api/auth/linkedin' },
-                                        { id: 'discord', label: 'Discord', icon: FiMessageCircle, active: true, linked: false, authUrl: '/api/auth/discord' },
-                                        { id: 'microsoft', label: 'Microsoft', icon: FiMonitor, active: true, linked: false, authUrl: '/api/auth/microsoft' },
+                                        { id: 'google', label: 'Google', icon: FiMail, active: true, linked: false, authUrl: 'https://path401.com' },
+                                        { id: 'twitter', label: 'X', icon: FiTwitter, active: true, linked: false, authUrl: 'https://path401.com' },
+                                        { id: 'linkedin', label: 'LinkedIn', icon: FiLinkedin, active: true, linked: false, authUrl: 'https://path401.com' },
+                                        { id: 'discord', label: 'Discord', icon: FiMessageCircle, active: true, linked: false, authUrl: 'https://path401.com' },
+                                        { id: 'microsoft', label: 'Microsoft', icon: FiMonitor, active: true, linked: false, authUrl: 'https://path401.com' },
                                     ].map((provider) => {
                                         if (provider.linked && provider.handle) {
                                             return (
@@ -888,26 +894,62 @@ export default function AccountPage() {
                                 <span className="block text-xs text-zinc-600">Hand-drawn</span>
                             </div>
                         </button>
-                        <button
-                            onClick={() => setCaptureMode('PHOTO')}
-                            className="group relative p-5 border border-zinc-700 bg-zinc-900 rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-500 hover:bg-zinc-800 text-zinc-400 hover:text-white"
-                        >
-                            <FiCamera className="text-xl" />
-                            <div className="text-center">
-                                <span className="block text-sm font-medium">Photo</span>
-                                <span className="block text-xs text-zinc-600">Camera</span>
-                            </div>
-                        </button>
-                        <button
-                            onClick={() => setCaptureMode('VIDEO')}
-                            className="group relative p-5 border border-zinc-700 bg-zinc-900 rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-500 hover:bg-zinc-800 text-zinc-400 hover:text-white"
-                        >
-                            <FiActivity className="text-xl" />
-                            <div className="text-center">
-                                <span className="block text-sm font-medium">Video</span>
-                                <span className="block text-xs text-zinc-600">Recording</span>
-                            </div>
-                        </button>
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowDeviceChoice(showDeviceChoice === 'PHOTO' ? null : 'PHOTO')}
+                                className="group relative w-full p-5 border border-zinc-700 bg-zinc-900 rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-500 hover:bg-zinc-800 text-zinc-400 hover:text-white"
+                            >
+                                <FiCamera className="text-xl" />
+                                <div className="text-center">
+                                    <span className="block text-sm font-medium">Photo</span>
+                                    <span className="block text-xs text-zinc-600">Camera</span>
+                                </div>
+                            </button>
+                            {showDeviceChoice === 'PHOTO' && (
+                                <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-zinc-900 border border-zinc-700 rounded-md overflow-hidden shadow-xl">
+                                    <button
+                                        onClick={() => { setShowDeviceChoice(null); setCaptureMode('PHOTO'); }}
+                                        className="w-full px-4 py-3 text-left text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-3"
+                                    >
+                                        <FiMonitor size={16} /> Use this device
+                                    </button>
+                                    <button
+                                        onClick={() => { setShowDeviceChoice(null); setPhoneCaptureMode('PHOTO'); }}
+                                        className="w-full px-4 py-3 text-left text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-3 border-t border-zinc-800"
+                                    >
+                                        <FiSmartphone size={16} /> Use phone camera
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowDeviceChoice(showDeviceChoice === 'VIDEO' ? null : 'VIDEO')}
+                                className="group relative w-full p-5 border border-zinc-700 bg-zinc-900 rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-500 hover:bg-zinc-800 text-zinc-400 hover:text-white"
+                            >
+                                <FiActivity className="text-xl" />
+                                <div className="text-center">
+                                    <span className="block text-sm font-medium">Video</span>
+                                    <span className="block text-xs text-zinc-600">Recording</span>
+                                </div>
+                            </button>
+                            {showDeviceChoice === 'VIDEO' && (
+                                <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-zinc-900 border border-zinc-700 rounded-md overflow-hidden shadow-xl">
+                                    <button
+                                        onClick={() => { setShowDeviceChoice(null); setCaptureMode('VIDEO'); }}
+                                        className="w-full px-4 py-3 text-left text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-3"
+                                    >
+                                        <FiMonitor size={16} /> Use this device
+                                    </button>
+                                    <button
+                                        onClick={() => { setShowDeviceChoice(null); setPhoneCaptureMode('VIDEO'); }}
+                                        className="w-full px-4 py-3 text-left text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-3 border-t border-zinc-800"
+                                    >
+                                        <FiSmartphone size={16} /> Use phone camera
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                         <label className="group relative p-5 border border-zinc-700 bg-zinc-900 rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-500 hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer">
                             <input key={uploadInputKey} type="file" multiple className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onChange={(e) => { handleDocumentUpload(e); setUploadInputKey(k => k + 1); }} />
                             <FiFileText className="text-xl" />
@@ -1101,6 +1143,12 @@ export default function AccountPage() {
                                                                                 className="px-3 py-1.5 bg-green-600 text-black text-xs font-medium rounded-md hover:bg-green-500 transition-all flex items-center gap-2"
                                                                             >
                                                                                 <FiUsers size={12} /> Send to HandCash
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={(e) => { e.stopPropagation(); setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'WITNESS_REQUEST', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' }); }}
+                                                                                className="px-3 py-1.5 bg-blue-600 text-black text-xs font-medium rounded-md hover:bg-blue-500 transition-all flex items-center gap-2"
+                                                                            >
+                                                                                <FiEye size={12} /> Request Witness
                                                                             </button>
                                                                         </div>
                                                                     )}
@@ -1392,6 +1440,18 @@ export default function AccountPage() {
                         mode={captureMode}
                         onCapture={handleMediaCapture}
                         onCancel={() => setCaptureMode(null)}
+                    />
+                )}
+
+                {phoneCaptureMode && (
+                    <PhoneCaptureModal
+                        mode={phoneCaptureMode}
+                        onCapture={(blob) => {
+                            const mode = phoneCaptureMode;
+                            setPhoneCaptureMode(null);
+                            handleMediaCapture(blob, mode);
+                        }}
+                        onCancel={() => setPhoneCaptureMode(null)}
                     />
                 )}
 

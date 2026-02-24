@@ -5,11 +5,12 @@ import { FiCamera, FiVideo, FiX, FiCheck, FiRotateCcw, FiActivity } from 'react-
 
 interface MediaCaptureProps {
     mode: 'PHOTO' | 'VIDEO';
+    facingMode?: 'user' | 'environment';
     onCapture: (blob: Blob) => void;
     onCancel: () => void;
 }
 
-export default function MediaCapture({ mode, onCapture, onCancel }: MediaCaptureProps) {
+export default function MediaCapture({ mode, facingMode = 'user', onCapture, onCancel }: MediaCaptureProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [stream, setStream] = useState<MediaStream | null>(null);
     const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null);
@@ -43,7 +44,7 @@ export default function MediaCapture({ mode, onCapture, onCancel }: MediaCapture
     const startCamera = async () => {
         try {
             const s = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'user', width: 1280, height: 720 },
+                video: { facingMode, width: 1280, height: 720 },
                 audio: mode === 'VIDEO'
             });
             setStream(s);
