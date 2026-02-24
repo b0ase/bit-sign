@@ -130,6 +130,7 @@ export default function AccountPage() {
     const [uploadInputKey, setUploadInputKey] = useState(0);
     const [isProcessing, setIsProcessing] = useState(false);
     const [expandedSig, setExpandedSig] = useState<string | null>(null);
+    const [vaultTab, setVaultTab] = useState('all');
     const [previewData, setPreviewData] = useState<{ url: string; type: string } | null>(null);
     const [previewLoading, setPreviewLoading] = useState(false);
     const [registeredSignatureId, setRegisteredSignatureId] = useState<string | null>(null);
@@ -169,6 +170,13 @@ export default function AccountPage() {
             s.signature_type === 'SEALED_DOCUMENT'
         );
     }, [signatures]);
+
+    const filteredVaultItems = useMemo(() => {
+        if (vaultTab === 'documents') return documents;
+        if (vaultTab === 'signatures') return signaturesOnly;
+        if (vaultTab === 'media') return mediaItems;
+        return signatures;
+    }, [vaultTab, signatures, documents, signaturesOnly, mediaItems]);
 
     const getStrengthLabel = (score: number) => {
         if (score >= 20) return { level: 4, label: 'Sovereign', color: 'text-amber-400' };
@@ -1043,44 +1051,36 @@ export default function AccountPage() {
                     <E2ESetupBanner onSetupComplete={() => setHasE2EKeys(true)} />
                 )}
 
-                {/* Verification Methods — 4 tiles, click to open */}
-                <div className="space-y-4">
-                    <h3 className="text-sm font-medium text-zinc-400">Verification Methods</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {/* Add to vault — compact inline bar */}
+                <div className="flex items-center gap-2">
+                    <span className="text-xs text-zinc-500 shrink-0">Add:</span>
+                    <div className="flex gap-1.5 flex-1">
                         <button
                             onClick={() => setIsSignatureModalOpen(true)}
-                            className="group relative p-5 border border-zinc-700 bg-zinc-900 rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-500 hover:bg-zinc-800 text-zinc-400 hover:text-white"
+                            className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-800 bg-zinc-900 rounded text-xs text-zinc-400 hover:text-white hover:border-zinc-600 transition-all"
                         >
-                            <FiEdit3 className="text-xl" />
-                            <div className="text-center">
-                                <span className="block text-sm font-medium">Signature</span>
-                                <span className="block text-xs text-zinc-600">Hand-drawn</span>
-                            </div>
+                            <FiEdit3 size={13} /> Signature
                         </button>
                         <div className="relative">
                             <button
                                 onClick={() => setShowDeviceChoice(showDeviceChoice === 'PHOTO' ? null : 'PHOTO')}
-                                className="group relative w-full p-5 border border-zinc-700 bg-zinc-900 rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-500 hover:bg-zinc-800 text-zinc-400 hover:text-white"
+                                className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-800 bg-zinc-900 rounded text-xs text-zinc-400 hover:text-white hover:border-zinc-600 transition-all"
                             >
-                                <FiCamera className="text-xl" />
-                                <div className="text-center">
-                                    <span className="block text-sm font-medium">Photo</span>
-                                    <span className="block text-xs text-zinc-600">Camera</span>
-                                </div>
+                                <FiCamera size={13} /> Photo
                             </button>
                             {showDeviceChoice === 'PHOTO' && (
-                                <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-zinc-900 border border-zinc-700 rounded-md overflow-hidden shadow-xl">
+                                <div className="absolute top-full left-0 mt-1 z-30 bg-zinc-900 border border-zinc-700 rounded-md overflow-hidden shadow-xl min-w-[160px]">
                                     <button
                                         onClick={() => { setShowDeviceChoice(null); setCaptureMode('PHOTO'); }}
-                                        className="w-full px-4 py-3 text-left text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-3"
+                                        className="w-full px-3 py-2 text-left text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-2"
                                     >
-                                        <FiMonitor size={16} /> Use this device
+                                        <FiMonitor size={13} /> This device
                                     </button>
                                     <button
                                         onClick={() => { setShowDeviceChoice(null); setPhoneCaptureMode('PHOTO'); }}
-                                        className="w-full px-4 py-3 text-left text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-3 border-t border-zinc-800"
+                                        className="w-full px-3 py-2 text-left text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-2 border-t border-zinc-800"
                                     >
-                                        <FiSmartphone size={16} /> Use phone camera
+                                        <FiSmartphone size={13} /> Phone camera
                                     </button>
                                 </div>
                             )}
@@ -1088,83 +1088,53 @@ export default function AccountPage() {
                         <div className="relative">
                             <button
                                 onClick={() => setShowDeviceChoice(showDeviceChoice === 'VIDEO' ? null : 'VIDEO')}
-                                className="group relative w-full p-5 border border-zinc-700 bg-zinc-900 rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-500 hover:bg-zinc-800 text-zinc-400 hover:text-white"
+                                className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-800 bg-zinc-900 rounded text-xs text-zinc-400 hover:text-white hover:border-zinc-600 transition-all"
                             >
-                                <FiActivity className="text-xl" />
-                                <div className="text-center">
-                                    <span className="block text-sm font-medium">Video</span>
-                                    <span className="block text-xs text-zinc-600">Recording</span>
-                                </div>
+                                <FiActivity size={13} /> Video
                             </button>
                             {showDeviceChoice === 'VIDEO' && (
-                                <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-zinc-900 border border-zinc-700 rounded-md overflow-hidden shadow-xl">
+                                <div className="absolute top-full left-0 mt-1 z-30 bg-zinc-900 border border-zinc-700 rounded-md overflow-hidden shadow-xl min-w-[160px]">
                                     <button
                                         onClick={() => { setShowDeviceChoice(null); setCaptureMode('VIDEO'); }}
-                                        className="w-full px-4 py-3 text-left text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-3"
+                                        className="w-full px-3 py-2 text-left text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-2"
                                     >
-                                        <FiMonitor size={16} /> Use this device
+                                        <FiMonitor size={13} /> This device
                                     </button>
                                     <button
                                         onClick={() => { setShowDeviceChoice(null); setPhoneCaptureMode('VIDEO'); }}
-                                        className="w-full px-4 py-3 text-left text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-3 border-t border-zinc-800"
+                                        className="w-full px-3 py-2 text-left text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-2 border-t border-zinc-800"
                                     >
-                                        <FiSmartphone size={16} /> Use phone camera
+                                        <FiSmartphone size={13} /> Phone camera
                                     </button>
                                 </div>
                             )}
                         </div>
-                        <label className="group relative p-5 border border-zinc-700 bg-zinc-900 rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-500 hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer">
-                            <input key={uploadInputKey} type="file" multiple className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onChange={(e) => { handleDocumentUpload(e); setUploadInputKey(k => k + 1); }} />
-                            <FiFileText className="text-xl" />
-                            <div className="text-center">
-                                <span className="block text-sm font-medium">Document</span>
-                                <span className="block text-xs text-zinc-600">Upload</span>
-                            </div>
+                        <label className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-800 bg-zinc-900 rounded text-xs text-zinc-400 hover:text-white hover:border-zinc-600 transition-all cursor-pointer relative">
+                            <input key={uploadInputKey} type="file" multiple className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={(e) => { handleDocumentUpload(e); setUploadInputKey(k => k + 1); }} />
+                            <FiFileText size={13} /> Document
                         </label>
                     </div>
-                </div>
-
-                {/* Stats row */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    <div className="bg-black p-4 border border-zinc-900 rounded-md">
-                        <span className="block text-xs text-zinc-500 mb-1">Vault Items</span>
-                        <span className="block text-2xl font-semibold text-white">{signatures.length}</span>
-                    </div>
-                    <div className="bg-black p-4 border border-zinc-900 rounded-md">
-                        <span className="block text-xs text-zinc-500 mb-1">Strands</span>
-                        <span className="block text-2xl font-semibold text-white">{strands.length}</span>
-                    </div>
-                    <div className="bg-black p-4 border border-zinc-900 rounded-md">
-                        <span className="block text-xs text-zinc-500 mb-1">Inbox</span>
-                        <span className="block text-2xl font-semibold text-white">{sharedWithMe.length}</span>
-                    </div>
-                    <div className="bg-black p-4 border border-zinc-900 rounded-md">
-                        <span className="block text-xs text-zinc-500 mb-1">Encryption</span>
-                        <span className={`text-sm font-semibold flex items-center gap-1.5 ${hasE2EKeys ? 'text-green-400' : 'text-zinc-600'}`}>
-                            <FiLock size={14} />
-                            {hasE2EKeys ? 'E2E Active' : 'Not Set Up'}
+                    <div className="flex items-center gap-3 text-xs text-zinc-500 shrink-0">
+                        <span>{signatures.length} items</span>
+                        <span>{strands.length} strands</span>
+                        <span className={`flex items-center gap-1 ${hasE2EKeys ? 'text-green-500' : 'text-zinc-600'}`}>
+                            <FiLock size={11} /> {hasE2EKeys ? 'E2E' : 'No E2E'}
                         </span>
                     </div>
                 </div>
 
                 {/* ===== INBOX ===== */}
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
-                        <h3 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
-                            <FiInbox size={14} /> Inbox
-                            {(sharedWithMe.length + coSignRequests.filter(r => r.status === 'pending').length) > 0 && (
-                                <span className="px-1.5 py-0.5 bg-blue-950 text-blue-400 text-[10px] rounded-full font-medium">
-                                    {sharedWithMe.length + coSignRequests.filter(r => r.status === 'pending').length}
-                                </span>
-                            )}
-                        </h3>
-                    </div>
+                {(sharedWithMe.length + coSignRequests.filter(r => r.status === 'pending').length) > 0 && (
+                <div className="space-y-2">
+                    <h3 className="text-xs font-medium text-zinc-500 flex items-center gap-2">
+                        <FiInbox size={12} /> Inbox
+                        <span className="px-1.5 py-0.5 bg-blue-950 text-blue-400 text-[10px] rounded-full font-medium">
+                            {sharedWithMe.length + coSignRequests.filter(r => r.status === 'pending').length}
+                        </span>
+                    </h3>
                     {sharedWithMe.length === 0 && coSignRequests.filter(r => r.status === 'pending').length === 0 ? (
-                        <div className="py-10 flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-md text-center">
-                            <FiInbox className="text-zinc-700 text-2xl mb-3" />
-                            <p className="text-sm text-zinc-500">No documents received yet</p>
-                            <p className="text-xs text-zinc-600 mt-1">Documents shared with you, co-sign requests, or witness requests will appear here.</p>
-                        </div>
+                        <></>
+
                     ) : (
                         <div className="space-y-2">
                             {/* Co-sign requests (pending) */}
@@ -1258,6 +1228,7 @@ export default function AccountPage() {
                         </div>
                     )}
                 </div>
+                )}
 
                 {/* ===== SENT CO-SIGN REQUESTS ===== */}
                 {sentCoSignRequests.length > 0 && (
@@ -1300,34 +1271,88 @@ export default function AccountPage() {
                     </div>
                 )}
 
-                {/* ===== TWO-PANEL SIGNING WORKSPACE ===== */}
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
-                        <h3 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
-                            <span className="w-2 h-2 bg-green-500 rounded-full"></span> Signing Workspace
-                        </h3>
+                {/* ===== UNIFIED VAULT ===== */}
+                <div className="space-y-3">
+                    {/* Tabs */}
+                    <div className="flex items-center gap-1 border-b border-zinc-900">
+                        {[
+                            { key: 'all', label: 'All', count: signatures.length },
+                            { key: 'documents', label: 'Documents', count: documents.length },
+                            { key: 'signatures', label: 'Signatures', count: signaturesOnly.length },
+                            { key: 'media', label: 'Media', count: mediaItems.length },
+                        ].map((tab) => (
+                            <button
+                                key={tab.key}
+                                onClick={() => setVaultTab(tab.key)}
+                                className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+                                    vaultTab === tab.key
+                                        ? 'border-white text-white'
+                                        : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                                }`}
+                            >
+                                {tab.label} <span className="text-zinc-600 ml-1">{tab.count}</span>
+                            </button>
+                        ))}
                     </div>
 
                     {signatures.length === 0 ? (
-                        <div className="py-24 flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-md text-center">
-                            <FiEdit3 className="text-zinc-700 text-3xl mb-4" />
-                            <p className="text-base text-zinc-400 font-medium">No vault items yet</p>
-                            <p className="text-sm text-zinc-600 mt-1">Create your first signature or upload a document.</p>
+                        <div className="py-16 flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-md text-center">
+                            <FiEdit3 className="text-zinc-700 text-2xl mb-3" />
+                            <p className="text-sm text-zinc-400 font-medium">No vault items yet</p>
+                            <p className="text-xs text-zinc-600 mt-1">Create your first signature or upload a document.</p>
                         </div>
                     ) : (
-                        <div className="grid lg:grid-cols-12 gap-4 min-h-[500px]">
-                            {/* LEFT PANEL — Signatures & Media */}
-                            <div className="lg:col-span-3 border border-zinc-900 rounded-md bg-zinc-950/50 p-3 overflow-hidden flex flex-col">
-                                <SignatureExplorer
-                                    signatures={signaturesOnly}
-                                    media={mediaItems}
-                                    registeredSignatureId={registeredSignatureId}
-                                    onDragStart={() => {}}
-                                />
+                        <div className="grid lg:grid-cols-12 gap-3 min-h-[500px]">
+                            {/* LEFT — Item list */}
+                            <div className="lg:col-span-4 border border-zinc-900 rounded-md bg-zinc-950/50 overflow-hidden flex flex-col">
+                                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                                    {filteredVaultItems.map((sig) => {
+                                        const isOnChain = sig.txid && !sig.txid.startsWith('pending-');
+                                        const isSigned = sig.wallet_signed;
+                                        const isSealed = sig.signature_type === 'SEALED_DOCUMENT';
+                                        const isRegistered = sig.id === registeredSignatureId;
+                                        const isSelected = expandedSig === sig.id;
+                                        return (
+                                            <button
+                                                key={sig.id}
+                                                onClick={() => previewSignature(sig)}
+                                                className={`w-full text-left p-2.5 rounded transition-colors flex items-center gap-2.5 ${
+                                                    isSelected ? 'bg-zinc-800 border border-zinc-700' : 'hover:bg-zinc-900 border border-transparent'
+                                                }`}
+                                            >
+                                                <div className="text-zinc-500 shrink-0">
+                                                    {isSealed ? <FiShield size={14} className="text-amber-500" /> :
+                                                     sig.signature_type === 'DOCUMENT' ? <FiFileText size={14} /> :
+                                                     sig.signature_type === 'TLDRAW' ? <FiEdit3 size={14} /> :
+                                                     sig.signature_type === 'CAMERA' ? <FiCamera size={14} /> :
+                                                     sig.signature_type === 'VIDEO' ? <FiActivity size={14} /> :
+                                                     <FiFileText size={14} />}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <span className="block text-xs font-medium text-white truncate">
+                                                        {sig.metadata?.originalFileName || sig.metadata?.fileName || sig.metadata?.type || sig.signature_type}
+                                                    </span>
+                                                    <span className="block text-[10px] text-zinc-600">
+                                                        {new Date(sig.created_at).toLocaleDateString()}
+                                                    </span>
+                                                </div>
+                                                <div className="shrink-0 flex items-center gap-1">
+                                                    {isRegistered && <span className="w-1.5 h-1.5 bg-green-400 rounded-full" title="Registered" />}
+                                                    {isSealed && <span className="px-1 py-0.5 bg-amber-950 text-amber-400 text-[9px] rounded">Sealed</span>}
+                                                    {isSigned ? (
+                                                        <FiCheck size={11} className="text-green-400" />
+                                                    ) : isOnChain ? (
+                                                        <FiCheck size={11} className="text-green-600" />
+                                                    ) : null}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
 
-                            {/* RIGHT PANEL — Documents / Canvas */}
-                            <div className="lg:col-span-9 border border-zinc-900 rounded-md bg-zinc-950/50 overflow-hidden flex flex-col">
+                            {/* RIGHT — Viewer / Canvas */}
+                            <div className="lg:col-span-8 border border-zinc-900 rounded-md bg-zinc-950/50 overflow-hidden flex flex-col">
                                 {selectedDocBlobUrl && selectedDocumentId ? (
                                     <DocumentCanvas
                                         documentUrl={selectedDocBlobUrl}
@@ -1339,381 +1364,95 @@ export default function AccountPage() {
                                         onSeal={handleSeal}
                                         onClose={closeDocumentCanvas}
                                     />
-                                ) : (
+                                ) : expandedSig ? (
                                     <div className="flex flex-col h-full">
-                                        <div className="px-4 py-3 border-b border-zinc-800 shrink-0">
-                                            <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider flex items-center gap-2">
-                                                <FiFileText size={12} /> Documents ({documents.length})
-                                            </h4>
-                                        </div>
-                                        <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                                            {documents.length === 0 ? (
-                                                <div className="py-16 flex flex-col items-center justify-center text-center">
-                                                    <FiFileText className="text-zinc-700 text-2xl mb-3" />
-                                                    <p className="text-sm text-zinc-500">No documents uploaded yet</p>
-                                                    <p className="text-xs text-zinc-600 mt-1">Upload a document using the button above</p>
+                                        {/* Preview */}
+                                        <div className="flex-1 overflow-y-auto p-4">
+                                            {previewLoading ? (
+                                                <div className="flex items-center justify-center py-16">
+                                                    <div className="w-8 h-8 border-t-2 border-white animate-spin rounded-full opacity-20" />
                                                 </div>
-                                            ) : (
-                                                documents.map((sig) => {
-                                                    const isOnChain = sig.txid && !sig.txid.startsWith('pending-');
-                                                    const isExpanded = expandedSig === sig.id;
-                                                    const isSigned = sig.wallet_signed;
-                                                    const isSealed = sig.signature_type === 'SEALED_DOCUMENT';
-                                                    return (
-                                                        <div key={sig.id} className={`border rounded-md overflow-hidden ${isSealed ? 'border-amber-900/40' : 'border-zinc-800'}`}>
-                                                            <button
-                                                                onClick={() => previewSignature(sig)}
-                                                                className="w-full text-left bg-black hover:bg-zinc-950 transition-colors p-3 flex items-center gap-3"
-                                                            >
-                                                                <div className="text-zinc-500 shrink-0">
-                                                                    {isSealed ? <FiShield size={16} className="text-amber-500" /> : <FiFileText size={16} />}
-                                                                </div>
-                                                                <div className="flex-1 min-w-0">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="text-sm font-medium text-white truncate">
-                                                                            {sig.metadata?.originalFileName || sig.metadata?.fileName || sig.metadata?.type || sig.signature_type}
-                                                                        </span>
-                                                                        {isSealed && (
-                                                                            <span className="px-1.5 py-0.5 bg-amber-950 text-amber-400 text-[10px] rounded shrink-0 flex items-center gap-1">
-                                                                                <FiShield size={10} /> Sealed
-                                                                            </span>
-                                                                        )}
-                                                                        {isOnChain && isSealed && (
-                                                                            <span className="px-1.5 py-0.5 bg-green-950 text-green-400 text-[10px] rounded shrink-0 flex items-center gap-1">
-                                                                                <FiCheck size={10} /> On Chain
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2 text-xs text-zinc-600">
-                                                                        <span>{new Date(sig.created_at).toLocaleDateString()} at {new Date(sig.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                                        {isOnChain && (
-                                                                            <span className="flex items-center gap-1">
-                                                                                &middot;
-                                                                                <span className="font-mono text-zinc-500">{sig.txid.slice(0, 8)}...{sig.txid.slice(-4)}</span>
-                                                                                <button
-                                                                                    onClick={(e) => { e.stopPropagation(); copyTxid(sig.txid); }}
-                                                                                    className="text-zinc-600 hover:text-zinc-300 transition-colors"
-                                                                                    title="Copy TXID"
-                                                                                >
-                                                                                    {copiedTxid === sig.txid ? <FiCheck size={10} className="text-green-400" /> : <FiCopy size={10} />}
-                                                                                </button>
-                                                                                <a
-                                                                                    href={`https://whatsonchain.com/tx/${sig.txid}`}
-                                                                                    target="_blank"
-                                                                                    onClick={(e) => e.stopPropagation()}
-                                                                                    className="text-amber-600 hover:text-amber-400 transition-colors"
-                                                                                    title="View on chain"
-                                                                                >
-                                                                                    <FiExternalLink size={10} />
-                                                                                </a>
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-
-                                                                {sig.signature_type === 'DOCUMENT' && (
-                                                                    <button
-                                                                        onClick={(e) => { e.stopPropagation(); openDocumentInCanvas(sig.id); }}
-                                                                        className="px-2 py-1 bg-amber-600/20 text-amber-400 text-xs rounded shrink-0 flex items-center gap-1 hover:bg-amber-600/30 transition-colors"
-                                                                        title="Open in signing workspace"
-                                                                    >
-                                                                        <FiEdit3 size={10} /> Sign
-                                                                    </button>
-                                                                )}
-
-                                                                {isSigned ? (
-                                                                    <span className="px-2 py-1 bg-green-950/30 text-green-400 text-xs rounded shrink-0 flex items-center gap-1">
-                                                                        <FiShield size={10} /> Signed
-                                                                    </span>
-                                                                ) : isOnChain ? (
-                                                                    <span className="px-2 py-1 bg-green-950/30 text-green-400 text-xs rounded shrink-0">On chain</span>
-                                                                ) : (
-                                                                    <span className="px-2 py-1 bg-zinc-900 text-zinc-500 text-xs rounded shrink-0">Unsigned</span>
-                                                                )}
-
-                                                                <div className="text-zinc-600 shrink-0">
-                                                                    {isExpanded ? <FiChevronUp size={14} /> : <FiChevronDown size={14} />}
-                                                                </div>
-                                                            </button>
-
-                                                            {isExpanded && (
-                                                                <div className="border-t border-zinc-900 bg-zinc-950 p-3 space-y-3">
-                                                                    {previewLoading ? (
-                                                                        <div className="flex items-center justify-center py-8">
-                                                                            <div className="w-8 h-8 border-t-2 border-white animate-spin rounded-full opacity-20" />
-                                                                        </div>
-                                                                    ) : previewData?.type === 'svg' ? (
-                                                                        <div className="bg-white rounded-md p-4 flex items-center justify-center">
-                                                                            <img src={previewData.url} alt="Signature" className="max-h-40 w-auto" />
-                                                                        </div>
-                                                                    ) : previewData?.type === 'image' ? (
-                                                                        <div className="bg-white rounded-md overflow-hidden">
-                                                                            <img src={previewData.url} alt="Document" className="max-h-[300px] w-full object-contain" />
-                                                                        </div>
-                                                                    ) : previewData?.type === 'pdf' ? (
-                                                                        <iframe src={previewData.url} className="w-full h-[400px] rounded-md border border-zinc-800" />
-                                                                    ) : previewData?.type === 'video' ? (
-                                                                        <video src={previewData.url} controls className="w-full max-h-[300px] rounded-md" />
-                                                                    ) : previewData?.type === 'decrypt-failed' ? (
-                                                                        <div className="text-center py-4 space-y-2">
-                                                                            <FiLock className="mx-auto text-amber-500" size={20} />
-                                                                            <p className="text-xs text-amber-400">Unable to decrypt</p>
-                                                                        </div>
-                                                                    ) : previewData?.type === 'no-data' ? (
-                                                                        <div className="text-center py-4">
-                                                                            <p className="text-xs text-zinc-500">No encrypted data stored</p>
-                                                                        </div>
-                                                                    ) : previewData?.type === 'no-key' ? (
-                                                                        <div className="text-center py-4">
-                                                                            <p className="text-xs text-zinc-500">Encryption key not available</p>
-                                                                        </div>
-                                                                    ) : previewData?.type === 'error' ? (
-                                                                        <p className="text-xs text-red-400 text-center py-3">Failed to load preview</p>
-                                                                    ) : previewData?.type === 'unsupported' ? (
-                                                                        <p className="text-xs text-zinc-500 text-center py-3">Preview not available</p>
-                                                                    ) : null}
-
-                                                                    {/* Send options for sealed documents */}
-                                                                    {isSealed && (
-                                                                        <div className="flex items-center gap-2 flex-wrap pb-2 mb-2 border-b border-zinc-800">
-                                                                            <span className="text-[10px] text-zinc-500 uppercase tracking-wider w-full">Send to recipient</span>
-                                                                            <button
-                                                                                onClick={(e) => { e.stopPropagation(); setCoSignModal({ documentId: sig.id, documentName: sig.metadata?.originalFileName || 'Sealed Document' }); }}
-                                                                                className="px-3 py-1.5 bg-white text-black text-xs font-medium rounded-md hover:bg-zinc-200 transition-all flex items-center gap-2"
-                                                                            >
-                                                                                <FiEdit3 size={12} /> Request Co-Sign
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={(e) => { e.stopPropagation(); setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' }); }}
-                                                                                className="px-3 py-1.5 bg-amber-600 text-black text-xs font-medium rounded-md hover:bg-amber-500 transition-all flex items-center gap-2"
-                                                                            >
-                                                                                <FiMail size={12} /> Send via Email
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={(e) => { e.stopPropagation(); setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT_HC', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' }); }}
-                                                                                className="px-3 py-1.5 bg-green-600 text-black text-xs font-medium rounded-md hover:bg-green-500 transition-all flex items-center gap-2"
-                                                                            >
-                                                                                <FiUsers size={12} /> Send to HandCash
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={(e) => { e.stopPropagation(); setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'WITNESS_REQUEST', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' }); }}
-                                                                                className="px-3 py-1.5 bg-blue-600 text-black text-xs font-medium rounded-md hover:bg-blue-500 transition-all flex items-center gap-2"
-                                                                            >
-                                                                                <FiEye size={12} /> Request Witness
-                                                                            </button>
-                                                                        </div>
-                                                                    )}
-
-                                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                                        {sig.signature_type === 'DOCUMENT' && (
-                                                                            <button
-                                                                                onClick={(e) => { e.stopPropagation(); openDocumentInCanvas(sig.id); }}
-                                                                                className="px-3 py-1.5 bg-amber-600 text-black text-xs font-medium rounded-md hover:bg-amber-500 transition-all flex items-center gap-2"
-                                                                            >
-                                                                                <FiEdit3 size={12} /> Open in Workspace
-                                                                            </button>
-                                                                        )}
-                                                                        {!isSigned && (
-                                                                            <button
-                                                                                onClick={(e) => { e.stopPropagation(); attestSignature(sig.id); }}
-                                                                                className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
-                                                                            >
-                                                                                <FiShield size={12} /> Sign with HandCash
-                                                                            </button>
-                                                                        )}
-                                                                        <button
-                                                                            onClick={(e) => { e.stopPropagation(); setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: sig.signature_type, itemLabel: sig.metadata?.type || sig.signature_type }); }}
-                                                                            className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
-                                                                        >
-                                                                            <FiShare2 size={12} /> Share
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={(e) => { e.stopPropagation(); downloadSignature(sig.id, sig); }}
-                                                                            className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
-                                                                        >
-                                                                            <FiDownload size={12} /> Download
-                                                                        </button>
-                                                                        {isOnChain && (
-                                                                            <a
-                                                                                href={`https://whatsonchain.com/tx/${sig.txid}`}
-                                                                                target="_blank"
-                                                                                className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
-                                                                            >
-                                                                                <FiExternalLink size={12} /> Chain
-                                                                            </a>
-                                                                        )}
-                                                                        <button
-                                                                            onClick={(e) => { e.stopPropagation(); deleteSignature(sig.id); }}
-                                                                            className="px-3 py-1.5 border border-red-900/30 bg-black text-red-900 text-xs rounded-md hover:text-red-400 hover:border-red-800 transition-all flex items-center gap-2 ml-auto"
-                                                                        >
-                                                                            <FiX size={12} /> Delete
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })
-                                            )}
+                                            ) : previewData?.type === 'svg' ? (
+                                                <div className="bg-white rounded-md p-6 flex items-center justify-center">
+                                                    <img src={previewData.url} alt="Signature" className="max-h-48 w-auto" />
+                                                </div>
+                                            ) : previewData?.type === 'image' ? (
+                                                <div className="bg-white rounded-md overflow-hidden">
+                                                    <img src={previewData.url} alt="Photo" className="max-h-[400px] w-full object-contain" />
+                                                </div>
+                                            ) : previewData?.type === 'pdf' ? (
+                                                <iframe src={previewData.url} className="w-full h-[500px] rounded-md border border-zinc-800" />
+                                            ) : previewData?.type === 'video' ? (
+                                                <video src={previewData.url} controls className="w-full max-h-[400px] rounded-md" />
+                                            ) : previewData?.type === 'decrypt-failed' ? (
+                                                <div className="text-center py-8 space-y-2">
+                                                    <FiLock className="mx-auto text-amber-500" size={24} />
+                                                    <p className="text-sm text-amber-400">Unable to decrypt</p>
+                                                </div>
+                                            ) : previewData?.type === 'no-data' ? (
+                                                <div className="text-center py-8">
+                                                    <p className="text-xs text-zinc-500">No encrypted data stored</p>
+                                                </div>
+                                            ) : previewData?.type === 'no-key' ? (
+                                                <div className="text-center py-8">
+                                                    <p className="text-xs text-zinc-500">Encryption key not available</p>
+                                                </div>
+                                            ) : previewData?.type === 'error' ? (
+                                                <p className="text-xs text-red-400 text-center py-6">Failed to load preview</p>
+                                            ) : previewData?.type === 'unsupported' ? (
+                                                <p className="text-xs text-zinc-500 text-center py-6">Preview not available</p>
+                                            ) : null}
                                         </div>
+                                        {/* Actions bar */}
+                                        {(() => {
+                                            const sig = signatures.find(s => s.id === expandedSig);
+                                            if (!sig) return null;
+                                            const isOnChain = sig.txid && !sig.txid.startsWith('pending-');
+                                            const isSigned = sig.wallet_signed;
+                                            const isSealed = sig.signature_type === 'SEALED_DOCUMENT';
+                                            const isRegistered = sig.id === registeredSignatureId;
+                                            return (
+                                                <div className="border-t border-zinc-900 p-3 space-y-2 shrink-0">
+                                                    {isSealed && (
+                                                        <div className="flex items-center gap-2 flex-wrap pb-2 mb-2 border-b border-zinc-800">
+                                                            <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Send:</span>
+                                                            <button onClick={() => setCoSignModal({ documentId: sig.id, documentName: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-white text-black text-xs font-medium rounded hover:bg-zinc-200 transition-all flex items-center gap-1.5"><FiEdit3 size={11} /> Co-Sign</button>
+                                                            <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-amber-600 text-black text-xs font-medium rounded hover:bg-amber-500 transition-all flex items-center gap-1.5"><FiMail size={11} /> Email</button>
+                                                            <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT_HC', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-green-600 text-black text-xs font-medium rounded hover:bg-green-500 transition-all flex items-center gap-1.5"><FiUsers size={11} /> HandCash</button>
+                                                            <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'WITNESS_REQUEST', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-blue-600 text-black text-xs font-medium rounded hover:bg-blue-500 transition-all flex items-center gap-1.5"><FiEye size={11} /> Witness</button>
+                                                        </div>
+                                                    )}
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        {sig.signature_type === 'DOCUMENT' && (
+                                                            <button onClick={() => openDocumentInCanvas(sig.id)} className="px-2.5 py-1 bg-amber-600 text-black text-xs font-medium rounded hover:bg-amber-500 transition-all flex items-center gap-1.5"><FiEdit3 size={11} /> Sign</button>
+                                                        )}
+                                                        {sig.signature_type === 'TLDRAW' && isOnChain && !isRegistered && (
+                                                            <button onClick={() => registerSignature(sig.id)} className="px-2.5 py-1 bg-white text-black text-xs font-medium rounded hover:bg-zinc-200 transition-all flex items-center gap-1.5"><FiEdit3 size={11} /> Register</button>
+                                                        )}
+                                                        {!isSigned && (
+                                                            <button onClick={() => attestSignature(sig.id)} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiShield size={11} /> Attest</button>
+                                                        )}
+                                                        <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: sig.signature_type, itemLabel: sig.metadata?.type || sig.signature_type })} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiShare2 size={11} /> Share</button>
+                                                        <button onClick={() => downloadSignature(sig.id, sig)} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiDownload size={11} /> Download</button>
+                                                        {isOnChain && (
+                                                            <a href={`https://whatsonchain.com/tx/${sig.txid}`} target="_blank" className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiExternalLink size={11} /> Chain</a>
+                                                        )}
+                                                        <button onClick={() => deleteSignature(sig.id)} className="px-2.5 py-1 border border-red-900/30 bg-black text-red-900 text-xs rounded hover:text-red-400 hover:border-red-800 transition-all flex items-center gap-1.5 ml-auto"><FiX size={11} /> Delete</button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                ) : (
+                                    <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
+                                        <FiEye className="text-zinc-800 text-3xl mb-3" />
+                                        <p className="text-sm text-zinc-600">Select an item to preview</p>
                                     </div>
                                 )}
                             </div>
                         </div>
                     )}
                 </div>
-
-                {/* Non-document vault items (signatures & media with actions) */}
-                {(signaturesOnly.length > 0 || mediaItems.length > 0) && (
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
-                            <h3 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
-                                <FiShield size={14} /> Signature & Media Vault
-                            </h3>
-                        </div>
-                        <div className="space-y-2">
-                            {[...signaturesOnly, ...mediaItems].map((sig) => {
-                                const isOnChain = sig.txid && !sig.txid.startsWith('pending-');
-                                const isExpanded = expandedSig === sig.id;
-                                const isRegistered = sig.id === registeredSignatureId;
-                                const isSigned = sig.wallet_signed;
-                                return (
-                                    <div key={sig.id} className={`border rounded-md overflow-hidden ${isRegistered ? 'border-green-800' : 'border-zinc-900'}`}>
-                                        <button
-                                            onClick={() => previewSignature(sig)}
-                                            className="w-full text-left bg-black hover:bg-zinc-950 transition-colors p-4 flex items-center gap-4"
-                                        >
-                                            <div className="text-zinc-500 shrink-0">
-                                                {sig.signature_type === 'TLDRAW' && <FiEdit3 size={18} />}
-                                                {sig.signature_type === 'CAMERA' && <FiCamera size={18} />}
-                                                {sig.signature_type === 'VIDEO' && <FiActivity size={18} />}
-                                            </div>
-
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm font-medium text-white truncate">
-                                                        {sig.metadata?.fileName || sig.metadata?.type || sig.signature_type}
-                                                    </span>
-                                                    {isRegistered && (
-                                                        <span className="px-1.5 py-0.5 bg-green-950 text-green-400 text-[10px] rounded shrink-0 flex items-center gap-1">
-                                                            <FiCheck size={10} /> Registered
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <span className="block text-xs text-zinc-600">
-                                                    {new Date(sig.created_at).toLocaleDateString()} at {new Date(sig.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                </span>
-                                            </div>
-
-                                            {isSigned ? (
-                                                <span className="px-2 py-1 bg-green-950/30 text-green-400 text-xs rounded shrink-0 flex items-center gap-1">
-                                                    <FiShield size={10} /> Signed
-                                                </span>
-                                            ) : isOnChain ? (
-                                                <span className="px-2 py-1 bg-green-950/30 text-green-400 text-xs rounded shrink-0">On chain</span>
-                                            ) : (
-                                                <span className="px-2 py-1 bg-zinc-900 text-zinc-500 text-xs rounded shrink-0">Unsigned</span>
-                                            )}
-
-                                            <div className="text-zinc-600 shrink-0">
-                                                {isExpanded ? <FiChevronUp size={16} /> : <FiChevronDown size={16} />}
-                                            </div>
-                                        </button>
-
-                                        {isExpanded && (
-                                            <div className="border-t border-zinc-900 bg-zinc-950 p-4 space-y-4">
-                                                {previewLoading ? (
-                                                    <div className="flex items-center justify-center py-12">
-                                                        <div className="w-8 h-8 border-t-2 border-white animate-spin rounded-full opacity-20" />
-                                                    </div>
-                                                ) : previewData?.type === 'svg' ? (
-                                                    <div className="bg-white rounded-md p-4 flex items-center justify-center">
-                                                        <img src={previewData.url} alt="Signature" className="max-h-40 w-auto" />
-                                                    </div>
-                                                ) : previewData?.type === 'image' ? (
-                                                    <div className="bg-white rounded-md overflow-hidden">
-                                                        <img src={previewData.url} alt="Photo" className="max-h-[400px] w-full object-contain" />
-                                                    </div>
-                                                ) : previewData?.type === 'video' ? (
-                                                    <video src={previewData.url} controls className="w-full max-h-[400px] rounded-md" />
-                                                ) : previewData?.type === 'decrypt-failed' ? (
-                                                    <div className="text-center py-6 space-y-2">
-                                                        <FiLock className="mx-auto text-amber-500" size={24} />
-                                                        <p className="text-sm text-amber-400">Unable to decrypt</p>
-                                                        <p className="text-xs text-zinc-500 max-w-sm mx-auto">
-                                                            Your encryption key may have changed since this was uploaded.
-                                                            Try signing out and back in, then retry.
-                                                        </p>
-                                                    </div>
-                                                ) : previewData?.type === 'no-data' ? (
-                                                    <div className="text-center py-6 space-y-2">
-                                                        <FiFileText className="mx-auto text-zinc-600" size={24} />
-                                                        <p className="text-sm text-zinc-500">No encrypted data stored for this item</p>
-                                                    </div>
-                                                ) : previewData?.type === 'no-key' ? (
-                                                    <div className="text-center py-6 space-y-2">
-                                                        <FiLock className="mx-auto text-zinc-600" size={24} />
-                                                        <p className="text-sm text-zinc-500">Encryption key not available. Please sign in again.</p>
-                                                    </div>
-                                                ) : previewData?.type === 'error' ? (
-                                                    <p className="text-sm text-red-400 text-center py-4">Failed to load preview</p>
-                                                ) : previewData?.type === 'unsupported' ? (
-                                                    <p className="text-sm text-zinc-500 text-center py-4">Preview not available for this file type. Use download instead.</p>
-                                                ) : null}
-
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    {sig.signature_type === 'TLDRAW' && isOnChain && !isRegistered && (
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); registerSignature(sig.id); }}
-                                                            className="px-3 py-2 bg-white text-black text-sm font-medium rounded-md hover:bg-zinc-200 transition-all flex items-center gap-2"
-                                                        >
-                                                            <FiEdit3 size={14} /> Use as Signing Signature
-                                                        </button>
-                                                    )}
-                                                    {!isSigned && (
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); attestSignature(sig.id); }}
-                                                            className="px-3 py-2 border border-zinc-700 bg-zinc-900 text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
-                                                        >
-                                                            <FiShield size={14} /> Sign with HandCash
-                                                        </button>
-                                                    )}
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: sig.signature_type, itemLabel: sig.metadata?.type || sig.signature_type }); }}
-                                                        className="px-3 py-2 border border-zinc-700 bg-zinc-900 text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
-                                                    >
-                                                        <FiShare2 size={14} /> Share
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); downloadSignature(sig.id, sig); }}
-                                                        className="px-3 py-2 border border-zinc-700 bg-zinc-900 text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
-                                                    >
-                                                        <FiDownload size={14} /> Download
-                                                    </button>
-                                                    {isOnChain && (
-                                                        <a
-                                                            href={`https://whatsonchain.com/tx/${sig.txid}`}
-                                                            target="_blank"
-                                                            className="px-3 py-2 border border-zinc-700 bg-zinc-900 text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
-                                                        >
-                                                            <FiExternalLink size={14} /> View on Chain
-                                                        </a>
-                                                    )}
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); deleteSignature(sig.id); }}
-                                                        className="px-3 py-2 border border-red-900/30 bg-black text-red-900 text-sm rounded-md hover:text-red-400 hover:border-red-800 transition-all flex items-center gap-2 ml-auto"
-                                                    >
-                                                        <FiX size={14} /> Delete
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
 
                 {/* Footer */}
                 <footer className="pt-16 border-t border-zinc-900 space-y-6">
