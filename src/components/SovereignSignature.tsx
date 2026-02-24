@@ -250,7 +250,7 @@ export default function SovereignSignature({ onSave, onCancel }: SovereignSignat
     };
 
     return (
-        <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md flex flex-col p-6 md:p-12 overflow-hidden">
+        <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md flex flex-col px-6 pt-24 pb-6 md:px-12 md:pt-28 md:pb-12 overflow-hidden">
             <header className="flex justify-between items-center mb-4">
                 <div>
                     <h2 className="text-xl font-semibold text-white">Draw Your Signature</h2>
