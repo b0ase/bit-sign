@@ -33,24 +33,43 @@ export async function GET(
     }));
 
     // Verify blockchain inscription if present
+    // If inscribed_at is set, the inscription was already verified — skip the WhatsOnChain call
     let blockchainVerification = null;
     if (envelope.inscription_txid && !envelope.inscription_txid.startsWith('pending-')) {
-      try {
-        const verification = await verifyBitSignInscription(envelope.inscription_txid);
+      if (envelope.inscribed_at) {
+        // Already verified — return cached result instantly
         blockchainVerification = {
-          verified: verification.found,
+          verified: true,
           txid: envelope.inscription_txid,
           explorer_url: `https://whatsonchain.com/tx/${envelope.inscription_txid}`,
-          data_hash: verification.dataHash,
           inscribed_at: envelope.inscribed_at,
         };
-      } catch {
-        blockchainVerification = {
-          verified: false,
-          txid: envelope.inscription_txid,
-          explorer_url: `https://whatsonchain.com/tx/${envelope.inscription_txid}`,
-          error: 'Could not verify on-chain data',
-        };
+      } else {
+        // First-time verification — fetch from blockchain
+        try {
+          const verification = await verifyBitSignInscription(envelope.inscription_txid);
+          blockchainVerification = {
+            verified: verification.found,
+            txid: envelope.inscription_txid,
+            explorer_url: `https://whatsonchain.com/tx/${envelope.inscription_txid}`,
+            data_hash: verification.dataHash,
+            inscribed_at: envelope.inscribed_at,
+          };
+          // Cache the verification by setting inscribed_at
+          if (verification.found && !envelope.inscribed_at) {
+            await supabaseAdmin
+              .from('signing_envelopes')
+              .update({ inscribed_at: new Date().toISOString() })
+              .eq('id', id);
+          }
+        } catch {
+          blockchainVerification = {
+            verified: false,
+            txid: envelope.inscription_txid,
+            explorer_url: `https://whatsonchain.com/tx/${envelope.inscription_txid}`,
+            error: 'Could not verify on-chain data',
+          };
+        }
       }
     }
 
@@ -66,6 +85,8 @@ export async function GET(
       },
       signers: publicSigners,
       blockchain: blockchainVerification,
+    }, {
+      headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' },
     });
   } catch (error: any) {
     console.error('[envelopes] Verify error:', error);

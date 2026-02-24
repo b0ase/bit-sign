@@ -13,15 +13,21 @@ interface MediaCaptureProps {
 export default function MediaCapture({ mode, facingMode = 'user', onCapture, onCancel }: MediaCaptureProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [stream, setStream] = useState<MediaStream | null>(null);
+    const [currentFacing, setCurrentFacing] = useState<'user' | 'environment'>(facingMode);
     const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [isRecording, setIsRecording] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
+    const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
 
     useEffect(() => {
-        startCamera();
+        startCamera(currentFacing);
+        navigator.mediaDevices.enumerateDevices().then(devices => {
+            const videoInputs = devices.filter(d => d.kind === 'videoinput');
+            setHasMultipleCameras(videoInputs.length > 1);
+        });
         return () => stopCamera();
     }, []);
 
@@ -41,10 +47,10 @@ export default function MediaCapture({ mode, facingMode = 'user', onCapture, onC
         return () => clearInterval(timer);
     }, [isRecording]);
 
-    const startCamera = async () => {
+    const startCamera = async (facing: 'user' | 'environment') => {
         try {
             const s = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode, width: 1280, height: 720 },
+                video: { facingMode: facing, width: 1280, height: 720 },
                 audio: mode === 'VIDEO'
             });
             setStream(s);
@@ -61,6 +67,14 @@ export default function MediaCapture({ mode, facingMode = 'user', onCapture, onC
             stream.getTracks().forEach(track => track.stop());
             setStream(null);
         }
+    };
+
+    const flipCamera = () => {
+        if (isRecording) return;
+        stream?.getTracks().forEach(track => track.stop());
+        const newFacing = currentFacing === 'user' ? 'environment' : 'user';
+        setCurrentFacing(newFacing);
+        startCamera(newFacing);
     };
 
     const takePhoto = () => {
@@ -117,7 +131,7 @@ export default function MediaCapture({ mode, facingMode = 'user', onCapture, onC
     const handleReset = () => {
         setCapturedBlob(null);
         setPreviewUrl(null);
-        startCamera();
+        startCamera(currentFacing);
     };
 
     return (
@@ -129,6 +143,16 @@ export default function MediaCapture({ mode, facingMode = 'user', onCapture, onC
                 >
                     <FiX size={20} />
                 </button>
+
+                {hasMultipleCameras && !capturedBlob && (
+                    <button
+                        onClick={flipCamera}
+                        className="absolute top-6 left-6 z-20 p-3 bg-black/50 text-white hover:bg-white hover:text-black transition-all rounded-full"
+                        title={currentFacing === 'user' ? 'Switch to rear camera' : 'Switch to selfie camera'}
+                    >
+                        <FiRotateCcw size={20} />
+                    </button>
+                )}
 
                 <div className="relative aspect-video bg-black flex items-center justify-center border-b border-white/[0.05]">
                     {!capturedBlob ? (
