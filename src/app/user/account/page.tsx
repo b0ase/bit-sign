@@ -77,7 +77,7 @@ export default function AccountPage() {
     const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
     const [captureMode, setCaptureMode] = useState<'PHOTO' | 'VIDEO' | null>(null);
     const [encryptionSeed, setEncryptionSeed] = useState<string | null>(null);
-    const [activeCaptureTab, setActiveCaptureTab] = useState<'biological' | 'camera' | 'video' | 'vault'>('biological');
+    const [uploadInputKey, setUploadInputKey] = useState(0);
     const [isProcessing, setIsProcessing] = useState(false);
     const [expandedSig, setExpandedSig] = useState<string | null>(null);
     const [previewData, setPreviewData] = useState<{ url: string; type: string } | null>(null);
@@ -753,102 +753,72 @@ export default function AccountPage() {
                     <E2ESetupBanner onSetupComplete={() => setHasE2EKeys(true)} />
                 )}
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-24">
-                    {/* Left Col: Verification Methods */}
-                    <div className="lg:col-span-4 space-y-8">
-                        <div className="space-y-4">
-                            <h3 className="text-sm font-medium text-zinc-400">Verification Methods</h3>
-                            <div className="grid grid-cols-2 gap-1">
-                                {[
-                                    { id: 'biological', label: 'Signature', sub: 'Hand-drawn', icon: FiEdit3 },
-                                    { id: 'camera', label: 'Photo', sub: 'Camera', icon: FiCamera },
-                                    { id: 'video', label: 'Video', sub: 'Recording', icon: FiActivity },
-                                    { id: 'vault', label: 'Document', sub: 'Upload', icon: FiLock }
-                                ].map((tab) => (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveCaptureTab(tab.id as any)}
-                                        className={`group relative p-5 border rounded-md flex flex-col items-center justify-center gap-2 transition-all ${activeCaptureTab === tab.id
-                                            ? 'bg-zinc-900 border-zinc-700 text-white'
-                                            : 'bg-black border-zinc-900 text-zinc-600 hover:border-zinc-700 hover:text-zinc-400'
-                                            }`}
-                                    >
-                                        <tab.icon className="text-xl" />
-                                        <div className="text-center">
-                                            <span className="block text-sm font-medium">{tab.label}</span>
-                                            <span className="block text-xs text-zinc-500">{tab.sub}</span>
-                                        </div>
-                                    </button>
-                                ))}
+                {/* Verification Methods — 4 tiles, click to open */}
+                <div className="space-y-4">
+                    <h3 className="text-sm font-medium text-zinc-400">Verification Methods</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <button
+                            onClick={() => setIsSignatureModalOpen(true)}
+                            className="group relative p-5 border border-zinc-900 bg-black rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-700 hover:bg-zinc-950 text-zinc-400 hover:text-white"
+                        >
+                            <FiEdit3 className="text-xl" />
+                            <div className="text-center">
+                                <span className="block text-sm font-medium">Signature</span>
+                                <span className="block text-xs text-zinc-600">Hand-drawn</span>
                             </div>
-                        </div>
-
-                        <div className="border border-zinc-800 bg-zinc-950 rounded-md overflow-hidden">
-                            <div className="bg-black p-6 border border-zinc-900 space-y-6 min-h-[280px] flex flex-col justify-between rounded-md">
-                                <div className="space-y-3">
-                                    <h4 className="text-lg font-semibold text-white">
-                                        {activeCaptureTab === 'biological' && 'Hand-drawn Signature'}
-                                        {activeCaptureTab === 'camera' && 'Photo Verification'}
-                                        {activeCaptureTab === 'video' && 'Video Recording'}
-                                        {activeCaptureTab === 'vault' && 'Upload Documents'}
-                                    </h4>
-                                    <p className="text-sm text-zinc-500 leading-relaxed">
-                                        {activeCaptureTab === 'biological' && 'Draw your signature using the touchscreen or mouse. It will be encrypted and recorded on-chain.'}
-                                        {activeCaptureTab === 'camera' && 'Take a photo for identity verification. The image is encrypted before upload.'}
-                                        {activeCaptureTab === 'video' && 'Record a message, then share it encrypted with any HandCash handle.'}
-                                        {activeCaptureTab === 'vault' && 'Upload one or more documents to encrypt and anchor on the blockchain.'}
-                                    </p>
-                                </div>
-
-                                <div className="space-y-4">
-                                    {activeCaptureTab === 'biological' && (
-                                        <button onClick={() => setIsSignatureModalOpen(true)} className="w-full py-3 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2">
-                                            <FiEdit3 /> Draw Signature
-                                        </button>
-                                    )}
-                                    {activeCaptureTab === 'camera' && (
-                                        <button onClick={() => setCaptureMode('PHOTO')} className="w-full py-3 bg-zinc-900 border border-zinc-800 text-white font-medium text-sm rounded-md hover:bg-zinc-800 hover:border-zinc-700 transition-all flex items-center justify-center gap-2">
-                                            <FiCamera /> Take Photo
-                                        </button>
-                                    )}
-                                    {activeCaptureTab === 'video' && (
-                                        <button onClick={() => setCaptureMode('VIDEO')} className="w-full py-3 bg-zinc-900 border border-zinc-800 text-white font-medium text-sm rounded-md hover:bg-zinc-800 hover:border-zinc-700 transition-all flex items-center justify-center gap-2">
-                                            <FiActivity /> Record Video
-                                        </button>
-                                    )}
-                                    {activeCaptureTab === 'vault' && (
-                                        <label className="relative group block cursor-pointer">
-                                            <input type="file" multiple className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onChange={handleDocumentUpload} />
-                                            <div className="w-full py-3 bg-zinc-900 border border-zinc-800 text-white font-medium text-sm rounded-md group-hover:bg-zinc-800 group-hover:border-zinc-700 transition-all flex items-center justify-center gap-2">
-                                                <FiFileText /> Upload Files
-                                            </div>
-                                        </label>
-                                    )}
-                                </div>
+                        </button>
+                        <button
+                            onClick={() => setCaptureMode('PHOTO')}
+                            className="group relative p-5 border border-zinc-900 bg-black rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-700 hover:bg-zinc-950 text-zinc-400 hover:text-white"
+                        >
+                            <FiCamera className="text-xl" />
+                            <div className="text-center">
+                                <span className="block text-sm font-medium">Photo</span>
+                                <span className="block text-xs text-zinc-600">Camera</span>
                             </div>
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-2">
-                            <div className="bg-black p-5 border border-zinc-900 rounded-md">
-                                <span className="block text-xs text-zinc-500 mb-1">Vault Items</span>
-                                <span className="block text-2xl font-semibold text-white">{signatures.length}</span>
+                        </button>
+                        <button
+                            onClick={() => setCaptureMode('VIDEO')}
+                            className="group relative p-5 border border-zinc-900 bg-black rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-700 hover:bg-zinc-950 text-zinc-400 hover:text-white"
+                        >
+                            <FiActivity className="text-xl" />
+                            <div className="text-center">
+                                <span className="block text-sm font-medium">Video</span>
+                                <span className="block text-xs text-zinc-600">Recording</span>
                             </div>
-                            <div className="bg-black p-5 border border-zinc-900 rounded-md">
-                                <span className="block text-xs text-zinc-500 mb-1">Shared With Me</span>
-                                <span className="block text-2xl font-semibold text-white">{sharedWithMe.length}</span>
+                        </button>
+                        <label className="group relative p-5 border border-zinc-900 bg-black rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-700 hover:bg-zinc-950 text-zinc-400 hover:text-white cursor-pointer">
+                            <input key={uploadInputKey} type="file" multiple className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onChange={(e) => { handleDocumentUpload(e); setUploadInputKey(k => k + 1); }} />
+                            <FiFileText className="text-xl" />
+                            <div className="text-center">
+                                <span className="block text-sm font-medium">Document</span>
+                                <span className="block text-xs text-zinc-600">Upload</span>
                             </div>
-                            <div className="bg-black p-5 border border-zinc-900 rounded-md">
-                                <span className="block text-xs text-zinc-500 mb-1">Encryption</span>
-                                <span className={`text-sm font-semibold flex items-center gap-1.5 ${hasE2EKeys ? 'text-green-400' : 'text-zinc-600'}`}>
-                                    <FiLock size={14} />
-                                    {hasE2EKeys ? 'E2E Active' : 'Not Set Up'}
-                                </span>
-                            </div>
-                        </div>
+                        </label>
                     </div>
+                </div>
 
-                    {/* Right Col: Vault Items */}
-                    <div className="lg:col-span-8 space-y-8">
+                {/* Stats row */}
+                <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-black p-4 border border-zinc-900 rounded-md">
+                        <span className="block text-xs text-zinc-500 mb-1">Vault Items</span>
+                        <span className="block text-2xl font-semibold text-white">{signatures.length}</span>
+                    </div>
+                    <div className="bg-black p-4 border border-zinc-900 rounded-md">
+                        <span className="block text-xs text-zinc-500 mb-1">Shared With Me</span>
+                        <span className="block text-2xl font-semibold text-white">{sharedWithMe.length}</span>
+                    </div>
+                    <div className="bg-black p-4 border border-zinc-900 rounded-md">
+                        <span className="block text-xs text-zinc-500 mb-1">Encryption</span>
+                        <span className={`text-sm font-semibold flex items-center gap-1.5 ${hasE2EKeys ? 'text-green-400' : 'text-zinc-600'}`}>
+                            <FiLock size={14} />
+                            {hasE2EKeys ? 'E2E Active' : 'Not Set Up'}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Vault Items — full width */}
+                <div className="space-y-8">
                         <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
                             <h3 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
                                 <span className="w-2 h-2 bg-green-500 rounded-full"></span> Your Vault
@@ -903,6 +873,16 @@ export default function AccountPage() {
                                                     {new Date(sig.created_at).toLocaleDateString()} at {new Date(sig.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                             </div>
+
+                                            {sig.signature_type === 'DOCUMENT' && registeredSignatureSvg && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); openDocumentSigner(sig.id); }}
+                                                    className="px-2 py-1 bg-amber-600/20 text-amber-400 text-xs rounded shrink-0 flex items-center gap-1 hover:bg-amber-600/30 transition-colors"
+                                                    title="Place your signature on this document"
+                                                >
+                                                    <FiEdit3 size={10} /> Sign
+                                                </button>
+                                            )}
 
                                             {isSigned ? (
                                                 <span className="px-2 py-1 bg-green-950/30 text-green-400 text-xs rounded shrink-0 flex items-center gap-1">
@@ -987,14 +967,12 @@ export default function AccountPage() {
                                                             <FiShield size={14} /> Sign with HandCash
                                                         </button>
                                                     )}
-                                                    {hasE2EKeys && (
-                                                        <button
+                                                    <button
                                                             onClick={(e) => { e.stopPropagation(); setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: sig.signature_type, itemLabel: sig.metadata?.type || sig.signature_type }); }}
                                                             className="px-3 py-2 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
                                                         >
                                                             <FiShare2 size={14} /> Share
                                                         </button>
-                                                    )}
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); downloadSignature(sig.id, sig.metadata?.fileName); }}
                                                         className="px-3 py-2 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
@@ -1056,7 +1034,6 @@ export default function AccountPage() {
                             </div>
                         )}
                     </div>
-                </div>
 
                 {/* Footer */}
                 <footer className="pt-16 border-t border-zinc-900 space-y-6">

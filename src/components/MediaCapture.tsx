@@ -83,24 +83,29 @@ export default function MediaCapture({ mode, onCapture, onCancel }: MediaCapture
     const startRecording = () => {
         if (!stream) return;
         chunksRef.current = [];
-        const recorder = new MediaRecorder(stream);
-        recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
+        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+        recorder.ondataavailable = (e) => {
+            if (e.data.size > 0) chunksRef.current.push(e.data);
+        };
         recorder.onstop = () => {
             const blob = new Blob(chunksRef.current, { type: 'video/webm' });
             setCapturedBlob(blob);
             setPreviewUrl(URL.createObjectURL(blob));
+            // Stop camera AFTER blob is created — stopping earlier kills the stream
+            // before MediaRecorder can flush its final data chunk
+            stopCamera();
         };
         mediaRecorderRef.current = recorder;
-        recorder.start();
+        recorder.start(1000); // collect data every 1s for reliable chunk capture
         setIsRecording(true);
         setRecordingTime(0);
     };
 
     const stopRecording = () => {
-        if (mediaRecorderRef.current && isRecording) {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
             mediaRecorderRef.current.stop();
             setIsRecording(false);
-            stopCamera();
+            // Don't call stopCamera() here — it's called in recorder.onstop
         }
     };
 
@@ -130,7 +135,7 @@ export default function MediaCapture({ mode, onCapture, onCancel }: MediaCapture
                             ref={videoRef}
                             autoPlay
                             playsInline
-                            muted={!isRecording}
+                            muted
                             className="w-full h-full object-cover"
                         />
                     ) : (
