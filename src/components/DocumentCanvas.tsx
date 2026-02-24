@@ -395,7 +395,7 @@ export default function DocumentCanvas({
                         <div className="w-full py-24 flex flex-col items-center justify-center text-center bg-zinc-900 rounded-md">
                             <FiX className="text-red-500 text-2xl mb-3" />
                             <p className="text-sm text-zinc-400">Unable to display this document</p>
-                            <p className="text-xs text-zinc-600 mt-1">Only image files (PNG, JPEG) are supported in the workspace.</p>
+                            <p className="text-xs text-zinc-600 mt-1">Only image files (PNG, JPEG) and PDFs are supported in the workspace.</p>
                         </div>
                     ) : (
                         <img

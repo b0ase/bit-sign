@@ -10,6 +10,7 @@ import ShareModal from '@/components/ShareModal';
 import SignatureExplorer from '@/components/SignatureExplorer';
 import DocumentCanvas from '@/components/DocumentCanvas';
 import type { PlacedElement } from '@/components/DocumentCanvas';
+import { pdfToImage } from '@/lib/pdf-to-image';
 import {
     FiLock,
     FiFileText,
@@ -266,12 +267,18 @@ export default function AccountPage() {
             const res = await fetch(`/api/bitsign/signatures/${sigId}/preview`);
             if (!res.ok) throw new Error('Failed to load document');
             const contentType = res.headers.get('content-type') || '';
-            // Only image types can be composited in the canvas
-            if (!contentType.startsWith('image/')) {
-                alert('Only image documents (PNG, JPEG, etc.) can be opened in the signing workspace. PDF support coming soon.');
+
+            let blob: Blob;
+            if (contentType === 'application/pdf') {
+                const arrayBuffer = await res.arrayBuffer();
+                blob = await pdfToImage(arrayBuffer);
+            } else if (contentType.startsWith('image/')) {
+                blob = await res.blob();
+            } else {
+                alert('Only image documents (PNG, JPEG) and PDFs can be opened in the signing workspace.');
                 return;
             }
-            const blob = await res.blob();
+
             const blobUrl = URL.createObjectURL(blob);
             // Clean up previous blob URL
             if (selectedDocBlobUrl && selectedDocBlobUrl.startsWith('blob:')) {
@@ -349,11 +356,18 @@ export default function AccountPage() {
             const res = await fetch(`/api/bitsign/signatures/${doc.document_id}/preview`);
             if (!res.ok) throw new Error('Failed to load shared document');
             const contentType = res.headers.get('content-type') || '';
-            if (!contentType.startsWith('image/')) {
-                alert('Only image documents can be co-signed in the workspace currently.');
+
+            let blob: Blob;
+            if (contentType === 'application/pdf') {
+                const arrayBuffer = await res.arrayBuffer();
+                blob = await pdfToImage(arrayBuffer);
+            } else if (contentType.startsWith('image/')) {
+                blob = await res.blob();
+            } else {
+                alert('Only image documents (PNG, JPEG) and PDFs can be co-signed in the workspace.');
                 return;
             }
-            const blob = await res.blob();
+
             const blobUrl = URL.createObjectURL(blob);
             if (selectedDocBlobUrl && selectedDocBlobUrl.startsWith('blob:')) {
                 URL.revokeObjectURL(selectedDocBlobUrl);
