@@ -307,6 +307,229 @@ export async function sendVaultShareInvitation({
   }
 }
 
+interface CoSignNotificationParams {
+  recipientEmail: string;
+  signerHandle: string;
+  documentName: string;
+  viewUrl: string;
+}
+
+export async function sendCoSignNotification({
+  recipientEmail,
+  signerHandle,
+  documentName,
+  viewUrl,
+}: CoSignNotificationParams): Promise<{ success: boolean; error?: string }> {
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+
+  const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin: 0; padding: 0; background: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background: #000000; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background: #09090b; border: 1px solid #27272a; max-width: 600px;">
+          <!-- Header -->
+          <tr>
+            <td style="padding: 40px 40px 24px;">
+              <div style="font-family: -apple-system, sans-serif; font-size: 12px; color: #71717a; margin-bottom: 12px;">Co-Sign Complete</div>
+              <div style="font-family: -apple-system, sans-serif; font-size: 22px; font-weight: 700; color: #ffffff; letter-spacing: -0.02em;">Your document has been co-signed</div>
+            </td>
+          </tr>
+
+          <!-- Details -->
+          <tr>
+            <td style="padding: 0 40px 32px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #27272a;">
+                <tr>
+                  <td style="padding: 12px 16px; border-bottom: 1px solid #27272a;">
+                    <span style="font-family: -apple-system, sans-serif; font-size: 11px; color: #71717a;">Co-Signed by</span>
+                    <div style="font-family: -apple-system, sans-serif; font-size: 14px; color: #ffffff; font-weight: 600; margin-top: 4px;">$${escapeHtml(signerHandle)}</div>
+                  </td>
+                  <td style="padding: 12px 16px; border-bottom: 1px solid #27272a; border-left: 1px solid #27272a;">
+                    <span style="font-family: -apple-system, sans-serif; font-size: 11px; color: #71717a;">Document</span>
+                    <div style="font-family: -apple-system, sans-serif; font-size: 14px; color: #ffffff; font-weight: 600; margin-top: 4px;">${escapeHtml(documentName)}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- CTA Button -->
+          <tr>
+            <td style="padding: 0 40px 40px;" align="center">
+              <a href="${viewUrl}" target="_blank" style="display: inline-block; padding: 16px 48px; background: #ffffff; color: #000000; font-family: -apple-system, sans-serif; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 6px;">View Co-Signed Document</a>
+            </td>
+          </tr>
+
+          <!-- Info -->
+          <tr>
+            <td style="padding: 0 40px 32px;">
+              <div style="padding: 16px; background: #18181b; border: 1px solid #27272a; border-radius: 6px;">
+                <span style="font-family: -apple-system, sans-serif; font-size: 13px; color: #a1a1aa; line-height: 1.6;">
+                  The co-signed document is now sealed on the Bitcoin blockchain. Both signatures are permanently recorded and verifiable.
+                </span>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 24px 40px; border-top: 1px solid #27272a;">
+              <div style="font-family: -apple-system, sans-serif; font-size: 12px; color: #52525b; line-height: 1.8;">
+                bit-sign.online &mdash; Identity &amp; Documents on Bitcoin<br>
+                <a href="https://bit-sign.online" style="color: #71717a; text-decoration: none;">bit-sign.online</a>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: `bit-sign <${fromEmail}>`,
+      to: [recipientEmail],
+      subject: `$${signerHandle} co-signed "${documentName}" on Bit-Sign`,
+      html,
+    });
+
+    if (error) {
+      console.error('[email] Resend error:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('[email] Send failed:', err);
+    return { success: false, error: err.message || 'Failed to send email' };
+  }
+}
+
+interface CoSignRequestParams {
+  recipientEmail: string;
+  senderHandle: string;
+  documentName: string;
+  claimUrl: string;
+  message?: string;
+}
+
+export async function sendCoSignRequestEmail({
+  recipientEmail,
+  senderHandle,
+  documentName,
+  claimUrl,
+  message,
+}: CoSignRequestParams): Promise<{ success: boolean; error?: string }> {
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+
+  const messageBlock = message
+    ? `
+      <tr>
+        <td style="padding: 0 40px 32px;">
+          <div style="border-left: 3px solid #3f3f46; padding: 16px 20px; background: #18181b;">
+            <div style="font-family: -apple-system, sans-serif; font-size: 11px; color: #71717a; margin-bottom: 8px;">Personal Message</div>
+            <div style="font-family: -apple-system, sans-serif; font-size: 14px; color: #d4d4d8; line-height: 1.6;">${escapeHtml(message)}</div>
+          </div>
+        </td>
+      </tr>`
+    : '';
+
+  const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin: 0; padding: 0; background: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background: #000000; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background: #09090b; border: 1px solid #27272a; max-width: 600px;">
+          <!-- Header -->
+          <tr>
+            <td style="padding: 40px 40px 24px;">
+              <div style="font-family: -apple-system, sans-serif; font-size: 12px; color: #71717a; margin-bottom: 12px;">Co-Sign Request</div>
+              <div style="font-family: -apple-system, sans-serif; font-size: 22px; font-weight: 700; color: #ffffff; letter-spacing: -0.02em;">${escapeHtml(documentName)}</div>
+            </td>
+          </tr>
+
+          <!-- Details -->
+          <tr>
+            <td style="padding: 0 40px 32px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #27272a;">
+                <tr>
+                  <td style="padding: 12px 16px;">
+                    <span style="font-family: -apple-system, sans-serif; font-size: 11px; color: #71717a;">From</span>
+                    <div style="font-family: -apple-system, sans-serif; font-size: 14px; color: #ffffff; font-weight: 600; margin-top: 4px;">$${escapeHtml(senderHandle)}</div>
+                  </td>
+                  <td style="padding: 12px 16px; border-left: 1px solid #27272a;">
+                    <span style="font-family: -apple-system, sans-serif; font-size: 11px; color: #71717a;">Action Required</span>
+                    <div style="font-family: -apple-system, sans-serif; font-size: 14px; color: #f59e0b; font-weight: 600; margin-top: 4px;">Co-Sign Document</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          ${messageBlock}
+
+          <!-- CTA Button -->
+          <tr>
+            <td style="padding: 0 40px 40px;" align="center">
+              <a href="${claimUrl}" target="_blank" style="display: inline-block; padding: 16px 48px; background: #ffffff; color: #000000; font-family: -apple-system, sans-serif; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 6px;">Review &amp; Co-Sign</a>
+            </td>
+          </tr>
+
+          <!-- HandCash note -->
+          <tr>
+            <td style="padding: 0 40px 32px;">
+              <div style="padding: 16px; background: #18181b; border: 1px solid #27272a; border-radius: 6px;">
+                <span style="font-family: -apple-system, sans-serif; font-size: 13px; color: #a1a1aa; line-height: 1.6;">
+                  You'll need a <a href="https://handcash.io" style="color: #22c55e; text-decoration: none; font-weight: 600;">HandCash</a> wallet to co-sign.
+                  Your signature will be permanently recorded on the Bitcoin blockchain.
+                </span>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 24px 40px; border-top: 1px solid #27272a;">
+              <div style="font-family: -apple-system, sans-serif; font-size: 12px; color: #52525b; line-height: 1.8;">
+                bit-sign.online &mdash; Identity &amp; Documents on Bitcoin<br>
+                <a href="https://bit-sign.online" style="color: #71717a; text-decoration: none;">bit-sign.online</a>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: `bit-sign <${fromEmail}>`,
+      to: [recipientEmail],
+      subject: `$${senderHandle} requests your co-signature on "${documentName}"`,
+      html,
+    });
+
+    if (error) {
+      console.error('[email] Resend error:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('[email] Send failed:', err);
+    return { success: false, error: err.message || 'Failed to send email' };
+  }
+}
+
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, '&amp;')

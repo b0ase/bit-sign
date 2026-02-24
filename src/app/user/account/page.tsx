@@ -37,7 +37,11 @@ import {
     FiMonitor,
     FiSmartphone,
     FiEye,
-    FiInbox
+    FiInbox,
+    FiCopy,
+    FiSend,
+    FiLoader,
+    FiAlertCircle,
 } from 'react-icons/fi';
 
 interface Signature {
@@ -98,6 +102,21 @@ interface SharedDocument {
     metadata?: any;
 }
 
+interface CoSignRequest {
+    id: string;
+    document_id: string;
+    sender_handle: string;
+    recipient_handle: string;
+    recipient_email?: string;
+    status: string;
+    response_document_id?: string;
+    message?: string;
+    created_at: string;
+    signed_at?: string;
+    document_name: string;
+    document_txid?: string;
+}
+
 export default function AccountPage() {
     const [handle, setHandle] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -119,6 +138,10 @@ export default function AccountPage() {
     const [sharedWithMe, setSharedWithMe] = useState<SharedDocument[]>([]);
     const [registeredSignatureSvg, setRegisteredSignatureSvg] = useState<string | null>(null);
     const [strands, setStrands] = useState<Strand[]>([]);
+    const [coSignRequests, setCoSignRequests] = useState<CoSignRequest[]>([]);
+    const [sentCoSignRequests, setSentCoSignRequests] = useState<CoSignRequest[]>([]);
+    const [coSignModal, setCoSignModal] = useState<{ documentId: string; documentName: string } | null>(null);
+    const [copiedTxid, setCopiedTxid] = useState<string | null>(null);
 
     // Workspace state
     const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
@@ -286,6 +309,8 @@ export default function AccountPage() {
             fetchEncryptionSeed();
             checkE2EKeys();
             fetchSharedWithMe();
+            fetchCoSignRequests();
+            fetchSentCoSignRequests();
             fetchRegisteredSignatureSvg();
         } else {
             setLoading(false);
@@ -311,6 +336,78 @@ export default function AccountPage() {
             setSharedWithMe(data.grants || []);
         } catch {
             // Not critical
+        }
+    };
+
+    const fetchCoSignRequests = async () => {
+        try {
+            const res = await fetch('/api/bitsign/co-sign-request');
+            if (!res.ok) return;
+            const data = await res.json();
+            setCoSignRequests(data.requests || []);
+        } catch {
+            // Not critical
+        }
+    };
+
+    const fetchSentCoSignRequests = async () => {
+        try {
+            const res = await fetch('/api/bitsign/co-sign-requests/sent');
+            if (!res.ok) return;
+            const data = await res.json();
+            setSentCoSignRequests(data.requests || []);
+        } catch {
+            // Not critical
+        }
+    };
+
+    const copyTxid = (txid: string) => {
+        navigator.clipboard.writeText(txid);
+        setCopiedTxid(txid);
+        setTimeout(() => setCopiedTxid(null), 2000);
+    };
+
+    const submitCoSignRequest = async (recipientHandle: string, recipientEmail: string, message: string) => {
+        if (!coSignModal) return;
+        try {
+            const res = await fetch('/api/bitsign/co-sign-request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    documentId: coSignModal.documentId,
+                    recipientHandle: recipientHandle || undefined,
+                    recipientEmail: recipientEmail || undefined,
+                    message: message || undefined,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to create co-sign request');
+            setCoSignModal(null);
+            fetchSentCoSignRequests();
+            return data;
+        } catch (error: any) {
+            throw error;
+        }
+    };
+
+    // After co-signing a shared document, link it to the co-sign request
+    const handleCoSignResponse = async (sealedDocId: string, originalDocId: string) => {
+        // Find matching co-sign request
+        const matchingReq = coSignRequests.find(r => r.document_id === originalDocId && r.status === 'pending');
+        if (!matchingReq) return;
+
+        try {
+            await fetch('/api/bitsign/co-sign-respond', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    requestId: matchingReq.id,
+                    responseDocumentId: sealedDocId,
+                }),
+            });
+            fetchCoSignRequests();
+        } catch {
+            // Non-critical — the sealed document is already created
         }
     };
 
@@ -411,6 +508,9 @@ export default function AccountPage() {
                 wallet_signed: true,
                 wallet_address: verifyData.walletAddress,
             }, ...prev]);
+
+            // If this was a co-sign, link the response
+            handleCoSignResponse(sealData.id, selectedDocumentId!);
         } catch (error: any) {
             console.error('Seal failed:', error);
             alert(error?.message || 'Failed to seal document.');
@@ -1054,21 +1154,53 @@ export default function AccountPage() {
                     <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
                         <h3 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
                             <FiInbox size={14} /> Inbox
-                            {sharedWithMe.length > 0 && (
+                            {(sharedWithMe.length + coSignRequests.filter(r => r.status === 'pending').length) > 0 && (
                                 <span className="px-1.5 py-0.5 bg-blue-950 text-blue-400 text-[10px] rounded-full font-medium">
-                                    {sharedWithMe.length}
+                                    {sharedWithMe.length + coSignRequests.filter(r => r.status === 'pending').length}
                                 </span>
                             )}
                         </h3>
                     </div>
-                    {sharedWithMe.length === 0 ? (
+                    {sharedWithMe.length === 0 && coSignRequests.filter(r => r.status === 'pending').length === 0 ? (
                         <div className="py-10 flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-md text-center">
                             <FiInbox className="text-zinc-700 text-2xl mb-3" />
                             <p className="text-sm text-zinc-500">No documents received yet</p>
-                            <p className="text-xs text-zinc-600 mt-1">Documents shared with you or witness requests will appear here.</p>
+                            <p className="text-xs text-zinc-600 mt-1">Documents shared with you, co-sign requests, or witness requests will appear here.</p>
                         </div>
                     ) : (
                         <div className="space-y-2">
+                            {/* Co-sign requests (pending) */}
+                            {coSignRequests.filter(r => r.status === 'pending').map((req) => (
+                                <div key={`cosign-${req.id}`} className="border border-amber-900/40 rounded-md bg-black p-4 flex items-center gap-4">
+                                    <div className="text-amber-500 shrink-0">
+                                        <FiEdit3 size={18} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium text-white truncate">
+                                                {req.document_name}
+                                            </span>
+                                            <span className="px-1.5 py-0.5 bg-amber-950 text-amber-400 text-[10px] rounded shrink-0">
+                                                Co-Sign Request
+                                            </span>
+                                        </div>
+                                        <span className="text-xs text-zinc-600">
+                                            From ${req.sender_handle} &middot; {new Date(req.created_at).toLocaleDateString()}
+                                        </span>
+                                        {req.message && (
+                                            <p className="text-xs text-zinc-500 mt-1 truncate">&ldquo;{req.message}&rdquo;</p>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => openCoSign({ id: req.id, document_id: req.document_id, document_type: 'vault_item', grantor_handle: req.sender_handle, wrapped_key: '', ephemeral_public_key: '', created_at: req.created_at, signature_type: 'SEALED_DOCUMENT', metadata: { originalFileName: req.document_name } })}
+                                        className="px-3 py-1.5 bg-amber-600/20 text-amber-400 text-xs rounded flex items-center gap-1.5 hover:bg-amber-600/30 transition-colors shrink-0"
+                                    >
+                                        <FiEdit3 size={12} /> Co-Sign
+                                    </button>
+                                </div>
+                            ))}
+
+                            {/* Shared documents */}
                             {sharedWithMe.map((doc) => {
                                 const isSealed = doc.signature_type === 'SEALED_DOCUMENT' || doc.document_type === 'SEALED_DOCUMENT';
                                 const isWitnessRequest = doc.signature_type === 'WITNESS_REQUEST' || doc.document_type === 'WITNESS_REQUEST';
@@ -1129,6 +1261,47 @@ export default function AccountPage() {
                     )}
                 </div>
 
+                {/* ===== SENT CO-SIGN REQUESTS ===== */}
+                {sentCoSignRequests.length > 0 && (
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
+                            <h3 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
+                                <FiSend size={14} /> Sent Co-Sign Requests
+                            </h3>
+                        </div>
+                        <div className="space-y-2">
+                            {sentCoSignRequests.map((req) => (
+                                <div key={req.id} className={`border rounded-md bg-black p-4 flex items-center gap-4 ${req.status === 'signed' ? 'border-green-900/40' : 'border-zinc-900'}`}>
+                                    <div className="shrink-0">
+                                        {req.status === 'signed' ? (
+                                            <FiCheck size={18} className="text-green-400" />
+                                        ) : (
+                                            <FiLoader size={18} className="text-zinc-500 animate-spin-slow" />
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium text-white truncate">
+                                                {req.document_name}
+                                            </span>
+                                        </div>
+                                        <span className="text-xs text-zinc-600">
+                                            To ${req.recipient_handle || req.recipient_email || 'unknown'} &middot; {new Date(req.created_at).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                    <span className={`px-2 py-1 text-xs rounded shrink-0 ${
+                                        req.status === 'signed'
+                                            ? 'bg-green-950/30 text-green-400'
+                                            : 'bg-zinc-900 text-zinc-500'
+                                    }`}>
+                                        {req.status === 'signed' ? 'Co-Signed' : 'Pending'}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* ===== TWO-PANEL SIGNING WORKSPACE ===== */}
                 <div className="space-y-4">
                     <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
@@ -1162,6 +1335,7 @@ export default function AccountPage() {
                                         documentUrl={selectedDocBlobUrl}
                                         documentId={selectedDocumentId}
                                         signerHandle={handle || undefined}
+                                        originalFileName={signatures.find(s => s.id === selectedDocumentId)?.metadata?.fileName || signatures.find(s => s.id === selectedDocumentId)?.metadata?.originalFileName}
                                         elements={placedElements}
                                         onElementsChange={setPlacedElements}
                                         onSeal={handleSeal}
@@ -1206,13 +1380,37 @@ export default function AccountPage() {
                                                                                 <FiShield size={10} /> Sealed
                                                                             </span>
                                                                         )}
-                                                                    </div>
-                                                                    <span className="block text-xs text-zinc-600">
-                                                                        {new Date(sig.created_at).toLocaleDateString()} at {new Date(sig.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                                        {isSealed && sig.txid && !sig.txid.startsWith('pending-') && (
-                                                                            <> &middot; <a href={`https://whatsonchain.com/tx/${sig.txid}`} target="_blank" onClick={(e) => e.stopPropagation()} className="text-amber-600 hover:text-amber-400 font-mono">tx:{sig.txid.slice(0, 8)}</a></>
+                                                                        {isOnChain && isSealed && (
+                                                                            <span className="px-1.5 py-0.5 bg-green-950 text-green-400 text-[10px] rounded shrink-0 flex items-center gap-1">
+                                                                                <FiCheck size={10} /> On Chain
+                                                                            </span>
                                                                         )}
-                                                                    </span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 text-xs text-zinc-600">
+                                                                        <span>{new Date(sig.created_at).toLocaleDateString()} at {new Date(sig.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                                        {isOnChain && (
+                                                                            <span className="flex items-center gap-1">
+                                                                                &middot;
+                                                                                <span className="font-mono text-zinc-500">{sig.txid.slice(0, 8)}...{sig.txid.slice(-4)}</span>
+                                                                                <button
+                                                                                    onClick={(e) => { e.stopPropagation(); copyTxid(sig.txid); }}
+                                                                                    className="text-zinc-600 hover:text-zinc-300 transition-colors"
+                                                                                    title="Copy TXID"
+                                                                                >
+                                                                                    {copiedTxid === sig.txid ? <FiCheck size={10} className="text-green-400" /> : <FiCopy size={10} />}
+                                                                                </button>
+                                                                                <a
+                                                                                    href={`https://whatsonchain.com/tx/${sig.txid}`}
+                                                                                    target="_blank"
+                                                                                    onClick={(e) => e.stopPropagation()}
+                                                                                    className="text-amber-600 hover:text-amber-400 transition-colors"
+                                                                                    title="View on chain"
+                                                                                >
+                                                                                    <FiExternalLink size={10} />
+                                                                                </a>
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
 
                                                                 {sig.signature_type === 'DOCUMENT' && (
@@ -1281,6 +1479,12 @@ export default function AccountPage() {
                                                                     {isSealed && (
                                                                         <div className="flex items-center gap-2 flex-wrap pb-2 mb-2 border-b border-zinc-800">
                                                                             <span className="text-[10px] text-zinc-500 uppercase tracking-wider w-full">Send to recipient</span>
+                                                                            <button
+                                                                                onClick={(e) => { e.stopPropagation(); setCoSignModal({ documentId: sig.id, documentName: sig.metadata?.originalFileName || 'Sealed Document' }); }}
+                                                                                className="px-3 py-1.5 bg-white text-black text-xs font-medium rounded-md hover:bg-zinc-200 transition-all flex items-center gap-2"
+                                                                            >
+                                                                                <FiEdit3 size={12} /> Request Co-Sign
+                                                                            </button>
                                                                             <button
                                                                                 onClick={(e) => { e.stopPropagation(); setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' }); }}
                                                                                 className="px-3 py-1.5 bg-amber-600 text-black text-xs font-medium rounded-md hover:bg-amber-500 transition-all flex items-center gap-2"
@@ -1572,6 +1776,14 @@ export default function AccountPage() {
                     />
                 )}
 
+                {coSignModal && (
+                    <CoSignRequestModal
+                        documentName={coSignModal.documentName}
+                        onSubmit={submitCoSignRequest}
+                        onClose={() => setCoSignModal(null)}
+                    />
+                )}
+
                 {isProcessing && (
                     <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-2xl flex items-center justify-center">
                         <div className="flex flex-col items-center gap-8">
@@ -1588,6 +1800,154 @@ export default function AccountPage() {
                             </div>
                         </div>
                     </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// Inline modal for co-sign requests
+function CoSignRequestModal({ documentName, onSubmit, onClose }: {
+    documentName: string;
+    onSubmit: (handle: string, email: string, message: string) => Promise<any>;
+    onClose: () => void;
+}) {
+    const [tab, setTab] = useState<'handle' | 'email'>('handle');
+    const [handle, setHandle] = useState('');
+    const [email, setEmail] = useState('');
+    const [message, setMessage] = useState('');
+    const [sending, setSending] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState(false);
+
+    const handleSubmit = async () => {
+        setSending(true);
+        setError(null);
+        try {
+            const result = await onSubmit(
+                tab === 'handle' ? handle.replace(/^\$/, '') : '',
+                tab === 'email' ? email : '',
+                message
+            );
+            setSuccess(true);
+        } catch (err: any) {
+            setError(err?.message || 'Failed to send request');
+        } finally {
+            setSending(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[90] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-lg w-full max-w-md p-6 space-y-6">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                        <FiEdit3 size={18} /> Request Co-Sign
+                    </h2>
+                    <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
+                        <FiX size={18} />
+                    </button>
+                </div>
+
+                <p className="text-xs text-zinc-500">
+                    Request a co-signature on <span className="text-white font-medium">&ldquo;{documentName}&rdquo;</span>
+                </p>
+
+                {success ? (
+                    <div className="text-center py-8 space-y-3">
+                        <div className="w-12 h-12 bg-green-950/30 border border-green-800 rounded-full flex items-center justify-center mx-auto">
+                            <FiCheck className="text-green-400" size={20} />
+                        </div>
+                        <p className="text-sm text-green-400 font-medium">Co-sign request sent!</p>
+                        <p className="text-xs text-zinc-500">They&apos;ll be notified and can co-sign from their inbox.</p>
+                        <button onClick={onClose} className="mt-4 px-5 py-2 bg-zinc-900 border border-zinc-800 text-white text-sm rounded-md hover:bg-zinc-800 transition-all">
+                            Done
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        {/* Tab toggle */}
+                        <div className="flex bg-black border border-zinc-800 rounded-md p-0.5">
+                            <button
+                                onClick={() => { setTab('handle'); setError(null); }}
+                                className={`flex-1 py-2 text-sm font-medium rounded-[5px] transition-all flex items-center justify-center gap-1.5 ${tab === 'handle' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                            >
+                                <FiUsers size={13} /> Handle
+                            </button>
+                            <button
+                                onClick={() => { setTab('email'); setError(null); }}
+                                className={`flex-1 py-2 text-sm font-medium rounded-[5px] transition-all flex items-center justify-center gap-1.5 ${tab === 'email' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                            >
+                                <FiMail size={13} /> Email
+                            </button>
+                        </div>
+
+                        {tab === 'handle' ? (
+                            <div className="space-y-2">
+                                <label className="block text-xs text-zinc-400">Recipient HandCash Handle</label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">$</span>
+                                    <input
+                                        type="text"
+                                        value={handle}
+                                        onChange={(e) => setHandle(e.target.value)}
+                                        placeholder="handle"
+                                        className="w-full pl-7 pr-4 py-2.5 bg-black border border-zinc-800 rounded-md text-white text-sm placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors"
+                                        onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                                        autoFocus
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                <label className="block text-xs text-zinc-400">Recipient Email</label>
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="alice@example.com"
+                                    className="w-full px-4 py-2.5 bg-black border border-zinc-800 rounded-md text-white text-sm placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors"
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                                    autoFocus
+                                />
+                            </div>
+                        )}
+
+                        <div className="space-y-2">
+                            <label className="block text-xs text-zinc-400">Message <span className="text-zinc-600">(optional)</span></label>
+                            <textarea
+                                value={message}
+                                onChange={(e) => setMessage(e.target.value)}
+                                placeholder="Please co-sign this document..."
+                                rows={2}
+                                className="w-full px-4 py-2.5 bg-black border border-zinc-800 rounded-md text-white text-sm placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors resize-none"
+                            />
+                        </div>
+
+                        {error && (
+                            <div className="flex items-start gap-2 text-red-400 text-xs">
+                                <FiAlertCircle size={14} className="shrink-0 mt-0.5" />
+                                {error}
+                            </div>
+                        )}
+
+                        <div className="flex gap-3">
+                            <button onClick={onClose} className="flex-1 px-4 py-2.5 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all">
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSubmit}
+                                disabled={sending || (tab === 'handle' ? !handle.trim() : !email.trim())}
+                                className="flex-1 px-4 py-2.5 bg-white text-black text-sm font-medium rounded-md hover:bg-zinc-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {sending ? (
+                                    <><FiLoader className="animate-spin" size={14} /> Sending...</>
+                                ) : (
+                                    <><FiSend size={14} /> Send Request</>
+                                )}
+                            </button>
+                        </div>
+                    </>
                 )}
             </div>
         </div>

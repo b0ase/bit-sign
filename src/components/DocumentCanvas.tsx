@@ -24,6 +24,7 @@ interface DocumentCanvasProps {
     documentUrl: string;
     documentId: string;
     signerHandle?: string;
+    originalFileName?: string;
     elements: PlacedElement[];
     onElementsChange: (elements: PlacedElement[]) => void;
     onSeal: (compositeBase64: string, elements: PlacedElement[]) => void;
@@ -34,6 +35,7 @@ export default function DocumentCanvas({
     documentUrl,
     documentId,
     signerHandle,
+    originalFileName,
     elements,
     onElementsChange,
     onSeal,
@@ -325,16 +327,14 @@ export default function DocumentCanvas({
             const timeStr = now.toTimeString().slice(0, 5);
             const line1 = `SEALED by $${signerHandle || 'unknown'}`;
             const line2 = `${dateStr} ${timeStr} UTC`;
+            const docNameLine = originalFileName ? `"${originalFileName}"` : null;
             const line3 = 'BIT-SIGN PROTOCOL';
 
             ctx.font = `bold ${stampFontSize}px monospace`;
-            const maxLineWidth = Math.max(
-                ctx.measureText(line1).width,
-                ctx.measureText(line2).width,
-                ctx.measureText(line3).width
-            );
+            const stampLines = [line1, line2, ...(docNameLine ? [docNameLine] : []), line3];
+            const maxLineWidth = Math.max(...stampLines.map(l => ctx.measureText(l).width));
             const boxW = maxLineWidth + stampPad * 3;
-            const boxH = stampFontSize * 3 * 1.4 + stampPad * 2;
+            const boxH = stampFontSize * stampLines.length * 1.4 + stampPad * 2;
             const boxX = canvas.width - boxW - stampPad * 2;
             const boxY = canvas.height - boxH - stampPad * 2;
 
@@ -346,16 +346,25 @@ export default function DocumentCanvas({
             ctx.strokeRect(boxX, boxY, boxW, boxH);
 
             // Stamp text
+            let lineIdx = 0;
             ctx.fillStyle = '#f59e0b';
             ctx.textBaseline = 'top';
             ctx.font = `bold ${stampFontSize}px monospace`;
-            ctx.fillText(line1, boxX + stampPad * 1.5, boxY + stampPad);
+            ctx.fillText(line1, boxX + stampPad * 1.5, boxY + stampPad + stampFontSize * 1.4 * lineIdx);
+            lineIdx++;
             ctx.fillStyle = '#d4d4d8';
             ctx.font = `${stampFontSize}px monospace`;
-            ctx.fillText(line2, boxX + stampPad * 1.5, boxY + stampPad + stampFontSize * 1.4);
+            ctx.fillText(line2, boxX + stampPad * 1.5, boxY + stampPad + stampFontSize * 1.4 * lineIdx);
+            lineIdx++;
+            if (docNameLine) {
+                ctx.fillStyle = '#a1a1aa';
+                ctx.font = `${stampFontSize}px monospace`;
+                ctx.fillText(docNameLine, boxX + stampPad * 1.5, boxY + stampPad + stampFontSize * 1.4 * lineIdx);
+                lineIdx++;
+            }
             ctx.fillStyle = '#71717a';
             ctx.font = `${Math.round(stampFontSize * 0.85)}px monospace`;
-            ctx.fillText(line3, boxX + stampPad * 1.5, boxY + stampPad + stampFontSize * 2.8);
+            ctx.fillText(line3, boxX + stampPad * 1.5, boxY + stampPad + stampFontSize * 1.4 * lineIdx);
 
             const compositeBase64 = canvas.toDataURL('image/png');
             onSeal(compositeBase64, elements);
@@ -365,7 +374,7 @@ export default function DocumentCanvas({
         } finally {
             setCompositing(false);
         }
-    }, [documentUrl, elements, onSeal]);
+    }, [documentUrl, elements, onSeal, signerHandle, originalFileName]);
 
     // Cleanup blob URL on unmount
     useEffect(() => {
