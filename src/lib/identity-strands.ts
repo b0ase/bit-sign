@@ -37,6 +37,7 @@ const STRAND_POINTS: Record<string, number> = {
   'self_attestation': 3,
   'paid_signing': 3,
   'peer_attestation/cosign': 5,
+  'ip_thread': 2,
   'kyc/veriff': 10,
 };
 

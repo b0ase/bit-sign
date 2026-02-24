@@ -11,7 +11,7 @@ const WHATSONCHAIN_API = 'https://api.whatsonchain.com/v1/bsv/main';
 const FETCH_TIMEOUT_MS = 30000;
 
 export interface BitSignInscriptionData {
-  type: 'signature_registration' | 'document_signature' | 'envelope_signing' | 'identity_root' | 'identity_strand';
+  type: 'signature_registration' | 'document_signature' | 'envelope_signing' | 'identity_root' | 'identity_strand' | 'ip_thread';
 
   // For signature registration
   signatureId?: string;
@@ -39,6 +39,10 @@ export interface BitSignInscriptionData {
   strandType?: string;
   strandSubtype?: string;
   strandLabel?: string;
+
+  // For ip_thread (documentHash is shared with document_signature above)
+  threadTitle?: string;
+  threadSequence?: number;
 }
 
 export interface BitSignInscriptionResult {
@@ -171,6 +175,14 @@ function generateBitSignJson(data: BitSignInscriptionData): string {
     inscriptionData.strandType = data.strandType;
     if (data.strandSubtype) inscriptionData.strandSubtype = data.strandSubtype;
     if (data.strandLabel) inscriptionData.strandLabel = data.strandLabel;
+    if (data.userHandle) inscriptionData.userHandle = data.userHandle;
+  } else if (data.type === 'ip_thread') {
+    inscriptionData.version = '2.0';
+    inscriptionData.schema = '401-ip-thread-v1';
+    inscriptionData.rootTxid = data.rootTxid;
+    inscriptionData.documentHash = data.documentHash;
+    inscriptionData.threadTitle = data.threadTitle;
+    inscriptionData.threadSequence = data.threadSequence || 1;
     if (data.userHandle) inscriptionData.userHandle = data.userHandle;
   }
 

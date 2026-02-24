@@ -42,6 +42,8 @@ import {
     FiSend,
     FiLoader,
     FiAlertCircle,
+    FiBookOpen,
+    FiPlus,
 } from 'react-icons/fi';
 
 interface Signature {
@@ -150,6 +152,13 @@ export default function AccountPage() {
     const [selfAttestAgreed, setSelfAttestAgreed] = useState(false);
     const [selfAttestSubmitting, setSelfAttestSubmitting] = useState(false);
     const [selfAttestError, setSelfAttestError] = useState<string | null>(null);
+
+    // IP Thread (Bit Trust) state
+    const [ipThreads, setIpThreads] = useState<{ id: string; strand_txid?: string; label?: string; metadata?: any; created_at: string; signature_id?: string }[]>([]);
+    const [ipThreadModal, setIpThreadModal] = useState<{ documentId: string; documentName: string } | null>(null);
+    const [ipThreadTitle, setIpThreadTitle] = useState('');
+    const [ipThreadDescription, setIpThreadDescription] = useState('');
+    const [ipThreadSubmitting, setIpThreadSubmitting] = useState(false);
 
     // Workspace state
     const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
@@ -336,6 +345,7 @@ export default function AccountPage() {
             fetchCoSignRequests();
             fetchSentCoSignRequests();
             fetchRegisteredSignatureSvg();
+            fetchIpThreads();
         } else {
             setLoading(false);
         }
@@ -625,6 +635,44 @@ export default function AccountPage() {
             setSelfAttestError(err.message);
         } finally {
             setSelfAttestSubmitting(false);
+        }
+    };
+
+    const fetchIpThreads = async () => {
+        try {
+            const res = await fetch('/api/bitsign/ip-thread');
+            if (!res.ok) return;
+            const data = await res.json();
+            setIpThreads(data.threads || []);
+        } catch {
+            // Not critical
+        }
+    };
+
+    const submitIpThread = async () => {
+        if (!ipThreadModal || !handle) return;
+        setIpThreadSubmitting(true);
+        try {
+            const res = await fetch('/api/bitsign/ip-thread', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    documentId: ipThreadModal.documentId,
+                    title: ipThreadTitle,
+                    description: ipThreadDescription,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to register IP thread');
+            setIpThreadModal(null);
+            setIpThreadTitle('');
+            setIpThreadDescription('');
+            await fetchIpThreads();
+            await fetchData(handle);
+        } catch (err: any) {
+            alert(err.message);
+        } finally {
+            setIpThreadSubmitting(false);
         }
     };
 
@@ -1400,6 +1448,97 @@ export default function AccountPage() {
                     </div>
                 )}
 
+                {/* ===== BIT TRUST IP VAULT ===== */}
+                {identity && (
+                    <div className="border border-amber-900/40 rounded-md bg-black">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-amber-900/30">
+                            <div className="flex items-center gap-2">
+                                <FiBookOpen className="text-amber-400" size={16} />
+                                <span className="text-sm font-medium text-amber-400">Bit Trust IP Vault</span>
+                                <span className="text-xs text-zinc-600">{ipThreads.length} thread{ipThreads.length !== 1 ? 's' : ''}</span>
+                            </div>
+                        </div>
+                        {ipThreads.length === 0 ? (
+                            <div className="px-4 py-6 text-center">
+                                <p className="text-xs text-zinc-500">No IP threads registered yet.</p>
+                                <p className="text-xs text-zinc-600 mt-1">Seal a document, then register it as an IP thread to build your patent chain.</p>
+                            </div>
+                        ) : (
+                            <div className="divide-y divide-zinc-900/50">
+                                {ipThreads.map((thread) => (
+                                    <div key={thread.id} className="px-4 py-3 flex items-center justify-between">
+                                        <div className="min-w-0">
+                                            <p className="text-sm text-white truncate">{thread.label?.replace('IP: ', '') || 'Untitled'}</p>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <span className="text-xs text-zinc-600">#{thread.metadata?.sequence || '?'}</span>
+                                                <span className="text-xs text-zinc-600">{new Date(thread.created_at).toLocaleDateString()}</span>
+                                                {thread.strand_txid && (
+                                                    <button
+                                                        onClick={() => copyTxid(thread.strand_txid!)}
+                                                        className="text-xs text-amber-600 hover:text-amber-400 flex items-center gap-1"
+                                                    >
+                                                        <FiCopy size={10} />
+                                                        {copiedTxid === thread.strand_txid ? 'Copied' : thread.strand_txid.slice(0, 8) + '...'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {thread.strand_txid ? (
+                                            <span className="px-2 py-0.5 text-xs bg-amber-950/30 text-amber-400 rounded">On-chain</span>
+                                        ) : (
+                                            <span className="px-2 py-0.5 text-xs bg-zinc-900 text-zinc-500 rounded">Local</span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* IP Thread Registration Modal */}
+                {ipThreadModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+                        <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-6 w-full max-w-md">
+                            <h3 className="text-sm font-medium text-white mb-1">Register IP Thread</h3>
+                            <p className="text-xs text-zinc-500 mb-4">
+                                Register &quot;{ipThreadModal.documentName}&quot; as a $401 IP thread. This creates an immutable on-chain record linking this document to your identity.
+                            </p>
+                            <div className="space-y-3">
+                                <input
+                                    type="text"
+                                    placeholder="Thread title (e.g. Patent: ClawMiner v1)"
+                                    value={ipThreadTitle}
+                                    onChange={e => setIpThreadTitle(e.target.value)}
+                                    className="w-full px-3 py-2 bg-black border border-zinc-800 rounded text-sm text-white placeholder-zinc-600 focus:border-amber-600 focus:outline-none"
+                                />
+                                <textarea
+                                    placeholder="Description (optional)"
+                                    value={ipThreadDescription}
+                                    onChange={e => setIpThreadDescription(e.target.value)}
+                                    rows={3}
+                                    className="w-full px-3 py-2 bg-black border border-zinc-800 rounded text-sm text-white placeholder-zinc-600 focus:border-amber-600 focus:outline-none resize-none"
+                                />
+                            </div>
+                            <div className="flex gap-2 mt-4">
+                                <button
+                                    onClick={() => { setIpThreadModal(null); setIpThreadTitle(''); setIpThreadDescription(''); }}
+                                    className="flex-1 px-4 py-2 text-sm text-zinc-400 border border-zinc-800 rounded hover:bg-zinc-900 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={submitIpThread}
+                                    disabled={ipThreadSubmitting || !ipThreadTitle.trim()}
+                                    className="flex-1 px-4 py-2 bg-amber-600 text-white text-sm rounded hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                                >
+                                    {ipThreadSubmitting ? <FiLoader className="animate-spin" size={14} /> : <FiBookOpen size={14} />}
+                                    {ipThreadSubmitting ? 'Registering...' : 'Register'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* ===== UNIFIED VAULT ===== */}
                 <div className="space-y-3">
                     {/* Tabs */}
@@ -1549,6 +1688,9 @@ export default function AccountPage() {
                                                             <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-amber-600 text-black text-xs font-medium rounded hover:bg-amber-500 transition-all flex items-center gap-1.5"><FiMail size={11} /> Email</button>
                                                             <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT_HC', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-green-600 text-black text-xs font-medium rounded hover:bg-green-500 transition-all flex items-center gap-1.5"><FiUsers size={11} /> HandCash</button>
                                                             <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'WITNESS_REQUEST', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-blue-600 text-black text-xs font-medium rounded hover:bg-blue-500 transition-all flex items-center gap-1.5"><FiEye size={11} /> Witness</button>
+                                                            {!ipThreads.some(t => t.metadata?.documentId === sig.id) && (
+                                                                <button onClick={() => setIpThreadModal({ documentId: sig.id, documentName: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-amber-700 text-white text-xs font-medium rounded hover:bg-amber-600 transition-all flex items-center gap-1.5"><FiBookOpen size={11} /> IP Thread</button>
+                                                            )}
                                                         </div>
                                                     )}
                                                     <div className="flex items-center gap-1.5 flex-wrap">
