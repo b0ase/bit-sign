@@ -104,10 +104,18 @@ export default function AccountPage() {
         signatures.filter(s => s.signature_type === 'CAMERA' || s.signature_type === 'VIDEO'),
         [signatures]
     );
-    const documents = useMemo(() =>
-        signatures.filter(s => s.signature_type === 'DOCUMENT' || s.signature_type === 'SEALED_DOCUMENT'),
-        [signatures]
-    );
+    const documents = useMemo(() => {
+        // Collect IDs of originals that have been sealed
+        const sealedOriginalIds = new Set(
+            signatures
+                .filter(s => s.signature_type === 'SEALED_DOCUMENT' && s.metadata?.originalDocumentId)
+                .map(s => s.metadata.originalDocumentId)
+        );
+        return signatures.filter(s =>
+            (s.signature_type === 'DOCUMENT' && !sealedOriginalIds.has(s.id)) ||
+            s.signature_type === 'SEALED_DOCUMENT'
+        );
+    }, [signatures]);
 
     const registerSignature = async (sigId: string) => {
         setIsProcessing(true);
@@ -305,6 +313,9 @@ export default function AccountPage() {
     // Multi-element seal handler
     const handleSeal = async (compositeBase64: string, elements: PlacedElement[]) => {
         if (!handle || !selectedDocumentId) return;
+        // Grab original doc metadata before closing canvas
+        const originalDoc = signatures.find(s => s.id === selectedDocumentId);
+        const originalFileName = originalDoc?.metadata?.fileName;
         setIsProcessing(true);
         closeDocumentCanvas();
         try {
@@ -338,7 +349,7 @@ export default function AccountPage() {
                 signature_type: 'SEALED_DOCUMENT',
                 txid: sealData.txid,
                 created_at: new Date().toISOString(),
-                metadata: { type: 'Sealed Document', mimeType: 'image/png' },
+                metadata: { type: 'Sealed Document', mimeType: 'image/png', originalDocumentId: selectedDocumentId, originalFileName },
                 wallet_signed: true,
                 wallet_address: verifyData.walletAddress,
             }, ...prev]);
@@ -981,7 +992,7 @@ export default function AccountPage() {
                                                                 <div className="flex-1 min-w-0">
                                                                     <div className="flex items-center gap-2">
                                                                         <span className="text-sm font-medium text-white truncate">
-                                                                            {sig.metadata?.fileName || sig.metadata?.type || sig.signature_type}
+                                                                            {sig.metadata?.originalFileName || sig.metadata?.fileName || sig.metadata?.type || sig.signature_type}
                                                                         </span>
                                                                         {isSealed && (
                                                                             <span className="px-1.5 py-0.5 bg-amber-950 text-amber-400 text-[10px] rounded shrink-0 flex items-center gap-1">
@@ -1058,6 +1069,25 @@ export default function AccountPage() {
                                                                     ) : previewData?.type === 'unsupported' ? (
                                                                         <p className="text-xs text-zinc-500 text-center py-3">Preview not available</p>
                                                                     ) : null}
+
+                                                                    {/* Send options for sealed documents */}
+                                                                    {isSealed && (
+                                                                        <div className="flex items-center gap-2 flex-wrap pb-2 mb-2 border-b border-zinc-800">
+                                                                            <span className="text-[10px] text-zinc-500 uppercase tracking-wider w-full">Send to recipient</span>
+                                                                            <button
+                                                                                onClick={(e) => { e.stopPropagation(); setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' }); }}
+                                                                                className="px-3 py-1.5 bg-amber-600 text-black text-xs font-medium rounded-md hover:bg-amber-500 transition-all flex items-center gap-2"
+                                                                            >
+                                                                                <FiMail size={12} /> Send via Email
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={(e) => { e.stopPropagation(); setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT_HC', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' }); }}
+                                                                                className="px-3 py-1.5 bg-green-600 text-black text-xs font-medium rounded-md hover:bg-green-500 transition-all flex items-center gap-2"
+                                                                            >
+                                                                                <FiUsers size={12} /> Send to HandCash
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
 
                                                                     <div className="flex items-center gap-2 flex-wrap">
                                                                         {sig.signature_type === 'DOCUMENT' && (
