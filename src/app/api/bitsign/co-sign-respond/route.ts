@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { resolveUserHandle } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendCoSignNotification } from '@/lib/email';
+import { createStrand } from '@/lib/identity-strands';
 
 /**
  * POST /api/bitsign/co-sign-respond
@@ -127,6 +128,62 @@ export async function POST(request: NextRequest) {
                     .update({ notified_sender: true })
                     .eq('id', requestId);
             }
+        }
+
+        // Auto-create peer_attestation/cosign strands for both parties
+        try {
+            const senderHandle = coSignReq.sender_handle;
+
+            // Look up both identities
+            const { data: recipientIdentity } = await supabaseAdmin
+                .from('bit_sign_identities')
+                .select('id, token_id')
+                .eq('user_handle', handle)
+                .maybeSingle();
+
+            const { data: senderIdentityRecord } = await supabaseAdmin
+                .from('bit_sign_identities')
+                .select('id, token_id')
+                .eq('user_handle', senderHandle)
+                .maybeSingle();
+
+            // Helper to create strand if it doesn't already exist for this request
+            const createCosignStrand = async (
+                identity: { id: string; token_id: string },
+                userHandle: string,
+                counterpartyHandle: string
+            ) => {
+                const { data: existing } = await supabaseAdmin
+                    .from('bit_sign_strands')
+                    .select('id')
+                    .eq('identity_id', identity.id)
+                    .eq('strand_type', 'peer_attestation')
+                    .eq('strand_subtype', 'cosign')
+                    .contains('metadata', { requestId })
+                    .maybeSingle();
+
+                if (!existing) {
+                    await createStrand({
+                        identityId: identity.id,
+                        rootTxid: identity.token_id,
+                        strandType: 'peer_attestation',
+                        strandSubtype: 'cosign',
+                        label: `Co-signed with $${counterpartyHandle}`,
+                        metadata: { requestId, counterpartyHandle },
+                        userHandle,
+                    });
+                    console.log(`[co-sign-respond] Created peer_attestation/cosign strand for ${userHandle}`);
+                }
+            };
+
+            if (recipientIdentity) {
+                await createCosignStrand(recipientIdentity, handle, senderHandle);
+            }
+            if (senderIdentityRecord) {
+                await createCosignStrand(senderIdentityRecord, senderHandle, handle);
+            }
+        } catch (strandErr) {
+            console.warn('[co-sign-respond] peer_attestation strand creation failed (non-fatal):', strandErr);
         }
 
         return NextResponse.json({

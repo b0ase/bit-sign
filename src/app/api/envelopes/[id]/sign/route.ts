@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { inscribeBitSignData, hashData } from '@/lib/bsv-inscription';
+import { createStrand } from '@/lib/identity-strands';
 
 /**
  * POST /api/envelopes/[id]/sign — Sign an envelope
@@ -185,6 +186,42 @@ export async function POST(
     if (updateError) {
       console.error('[envelopes] Update error:', updateError);
       return NextResponse.json({ error: 'Failed to record signature' }, { status: 500 });
+    }
+
+    // Auto-create paid_signing strand if payment was made and signer has a handle
+    if (payment_txid && signer.handle) {
+      try {
+        const signerHandle = signer.handle.replace(/^\$/, '');
+        const { data: signerIdentity } = await supabaseAdmin
+          .from('bit_sign_identities')
+          .select('id, token_id')
+          .eq('user_handle', signerHandle)
+          .maybeSingle();
+
+        if (signerIdentity) {
+          // Check if they already have a paid_signing strand
+          const { data: existingStrand } = await supabaseAdmin
+            .from('bit_sign_strands')
+            .select('id')
+            .eq('identity_id', signerIdentity.id)
+            .eq('strand_type', 'paid_signing')
+            .maybeSingle();
+
+          if (!existingStrand) {
+            await createStrand({
+              identityId: signerIdentity.id,
+              rootTxid: signerIdentity.token_id,
+              strandType: 'paid_signing',
+              label: `Paid signing: ${envelope.title}`,
+              metadata: { envelopeId: id, paymentTxid: payment_txid },
+              userHandle: signerHandle,
+            });
+            console.log(`[envelopes] Created paid_signing strand for ${signerHandle}`);
+          }
+        }
+      } catch (strandErr) {
+        console.warn('[envelopes] paid_signing strand creation failed (non-fatal):', strandErr);
+      }
     }
 
     return NextResponse.json({

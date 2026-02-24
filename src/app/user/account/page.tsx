@@ -144,6 +144,13 @@ export default function AccountPage() {
     const [coSignModal, setCoSignModal] = useState<{ documentId: string; documentName: string } | null>(null);
     const [copiedTxid, setCopiedTxid] = useState<string | null>(null);
 
+    // Self-attestation form state
+    const [selfAttestOpen, setSelfAttestOpen] = useState(false);
+    const [selfAttestForm, setSelfAttestForm] = useState({ fullName: '', addressLine1: '', addressLine2: '', city: '', postcode: '', country: '' });
+    const [selfAttestAgreed, setSelfAttestAgreed] = useState(false);
+    const [selfAttestSubmitting, setSelfAttestSubmitting] = useState(false);
+    const [selfAttestError, setSelfAttestError] = useState<string | null>(null);
+
     // Workspace state
     const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
     const [selectedDocBlobUrl, setSelectedDocBlobUrl] = useState<string | null>(null);
@@ -594,6 +601,30 @@ export default function AccountPage() {
             console.error('Failed to fetch data:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const submitSelfAttestation = async () => {
+        if (!handle) return;
+        setSelfAttestSubmitting(true);
+        setSelfAttestError(null);
+        try {
+            const res = await fetch('/api/bitsign/self-attest', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(selfAttestForm),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to submit');
+            // Refresh data to pick up new strand
+            await fetchData(handle);
+            setSelfAttestOpen(false);
+            setSelfAttestForm({ fullName: '', addressLine1: '', addressLine2: '', city: '', postcode: '', country: '' });
+            setSelfAttestAgreed(false);
+        } catch (err: any) {
+            setSelfAttestError(err.message);
+        } finally {
+            setSelfAttestSubmitting(false);
         }
     };
 
@@ -1277,6 +1308,95 @@ export default function AccountPage() {
                                 </div>
                             ))}
                         </div>
+                    </div>
+                )}
+
+                {/* ===== SELF-ATTESTATION (Lv.2 Upgrade) ===== */}
+                {identity && !strands.some(s => s.strand_type === 'self_attestation') && (() => {
+                    const s = getStrengthLabel(identity.identity_strength || 0);
+                    return s.level < 2;
+                })() && (
+                    <div className="border border-blue-900/40 rounded-md bg-black">
+                        <button
+                            onClick={() => setSelfAttestOpen(!selfAttestOpen)}
+                            className="w-full flex items-center justify-between px-4 py-3 text-left"
+                        >
+                            <div className="flex items-center gap-2">
+                                <FiShield className="text-blue-400" size={16} />
+                                <span className="text-sm font-medium text-blue-400">Upgrade to Lv.2 Verified</span>
+                                <span className="text-xs text-zinc-500">Self-attest your name and address</span>
+                            </div>
+                            {selfAttestOpen ? <FiChevronUp className="text-zinc-500" size={16} /> : <FiChevronDown className="text-zinc-500" size={16} />}
+                        </button>
+                        {selfAttestOpen && (
+                            <div className="px-4 pb-4 space-y-3 border-t border-zinc-900">
+                                <p className="text-xs text-zinc-500 pt-3">Declare your full legal name and address to upgrade your identity to Level 2. This information is stored as an on-chain attestation.</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder="Full legal name"
+                                        value={selfAttestForm.fullName}
+                                        onChange={e => setSelfAttestForm(f => ({ ...f, fullName: e.target.value }))}
+                                        className="col-span-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded text-sm text-white placeholder-zinc-600 focus:border-blue-600 focus:outline-none"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Address line 1"
+                                        value={selfAttestForm.addressLine1}
+                                        onChange={e => setSelfAttestForm(f => ({ ...f, addressLine1: e.target.value }))}
+                                        className="col-span-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded text-sm text-white placeholder-zinc-600 focus:border-blue-600 focus:outline-none"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Address line 2 (optional)"
+                                        value={selfAttestForm.addressLine2}
+                                        onChange={e => setSelfAttestForm(f => ({ ...f, addressLine2: e.target.value }))}
+                                        className="col-span-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded text-sm text-white placeholder-zinc-600 focus:border-blue-600 focus:outline-none"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="City"
+                                        value={selfAttestForm.city}
+                                        onChange={e => setSelfAttestForm(f => ({ ...f, city: e.target.value }))}
+                                        className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded text-sm text-white placeholder-zinc-600 focus:border-blue-600 focus:outline-none"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Postcode"
+                                        value={selfAttestForm.postcode}
+                                        onChange={e => setSelfAttestForm(f => ({ ...f, postcode: e.target.value }))}
+                                        className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded text-sm text-white placeholder-zinc-600 focus:border-blue-600 focus:outline-none"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Country"
+                                        value={selfAttestForm.country}
+                                        onChange={e => setSelfAttestForm(f => ({ ...f, country: e.target.value }))}
+                                        className="col-span-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded text-sm text-white placeholder-zinc-600 focus:border-blue-600 focus:outline-none"
+                                    />
+                                </div>
+                                <label className="flex items-start gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={selfAttestAgreed}
+                                        onChange={e => setSelfAttestAgreed(e.target.checked)}
+                                        className="mt-0.5 accent-blue-500"
+                                    />
+                                    <span className="text-xs text-zinc-400">I attest that the information above is true and accurate to the best of my knowledge.</span>
+                                </label>
+                                {selfAttestError && (
+                                    <p className="text-xs text-red-400 flex items-center gap-1"><FiAlertCircle size={12} /> {selfAttestError}</p>
+                                )}
+                                <button
+                                    onClick={submitSelfAttestation}
+                                    disabled={selfAttestSubmitting || !selfAttestAgreed || !selfAttestForm.fullName.trim() || !selfAttestForm.addressLine1.trim() || !selfAttestForm.city.trim() || !selfAttestForm.postcode.trim() || !selfAttestForm.country.trim()}
+                                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                                >
+                                    {selfAttestSubmitting ? <FiLoader className="animate-spin" size={14} /> : <FiShield size={14} />}
+                                    {selfAttestSubmitting ? 'Submitting...' : 'Submit Self-Attestation'}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
 
