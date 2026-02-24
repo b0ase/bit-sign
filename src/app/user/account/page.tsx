@@ -59,6 +59,16 @@ interface Identity {
     github_handle?: string;
     github_id?: string;
     github_metadata?: any;
+    google_email?: string;
+    google_id?: string;
+    twitter_handle?: string;
+    twitter_id?: string;
+    linkedin_name?: string;
+    linkedin_id?: string;
+    discord_handle?: string;
+    discord_id?: string;
+    microsoft_email?: string;
+    microsoft_id?: string;
     registered_signature_id?: string;
     registered_signature_txid?: string;
     identity_strength?: number;
@@ -829,11 +839,11 @@ export default function AccountPage() {
                                 <div className="flex items-center gap-2 flex-wrap">
                                     {[
                                         { id: 'github', label: 'GitHub', icon: FiGithub, active: true, linked: !!identity.github_handle, handle: identity.github_handle, authUrl: '/api/auth/github' },
-                                        { id: 'google', label: 'Google', icon: FiMail, active: true, linked: false, authUrl: 'https://path401.com' },
-                                        { id: 'twitter', label: 'X', icon: FiTwitter, active: true, linked: false, authUrl: 'https://path401.com' },
-                                        { id: 'linkedin', label: 'LinkedIn', icon: FiLinkedin, active: true, linked: false, authUrl: 'https://path401.com' },
-                                        { id: 'discord', label: 'Discord', icon: FiMessageCircle, active: true, linked: false, authUrl: 'https://path401.com' },
-                                        { id: 'microsoft', label: 'Microsoft', icon: FiMonitor, active: true, linked: false, authUrl: 'https://path401.com' },
+                                        { id: 'google', label: 'Google', icon: FiMail, active: true, linked: !!identity.google_email, handle: identity.google_email, authUrl: '/api/auth/google' },
+                                        { id: 'twitter', label: 'X', icon: FiTwitter, active: true, linked: !!identity.twitter_handle, handle: identity.twitter_handle ? `@${identity.twitter_handle}` : undefined, authUrl: '/api/auth/twitter' },
+                                        { id: 'linkedin', label: 'LinkedIn', icon: FiLinkedin, active: true, linked: !!identity.linkedin_name, handle: identity.linkedin_name, authUrl: '/api/auth/linkedin' },
+                                        { id: 'discord', label: 'Discord', icon: FiMessageCircle, active: true, linked: !!identity.discord_handle, handle: identity.discord_handle, authUrl: '/api/auth/discord' },
+                                        { id: 'microsoft', label: 'Microsoft', icon: FiMonitor, active: true, linked: !!identity.microsoft_email, handle: identity.microsoft_email, authUrl: '/api/auth/microsoft' },
                                     ].map((provider) => {
                                         if (provider.linked && provider.handle) {
                                             return (
