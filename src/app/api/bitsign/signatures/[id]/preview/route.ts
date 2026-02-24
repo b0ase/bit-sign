@@ -3,8 +3,12 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { resolveUserHandle } from '@/lib/auth';
 
 /**
- * Server-side decrypt and stream a signature's encrypted payload.
- * Supports v1 (server decrypts) and v2 (returns encrypted payload for client decryption).
+ * Preview a vault item.
+ *
+ * encryption_version:
+ *   0 = plaintext (base64 stored, no encryption) — serve directly
+ *   1 = server-side AES-GCM decryption (legacy)
+ *   2 = return encrypted payload for client-side decryption (E2E)
  */
 export async function GET(
     request: NextRequest,
@@ -60,13 +64,40 @@ export async function GET(
             return NextResponse.json({ error: 'Not found' }, { status: 404 });
         }
 
-        if (!signature.encrypted_payload || !signature.iv) {
-            return NextResponse.json({ error: 'No encrypted data' }, { status: 404 });
+        if (!signature.encrypted_payload) {
+            return NextResponse.json({ error: 'No data stored' }, { status: 404 });
         }
 
-        const encryptionVersion = signature.encryption_version || 1;
+        const encryptionVersion = signature.encryption_version ?? 1;
 
-        // v2: Return encrypted payload for client-side decryption
+        // Determine content type from metadata
+        const meta = signature.metadata || {};
+        const fileName = meta.fileName || 'file';
+        let contentType = 'application/octet-stream';
+
+        if (signature.signature_type === 'TLDRAW') {
+            contentType = 'image/svg+xml';
+        } else if (meta.mimeType) {
+            contentType = meta.mimeType;
+        } else if (fileName.match(/\.pdf$/i)) {
+            contentType = 'application/pdf';
+        } else if (fileName.match(/\.(png|jpg|jpeg|gif|webp)$/i)) {
+            contentType = 'image/' + fileName.split('.').pop()!.toLowerCase().replace('jpg', 'jpeg');
+        }
+
+        // ─── v0: Plaintext (base64 stored, no encryption) ─────────────────
+        if (encryptionVersion === 0) {
+            const buffer = Buffer.from(signature.encrypted_payload, 'base64');
+            return new NextResponse(buffer, {
+                headers: {
+                    'Content-Type': contentType,
+                    'Content-Disposition': `inline; filename="${fileName}"`,
+                    'Cache-Control': 'private, max-age=300',
+                },
+            });
+        }
+
+        // ─── v2 / Shared: Return encrypted payload for client-side decryption ─
         if (encryptionVersion === 2 || isShared) {
             return NextResponse.json({
                 encryption_version: encryptionVersion,
@@ -77,14 +108,17 @@ export async function GET(
             });
         }
 
-        // v1: Server-side decryption (legacy path)
+        // ─── v1: Server-side decryption (legacy) ─────────────────────────
+        if (!signature.iv) {
+            return NextResponse.json({ error: 'Missing IV for encrypted item' }, { status: 422 });
+        }
+
         const { data: identityData } = await supabaseAdmin
             .from('bit_sign_identities')
             .select('encryption_key')
             .eq('user_handle', handle)
             .maybeSingle();
 
-        // Also check unified_users for the encryption_key
         let encryptionKey = identityData?.encryption_key;
 
         if (!encryptionKey) {
@@ -110,7 +144,6 @@ export async function GET(
             return NextResponse.json({ error: 'No encryption key' }, { status: 400 });
         }
 
-        // Decrypt server-side
         const encryptedBytes = Buffer.from(signature.encrypted_payload, 'base64');
         const ivBytes = Buffer.from(signature.iv, 'base64');
 
@@ -135,21 +168,6 @@ export async function GET(
             );
         } catch {
             return NextResponse.json({ error: 'Decryption failed — encryption key may have changed' }, { status: 422 });
-        }
-
-        // Determine content type
-        let contentType = 'application/octet-stream';
-        const meta = signature.metadata || {};
-        const fileName = meta.fileName || 'file';
-
-        if (signature.signature_type === 'TLDRAW') {
-            contentType = 'image/svg+xml';
-        } else if (meta.mimeType) {
-            contentType = meta.mimeType;
-        } else if (fileName.match(/\.pdf$/i)) {
-            contentType = 'application/pdf';
-        } else if (fileName.match(/\.(png|jpg|jpeg|gif|webp)$/i)) {
-            contentType = 'image/' + fileName.split('.').pop()!.toLowerCase().replace('jpg', 'jpeg');
         }
 
         return new NextResponse(decrypted, {

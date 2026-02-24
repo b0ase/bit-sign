@@ -4,12 +4,24 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { inscribeBitSignData, hashData } from '@/lib/bsv-inscription';
 
 /**
- * Handles on-chain inscription of encrypted Sovereign Safe Box items
- * Uses real BSV blockchain inscription via OP_RETURN
+ * Handles storage (and optional on-chain inscription) of vault items.
+ *
+ * Two modes:
+ *   1. Plaintext (default): `plaintextData` (base64) — stored as-is, preview works immediately.
+ *      Encryption happens later when user pays to inscribe on-chain.
+ *   2. Encrypted: `encryptedData` + `iv` — legacy path for pre-encrypted items.
  */
 export async function POST(request: NextRequest) {
     try {
-        const { encryptedData, iv, handle, metadata, signatureType = 'DOCUMENT', encryption_version } = await request.json();
+        const {
+            plaintextData,
+            encryptedData,
+            iv,
+            handle,
+            metadata,
+            signatureType = 'DOCUMENT',
+            encryption_version,
+        } = await request.json();
 
         const authToken = request.cookies.get('handcash_auth_token')?.value;
 
@@ -22,8 +34,8 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Failed to resolve user account' }, { status: 401 });
         }
 
-        // Calculate real SHA-256 hash of the payload
-        const payloadForHash = encryptedData || JSON.stringify({ handle, signatureType, metadata });
+        // Calculate hash of the payload (plaintext or encrypted)
+        const payloadForHash = plaintextData || encryptedData || JSON.stringify({ handle, signatureType, metadata });
         const payloadHash = await hashData(payloadForHash);
 
         // Attempt real blockchain inscription
@@ -64,9 +76,11 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: true, txid, identity });
         }
 
-        // Regular Signature Chain Inscription
-        if (!encryptedData || !iv) {
-            return NextResponse.json({ error: 'Missing attestation payload' }, { status: 400 });
+        // Determine storage mode
+        const isPlaintext = !!plaintextData && !encryptedData;
+
+        if (!plaintextData && !encryptedData) {
+            return NextResponse.json({ error: 'Missing payload (plaintextData or encryptedData)' }, { status: 400 });
         }
 
         const { data: signature, error: sigError } = await supabaseAdmin
@@ -75,11 +89,11 @@ export async function POST(request: NextRequest) {
                 user_handle: handle,
                 signature_type: signatureType,
                 payload_hash: payloadHash,
-                encrypted_payload: encryptedData,
-                iv: iv,
+                encrypted_payload: isPlaintext ? plaintextData : encryptedData,
+                iv: isPlaintext ? null : iv,
                 txid: txid,
                 metadata: metadata || {},
-                encryption_version: encryption_version || 1,
+                encryption_version: isPlaintext ? 0 : (encryption_version || 1),
             })
             .select()
             .single();

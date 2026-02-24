@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { encryptDocument, bufferToBase64 } from '@/lib/attestation';
+import { bufferToBase64 } from '@/lib/attestation';
 import SovereignSignature from '@/components/SovereignSignature';
 import MediaCapture from '@/components/MediaCapture';
 import E2ESetupBanner from '@/components/E2ESetupBanner';
@@ -249,19 +249,17 @@ export default function AccountPage() {
 
     const handleTldrawSave = async (signatureData: { svg: string; json: string }) => {
         if (!handle) { alert('Please sign in first.'); return; }
-        if (!encryptionSeed) { alert('Encryption key not available. Please sign out and back in.'); return; }
         setIsProcessing(true);
         try {
             const encoder = new TextEncoder();
-            const svgBuffer = encoder.encode(signatureData.svg).buffer;
-            const encrypted = await encryptDocument(svgBuffer, encryptionSeed);
+            const svgBytes = encoder.encode(signatureData.svg);
+            const base64 = bufferToBase64(svgBytes.buffer);
 
             const response = await fetch('/api/bitsign/inscribe', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    encryptedData: bufferToBase64(encrypted.encryptedData),
-                    iv: bufferToBase64(encrypted.iv.buffer),
+                    plaintextData: base64,
                     handle,
                     signatureType: 'TLDRAW',
                     metadata: { type: 'Hand-written Signature' }
@@ -288,15 +286,10 @@ export default function AccountPage() {
 
     const handleMediaCapture = async (blob: Blob) => {
         if (!handle) return;
-        if (!encryptionSeed) {
-            alert('Session expired. Please sign in again to upload new items.');
-            window.location.href = '/api/auth/handcash';
-            return;
-        }
         setIsProcessing(true);
         try {
             const arrayBuffer = await blob.arrayBuffer();
-            const encrypted = await encryptDocument(arrayBuffer, encryptionSeed);
+            const base64 = bufferToBase64(arrayBuffer);
 
             const type = captureMode === 'PHOTO' ? 'CAMERA' : 'VIDEO';
             const label = captureMode === 'PHOTO' ? 'Camera Proof' : 'Video Witness';
@@ -305,8 +298,7 @@ export default function AccountPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    encryptedData: bufferToBase64(encrypted.encryptedData),
-                    iv: bufferToBase64(encrypted.iv.buffer),
+                    plaintextData: base64,
                     handle,
                     signatureType: type,
                     metadata: { type: label, mimeType: blob.type }
@@ -339,28 +331,22 @@ export default function AccountPage() {
     const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files || files.length === 0 || !handle) return;
-        if (!encryptionSeed) {
-            alert('Session expired. Please sign in again to upload new items.');
-            window.location.href = '/api/auth/handcash';
-            return;
-        }
 
         setIsProcessing(true);
         try {
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
                 const arrayBuffer = await file.arrayBuffer();
-                const encrypted = await encryptDocument(arrayBuffer, encryptionSeed);
+                const base64 = bufferToBase64(arrayBuffer);
 
                 const response = await fetch('/api/bitsign/inscribe', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        encryptedData: bufferToBase64(encrypted.encryptedData),
-                        iv: bufferToBase64(encrypted.iv.buffer),
+                        plaintextData: base64,
                         handle,
                         signatureType: 'DOCUMENT',
-                        metadata: { type: 'Encrypted Document', fileName: file.name }
+                        metadata: { type: 'Document', fileName: file.name, mimeType: file.type }
                     })
                 });
                 const data = await response.json();
@@ -376,7 +362,7 @@ export default function AccountPage() {
                     signature_type: 'DOCUMENT',
                     txid: data.txid,
                     created_at: new Date().toISOString(),
-                    metadata: { type: 'Encrypted Document', fileName: file.name }
+                    metadata: { type: 'Document', fileName: file.name, mimeType: file.type }
                 }, ...prev]);
             }
         } catch (error: any) {
