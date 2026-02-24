@@ -7,6 +7,8 @@ import SovereignSignature from '@/components/SovereignSignature';
 import MediaCapture from '@/components/MediaCapture';
 import E2ESetupBanner from '@/components/E2ESetupBanner';
 import ShareModal from '@/components/ShareModal';
+import DocumentSigner from '@/components/DocumentSigner';
+import type { SignaturePlacement } from '@/components/DocumentSigner';
 import {
     FiLock,
     FiFileText,
@@ -24,7 +26,12 @@ import {
     FiShield,
     FiCheck,
     FiShare2,
-    FiUsers
+    FiUsers,
+    FiTwitter,
+    FiLinkedin,
+    FiMail,
+    FiMessageCircle,
+    FiMonitor
 } from 'react-icons/fi';
 
 interface Signature {
@@ -77,8 +84,10 @@ export default function AccountPage() {
     const [previewLoading, setPreviewLoading] = useState(false);
     const [registeredSignatureId, setRegisteredSignatureId] = useState<string | null>(null);
     const [hasE2EKeys, setHasE2EKeys] = useState<boolean | null>(null);
-    const [shareModal, setShareModal] = useState<{ documentId: string; documentType: string } | null>(null);
+    const [shareModal, setShareModal] = useState<{ documentId: string; documentType: string; itemType?: string; itemLabel?: string } | null>(null);
     const [sharedWithMe, setSharedWithMe] = useState<SharedDocument[]>([]);
+    const [sealingDoc, setSealingDoc] = useState<{ id: string; blobUrl: string } | null>(null);
+    const [registeredSignatureSvg, setRegisteredSignatureSvg] = useState<string | null>(null);
 
     const registerSignature = async (sigId: string) => {
         setIsProcessing(true);
@@ -191,6 +200,7 @@ export default function AccountPage() {
             fetchEncryptionSeed();
             checkE2EKeys();
             fetchSharedWithMe();
+            fetchRegisteredSignatureSvg();
         } else {
             setLoading(false);
         }
@@ -215,6 +225,81 @@ export default function AccountPage() {
             setSharedWithMe(data.grants || []);
         } catch {
             // Not critical
+        }
+    };
+
+    const fetchRegisteredSignatureSvg = async () => {
+        try {
+            const res = await fetch('/api/bitsign/registered-signature');
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data.registered && data.svg) {
+                setRegisteredSignatureSvg(data.svg);
+            }
+        } catch {
+            // Not critical
+        }
+    };
+
+    const openDocumentSigner = async (sigId: string) => {
+        try {
+            const res = await fetch(`/api/bitsign/signatures/${sigId}/preview`);
+            if (!res.ok) throw new Error('Failed to load document');
+            const blob = await res.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            setSealingDoc({ id: sigId, blobUrl });
+        } catch (error) {
+            console.error('Failed to open document for signing:', error);
+            alert('Failed to load document preview.');
+        }
+    };
+
+    const handleSeal = async (compositeBase64: string, placement: SignaturePlacement) => {
+        if (!handle) return;
+        setIsProcessing(true);
+        setSealingDoc(null);
+        try {
+            // Wallet verify ($0.01)
+            const verifyRes = await fetch('/api/bitsign/handcash-verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: `I seal this document with my registered signature as $${handle}`,
+                })
+            });
+            const verifyData = await verifyRes.json();
+            if (!verifyRes.ok) throw new Error(verifyData.error || 'Wallet verification failed');
+
+            const sealRes = await fetch('/api/bitsign/seal', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    originalDocumentId: sealingDoc?.id,
+                    compositeData: compositeBase64,
+                    placement,
+                    walletSignature: verifyData.signature,
+                    walletAddress: verifyData.walletAddress,
+                    paymentTxid: verifyData.paymentTxid,
+                })
+            });
+            const sealData = await sealRes.json();
+            if (!sealRes.ok) throw new Error(sealData.error || 'Seal failed');
+
+            // Add sealed doc to vault
+            setSignatures(prev => [{
+                id: sealData.id,
+                signature_type: 'SEALED_DOCUMENT',
+                txid: sealData.txid,
+                created_at: new Date().toISOString(),
+                metadata: { type: 'Sealed Document', mimeType: 'image/png' },
+                wallet_signed: true,
+                wallet_address: verifyData.walletAddress,
+            }, ...prev]);
+        } catch (error: any) {
+            console.error('Seal failed:', error);
+            alert(error?.message || 'Failed to seal document.');
+        } finally {
+            setIsProcessing(false);
         }
     };
 
@@ -312,13 +397,33 @@ export default function AccountPage() {
             }
             if (!response.ok) throw new Error(data.error || 'Failed');
 
+            const newId = data.signature?.id || data.txid;
             setSignatures(prev => [{
-                id: data.signature?.id || data.txid,
+                id: newId,
                 signature_type: type,
                 txid: data.txid,
                 created_at: new Date().toISOString(),
                 metadata: { type: label, mimeType: blob.type }
             }, ...prev]);
+
+            // Auto-set camera photos as profile picture
+            if (type === 'CAMERA' && data.signature?.id) {
+                try {
+                    const ppRes = await fetch('/api/bitsign/profile-picture', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ signatureId: data.signature.id })
+                    });
+                    if (ppRes.ok) {
+                        const ppData = await ppRes.json();
+                        if (ppData.avatarUrl && identity) {
+                            setIdentity({ ...identity, avatar_url: ppData.avatarUrl });
+                        }
+                    }
+                } catch {
+                    // Non-critical — avatar update failed silently
+                }
+            }
         } catch (error: any) {
             console.error('Media capture failed:', error);
             alert(error?.message || 'Failed to save. Please try again.');
@@ -555,21 +660,43 @@ export default function AccountPage() {
                             </div>
 
                             {identity && (
-                                <div className="flex items-center gap-4">
-                                    {identity.github_handle ? (
-                                        <div className="flex items-center gap-2 px-3 py-1.5 bg-zinc-950 border border-zinc-800 text-sm text-zinc-400 rounded-md">
-                                            <FiGithub className="text-white" />
-                                            Linked: <span className="text-white font-medium">{identity.github_handle}</span>
-                                        </div>
-                                    ) : (
-                                        <button
-                                            onClick={() => window.location.href = '/api/auth/github'}
-                                            className="flex items-center gap-2 px-3 py-1.5 bg-zinc-950 border border-zinc-800 hover:border-zinc-500 text-sm text-zinc-500 hover:text-white transition-all rounded-md group"
-                                        >
-                                            <FiGithub />
-                                            <span className="group-hover:translate-x-0.5 transition-transform">Link GitHub</span>
-                                        </button>
-                                    )}
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    {[
+                                        { id: 'github', label: 'GitHub', icon: FiGithub, active: true, linked: !!identity.github_handle, handle: identity.github_handle, authUrl: '/api/auth/github' },
+                                        { id: 'google', label: 'Google', icon: FiMail, active: false, linked: false },
+                                        { id: 'twitter', label: 'X', icon: FiTwitter, active: false, linked: false },
+                                        { id: 'linkedin', label: 'LinkedIn', icon: FiLinkedin, active: false, linked: false },
+                                        { id: 'discord', label: 'Discord', icon: FiMessageCircle, active: false, linked: false },
+                                        { id: 'microsoft', label: 'Microsoft', icon: FiMonitor, active: false, linked: false },
+                                    ].map((provider) => {
+                                        if (provider.linked && provider.handle) {
+                                            return (
+                                                <div key={provider.id} className="flex items-center gap-2 px-3 py-1.5 bg-zinc-950 border border-green-900/40 text-sm text-zinc-400 rounded-md">
+                                                    <provider.icon className="text-green-400" size={14} />
+                                                    <span className="text-white font-medium">{provider.handle}</span>
+                                                </div>
+                                            );
+                                        }
+                                        if (provider.active && !provider.linked) {
+                                            return (
+                                                <button
+                                                    key={provider.id}
+                                                    onClick={() => window.location.href = provider.authUrl!}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-950 border border-zinc-800 hover:border-zinc-500 text-sm text-zinc-500 hover:text-white transition-all rounded-md"
+                                                >
+                                                    <provider.icon size={14} />
+                                                    <span>{provider.label}</span>
+                                                </button>
+                                            );
+                                        }
+                                        return (
+                                            <div key={provider.id} className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-950 border border-zinc-900 text-sm text-zinc-700 rounded-md opacity-40 cursor-not-allowed">
+                                                <provider.icon size={14} />
+                                                <span>{provider.label}</span>
+                                                <span className="text-[10px] text-zinc-600 ml-0.5">Soon</span>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
@@ -668,7 +795,7 @@ export default function AccountPage() {
                                     <p className="text-sm text-zinc-500 leading-relaxed">
                                         {activeCaptureTab === 'biological' && 'Draw your signature using the touchscreen or mouse. It will be encrypted and recorded on-chain.'}
                                         {activeCaptureTab === 'camera' && 'Take a photo for identity verification. The image is encrypted before upload.'}
-                                        {activeCaptureTab === 'video' && 'Record a short video statement as proof of identity and intent.'}
+                                        {activeCaptureTab === 'video' && 'Record a message, then share it encrypted with any HandCash handle.'}
                                         {activeCaptureTab === 'vault' && 'Upload one or more documents to encrypt and anchor on the blockchain.'}
                                     </p>
                                 </div>
@@ -701,7 +828,7 @@ export default function AccountPage() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-3 gap-2">
                             <div className="bg-black p-5 border border-zinc-900 rounded-md">
                                 <span className="block text-xs text-zinc-500 mb-1">Vault Items</span>
                                 <span className="block text-2xl font-semibold text-white">{signatures.length}</span>
@@ -709,6 +836,13 @@ export default function AccountPage() {
                             <div className="bg-black p-5 border border-zinc-900 rounded-md">
                                 <span className="block text-xs text-zinc-500 mb-1">Shared With Me</span>
                                 <span className="block text-2xl font-semibold text-white">{sharedWithMe.length}</span>
+                            </div>
+                            <div className="bg-black p-5 border border-zinc-900 rounded-md">
+                                <span className="block text-xs text-zinc-500 mb-1">Encryption</span>
+                                <span className={`text-sm font-semibold flex items-center gap-1.5 ${hasE2EKeys ? 'text-green-400' : 'text-zinc-600'}`}>
+                                    <FiLock size={14} />
+                                    {hasE2EKeys ? 'E2E Active' : 'Not Set Up'}
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -745,6 +879,7 @@ export default function AccountPage() {
                                                 {sig.signature_type === 'CAMERA' && <FiCamera size={18} />}
                                                 {sig.signature_type === 'VIDEO' && <FiActivity size={18} />}
                                                 {sig.signature_type === 'DOCUMENT' && <FiFileText size={18} />}
+                                                {sig.signature_type === 'SEALED_DOCUMENT' && <FiShield size={18} className="text-amber-500" />}
                                                 {sig.signature_type === 'IDENTITY_MINT' && <FiCpu size={18} />}
                                             </div>
 
@@ -756,6 +891,11 @@ export default function AccountPage() {
                                                     {isRegistered && (
                                                         <span className="px-1.5 py-0.5 bg-green-950 text-green-400 text-[10px] rounded shrink-0 flex items-center gap-1">
                                                             <FiCheck size={10} /> Registered
+                                                        </span>
+                                                    )}
+                                                    {sig.signature_type === 'SEALED_DOCUMENT' && (
+                                                        <span className="px-1.5 py-0.5 bg-amber-950 text-amber-400 text-[10px] rounded shrink-0 flex items-center gap-1">
+                                                            <FiShield size={10} /> Sealed
                                                         </span>
                                                     )}
                                                 </div>
@@ -823,6 +963,14 @@ export default function AccountPage() {
                                                 ) : null}
 
                                                 <div className="flex items-center gap-2 flex-wrap">
+                                                    {sig.signature_type === 'DOCUMENT' && registeredSignatureSvg && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); openDocumentSigner(sig.id); }}
+                                                            className="px-3 py-2 bg-amber-600 text-black text-sm font-medium rounded-md hover:bg-amber-500 transition-all flex items-center gap-2"
+                                                        >
+                                                            <FiEdit3 size={14} /> Place Signature & Seal
+                                                        </button>
+                                                    )}
                                                     {sig.signature_type === 'TLDRAW' && isOnChain && !isRegistered && (
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); registerSignature(sig.id); }}
@@ -841,7 +989,7 @@ export default function AccountPage() {
                                                     )}
                                                     {hasE2EKeys && (
                                                         <button
-                                                            onClick={(e) => { e.stopPropagation(); setShareModal({ documentId: sig.id, documentType: 'vault_item' }); }}
+                                                            onClick={(e) => { e.stopPropagation(); setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: sig.signature_type, itemLabel: sig.metadata?.type || sig.signature_type }); }}
                                                             className="px-3 py-2 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
                                                         >
                                                             <FiShare2 size={14} /> Share
@@ -947,10 +1095,21 @@ export default function AccountPage() {
                     />
                 )}
 
+                {sealingDoc && registeredSignatureSvg && (
+                    <DocumentSigner
+                        documentUrl={sealingDoc.blobUrl}
+                        signatureSvg={registeredSignatureSvg}
+                        onSeal={handleSeal}
+                        onCancel={() => setSealingDoc(null)}
+                    />
+                )}
+
                 {shareModal && (
                     <ShareModal
                         documentId={shareModal.documentId}
                         documentType={shareModal.documentType}
+                        itemType={shareModal.itemType}
+                        itemLabel={shareModal.itemLabel}
                         onClose={() => setShareModal(null)}
                     />
                 )}
