@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 
 interface SovereignSignatureProps {
     onSave: (signatureData: { svg: string; json: string }) => void;
@@ -15,37 +15,34 @@ interface Point {
 
 export default function SovereignSignature({ onSave, onCancel }: SovereignSignatureProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [isDrawing, setIsDrawing] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const isDrawingRef = useRef(false);
+    const currentStrokeRef = useRef<Point[]>([]);
+    const strokesRef = useRef<Point[][]>([]);
+    const dprRef = useRef(1);
+
+    const [strokeCount, setStrokeCount] = useState(0);
     const [saving, setSaving] = useState(false);
-    const [strokes, setStrokes] = useState<Point[][]>([]);
-    const currentStroke = useRef<Point[]>([]);
 
-    // Set up canvas size
-    useEffect(() => {
+    // Full redraw of all strokes
+    const redrawCanvas = () => {
         const canvas = canvasRef.current;
-        if (!canvas) return;
+        const container = containerRef.current;
+        if (!canvas || !container) return;
 
-        const resize = () => {
-            const rect = canvas.parentElement!.getBoundingClientRect();
-            const dpr = window.devicePixelRatio || 1;
-            canvas.width = rect.width * dpr;
-            canvas.height = rect.height * dpr;
-            canvas.style.width = rect.width + 'px';
-            canvas.style.height = rect.height + 'px';
-            const ctx = canvas.getContext('2d')!;
-            ctx.scale(dpr, dpr);
-            redraw(ctx, rect.width, rect.height);
-        };
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
-        resize();
-        window.addEventListener('resize', resize);
-        return () => window.removeEventListener('resize', resize);
-    }, [strokes]);
+        const rect = container.getBoundingClientRect();
+        const w = rect.width;
+        const h = rect.height;
 
-    const redraw = useCallback((ctx: CanvasRenderingContext2D, w: number, h: number) => {
-        ctx.clearRect(0, 0, w, h);
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
 
-        // Draw signature line
+        // Signature guide line
         ctx.strokeStyle = 'rgba(255,255,255,0.05)';
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -54,14 +51,10 @@ export default function SovereignSignature({ onSave, onCancel }: SovereignSignat
         ctx.stroke();
 
         // Draw all completed strokes
-        for (const stroke of strokes) {
+        for (const stroke of strokesRef.current) {
             drawStroke(ctx, stroke);
         }
-        // Draw current in-progress stroke
-        if (currentStroke.current.length > 0) {
-            drawStroke(ctx, currentStroke.current);
-        }
-    }, [strokes]);
+    };
 
     const drawStroke = (ctx: CanvasRenderingContext2D, points: Point[]) => {
         if (points.length < 2) return;
@@ -82,6 +75,47 @@ export default function SovereignSignature({ onSave, onCancel }: SovereignSignat
         }
     };
 
+    // Size canvas to container — only on mount and actual resizes
+    const sizeCanvas = () => {
+        const canvas = canvasRef.current;
+        const container = containerRef.current;
+        if (!canvas || !container) return;
+
+        const rect = container.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        dprRef.current = dpr;
+
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.scale(dpr, dpr);
+            redrawCanvas();
+        }
+    };
+
+    // Set up canvas sizing with ResizeObserver
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        // Initial size (delayed to ensure layout)
+        const raf = requestAnimationFrame(() => sizeCanvas());
+
+        const observer = new ResizeObserver(() => sizeCanvas());
+        observer.observe(container);
+
+        return () => {
+            cancelAnimationFrame(raf);
+            observer.disconnect();
+        };
+    }, []);
+
     const getPoint = (e: React.PointerEvent): Point => {
         const canvas = canvasRef.current!;
         const rect = canvas.getBoundingClientRect();
@@ -94,22 +128,29 @@ export default function SovereignSignature({ onSave, onCancel }: SovereignSignat
 
     const handlePointerDown = (e: React.PointerEvent) => {
         e.preventDefault();
-        const canvas = canvasRef.current!;
+        e.stopPropagation();
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
         canvas.setPointerCapture(e.pointerId);
-        setIsDrawing(true);
-        currentStroke.current = [getPoint(e)];
+        isDrawingRef.current = true;
+        currentStrokeRef.current = [getPoint(e)];
     };
 
     const handlePointerMove = (e: React.PointerEvent) => {
-        if (!isDrawing) return;
+        if (!isDrawingRef.current) return;
         e.preventDefault();
-        const point = getPoint(e);
-        currentStroke.current.push(point);
 
-        // Draw incrementally
-        const canvas = canvasRef.current!;
-        const ctx = canvas.getContext('2d')!;
-        const points = currentStroke.current;
+        const point = getPoint(e);
+        currentStrokeRef.current.push(point);
+
+        // Draw incrementally — no state updates, no re-renders
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const points = currentStrokeRef.current;
         if (points.length >= 2) {
             const prev = points[points.length - 2];
             const curr = points[points.length - 1];
@@ -125,44 +166,45 @@ export default function SovereignSignature({ onSave, onCancel }: SovereignSignat
     };
 
     const handlePointerUp = (e: React.PointerEvent) => {
-        if (!isDrawing) return;
-        setIsDrawing(false);
-        if (currentStroke.current.length > 1) {
-            setStrokes(prev => [...prev, [...currentStroke.current]]);
+        if (!isDrawingRef.current) return;
+        isDrawingRef.current = false;
+
+        if (currentStrokeRef.current.length > 1) {
+            strokesRef.current = [...strokesRef.current, [...currentStrokeRef.current]];
+            setStrokeCount(strokesRef.current.length);
         }
-        currentStroke.current = [];
+        currentStrokeRef.current = [];
     };
 
     const handleClear = () => {
-        setStrokes([]);
-        currentStroke.current = [];
-        const canvas = canvasRef.current;
-        if (canvas) {
-            const ctx = canvas.getContext('2d')!;
-            const rect = canvas.parentElement!.getBoundingClientRect();
-            redraw(ctx, rect.width, rect.height);
-        }
+        strokesRef.current = [];
+        currentStrokeRef.current = [];
+        setStrokeCount(0);
+        redrawCanvas();
     };
 
     const handleUndo = () => {
-        setStrokes(prev => prev.slice(0, -1));
+        strokesRef.current = strokesRef.current.slice(0, -1);
+        currentStrokeRef.current = [];
+        setStrokeCount(strokesRef.current.length);
+        redrawCanvas();
     };
 
     const handleSave = async () => {
-        if (strokes.length === 0) {
+        if (strokesRef.current.length === 0) {
             alert('Please draw your signature before saving.');
             return;
         }
 
         setSaving(true);
         try {
-            // Generate SVG from strokes
-            const canvas = canvasRef.current!;
-            const rect = canvas.parentElement!.getBoundingClientRect();
+            const container = containerRef.current!;
+            const rect = container.getBoundingClientRect();
             const w = rect.width;
             const h = rect.height;
+            const strokes = strokesRef.current;
 
-            // Find bounding box of all strokes
+            // Find bounding box
             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
             for (const stroke of strokes) {
                 for (const p of stroke) {
@@ -231,17 +273,21 @@ export default function SovereignSignature({ onSave, onCancel }: SovereignSignat
                 </div>
             </header>
 
-            <div className="flex-1 border border-zinc-800 bg-zinc-950 relative rounded-md overflow-hidden min-h-[300px] touch-none">
+            <div
+                ref={containerRef}
+                className="flex-1 border border-zinc-800 bg-zinc-950 relative rounded-md overflow-hidden min-h-[300px]"
+            >
                 <canvas
                     ref={canvasRef}
                     className="absolute inset-0 cursor-crosshair"
+                    style={{ touchAction: 'none' }}
                     onPointerDown={handlePointerDown}
                     onPointerMove={handlePointerMove}
                     onPointerUp={handlePointerUp}
-                    onPointerLeave={handlePointerUp}
+                    onPointerCancel={handlePointerUp}
                 />
 
-                {strokes.length === 0 && !isDrawing && (
+                {strokeCount === 0 && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                         <p className="text-zinc-700 text-lg">Sign here</p>
                     </div>
@@ -251,14 +297,14 @@ export default function SovereignSignature({ onSave, onCancel }: SovereignSignat
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
                     <button
                         onClick={handleUndo}
-                        disabled={strokes.length === 0}
+                        disabled={strokeCount === 0}
                         className="px-4 py-2 bg-black/60 backdrop-blur-md border border-zinc-800 text-zinc-400 text-sm rounded-full hover:text-white hover:border-zinc-600 transition-all disabled:opacity-30"
                     >
                         Undo
                     </button>
                     <button
                         onClick={handleClear}
-                        disabled={strokes.length === 0}
+                        disabled={strokeCount === 0}
                         className="px-4 py-2 bg-black/60 backdrop-blur-md border border-zinc-800 text-red-500/70 text-sm rounded-full hover:text-red-400 hover:border-red-900 transition-all disabled:opacity-30"
                     >
                         Clear
