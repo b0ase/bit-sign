@@ -942,7 +942,6 @@ export default function AccountPage() {
                                         { id: 'google', label: 'Google', icon: FiMail, active: true, linked: !!identity.google_email, handle: identity.google_email, authUrl: '/api/auth/google' },
                                         { id: 'twitter', label: 'X', icon: FiTwitter, active: true, linked: !!identity.twitter_handle, handle: identity.twitter_handle ? `@${identity.twitter_handle}` : undefined, authUrl: '/api/auth/twitter' },
                                         { id: 'linkedin', label: 'LinkedIn', icon: FiLinkedin, active: true, linked: !!identity.linkedin_name, handle: identity.linkedin_name, authUrl: '/api/auth/linkedin' },
-                                        { id: 'discord', label: 'Discord', icon: FiMessageCircle, active: true, linked: !!identity.discord_handle, handle: identity.discord_handle, authUrl: '/api/auth/discord' },
                                     ].map((provider) => {
                                         if (provider.linked && provider.handle) {
                                             return (
