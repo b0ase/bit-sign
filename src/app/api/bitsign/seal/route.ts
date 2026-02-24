@@ -40,6 +40,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Document not found or not yours' }, { status: 404 });
     }
 
+    const originalFileName = originalDoc.metadata?.fileName || originalDoc.metadata?.type || 'Document';
+
     // Hash the composite image data
     const compositeHash = await hashData(compositeData);
 
@@ -78,6 +80,7 @@ export async function POST(request: NextRequest) {
         metadata: {
           type: 'Sealed Document',
           originalDocumentId,
+          originalFileName,
           placement,
           elements: elements || undefined,
           mimeType: 'image/png',
