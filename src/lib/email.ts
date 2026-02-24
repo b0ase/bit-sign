@@ -1,6 +1,12 @@
-import { Resend } from 'resend';
+import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const ses = new SESClient({
+  region: process.env.AWS_SES_REGION || 'eu-north-1',
+  credentials: {
+    accessKeyId: process.env.AWS_SES_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.AWS_SES_SECRET_ACCESS_KEY || '',
+  },
+});
 
 interface SigningInvitationParams {
   recipientEmail: string;
@@ -21,7 +27,7 @@ export async function sendSigningInvitation({
   signingUrl,
   message,
 }: SigningInvitationParams): Promise<{ success: boolean; error?: string }> {
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+  const fromEmail = process.env.EMAIL_FROM || 'noreply@bit-sign.online';
 
   const html = buildEmailHtml({
     recipientName,
@@ -32,24 +38,12 @@ export async function sendSigningInvitation({
     message,
   });
 
-  try {
-    const { error } = await resend.emails.send({
-      from: `bit-sign <${fromEmail}>`,
-      to: [recipientEmail],
-      subject: `$${senderHandle} has sent you a document to sign: "${documentTitle}"`,
-      html,
-    });
-
-    if (error) {
-      console.error('[email] Resend error:', error);
-      return { success: false, error: error.message };
-    }
-
-    return { success: true };
-  } catch (err: any) {
-    console.error('[email] Send failed:', err);
-    return { success: false, error: err.message || 'Failed to send email' };
-  }
+  return sendSesEmail({
+    from: fromEmail,
+    to: recipientEmail,
+    subject: `$${senderHandle} has sent you a document to sign: "${documentTitle}"`,
+    html,
+  });
 }
 
 function buildEmailHtml({
@@ -201,7 +195,7 @@ export async function sendVaultShareInvitation({
   claimUrl,
   message,
 }: VaultShareParams): Promise<{ success: boolean; error?: string }> {
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+  const fromEmail = process.env.EMAIL_FROM || 'noreply@bit-sign.online';
 
   const messageBlock = message
     ? `
@@ -287,24 +281,12 @@ export async function sendVaultShareInvitation({
 </body>
 </html>`;
 
-  try {
-    const { error } = await resend.emails.send({
-      from: `bit-sign <${fromEmail}>`,
-      to: [recipientEmail],
-      subject: `$${senderHandle} sent you a ${itemType.toLowerCase()} on Bit-Sign`,
-      html,
-    });
-
-    if (error) {
-      console.error('[email] Resend error:', error);
-      return { success: false, error: error.message };
-    }
-
-    return { success: true };
-  } catch (err: any) {
-    console.error('[email] Send failed:', err);
-    return { success: false, error: err.message || 'Failed to send email' };
-  }
+  return sendSesEmail({
+    from: fromEmail,
+    to: recipientEmail,
+    subject: `$${senderHandle} sent you a ${itemType.toLowerCase()} on Bit-Sign`,
+    html,
+  });
 }
 
 interface CoSignNotificationParams {
@@ -320,7 +302,7 @@ export async function sendCoSignNotification({
   documentName,
   viewUrl,
 }: CoSignNotificationParams): Promise<{ success: boolean; error?: string }> {
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+  const fromEmail = process.env.EMAIL_FROM || 'noreply@bit-sign.online';
 
   const html = `<!DOCTYPE html>
 <html>
@@ -390,24 +372,12 @@ export async function sendCoSignNotification({
 </body>
 </html>`;
 
-  try {
-    const { error } = await resend.emails.send({
-      from: `bit-sign <${fromEmail}>`,
-      to: [recipientEmail],
-      subject: `$${signerHandle} co-signed "${documentName}" on Bit-Sign`,
-      html,
-    });
-
-    if (error) {
-      console.error('[email] Resend error:', error);
-      return { success: false, error: error.message };
-    }
-
-    return { success: true };
-  } catch (err: any) {
-    console.error('[email] Send failed:', err);
-    return { success: false, error: err.message || 'Failed to send email' };
-  }
+  return sendSesEmail({
+    from: fromEmail,
+    to: recipientEmail,
+    subject: `$${signerHandle} co-signed "${documentName}" on Bit-Sign`,
+    html,
+  });
 }
 
 interface CoSignRequestParams {
@@ -425,7 +395,7 @@ export async function sendCoSignRequestEmail({
   claimUrl,
   message,
 }: CoSignRequestParams): Promise<{ success: boolean; error?: string }> {
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+  const fromEmail = process.env.EMAIL_FROM || 'noreply@bit-sign.online';
 
   const messageBlock = message
     ? `
@@ -510,22 +480,39 @@ export async function sendCoSignRequestEmail({
 </body>
 </html>`;
 
+  return sendSesEmail({
+    from: fromEmail,
+    to: recipientEmail,
+    subject: `$${senderHandle} requests your co-signature on "${documentName}"`,
+    html,
+  });
+}
+
+async function sendSesEmail({
+  from,
+  to,
+  subject,
+  html,
+}: {
+  from: string;
+  to: string;
+  subject: string;
+  html: string;
+}): Promise<{ success: boolean; error?: string }> {
   try {
-    const { error } = await resend.emails.send({
-      from: `bit-sign <${fromEmail}>`,
-      to: [recipientEmail],
-      subject: `$${senderHandle} requests your co-signature on "${documentName}"`,
-      html,
-    });
-
-    if (error) {
-      console.error('[email] Resend error:', error);
-      return { success: false, error: error.message };
-    }
-
+    await ses.send(
+      new SendEmailCommand({
+        Source: `bit-sign <${from}>`,
+        Destination: { ToAddresses: [to] },
+        Message: {
+          Subject: { Data: subject, Charset: 'UTF-8' },
+          Body: { Html: { Data: html, Charset: 'UTF-8' } },
+        },
+      })
+    );
     return { success: true };
   } catch (err: any) {
-    console.error('[email] Send failed:', err);
+    console.error('[email] SES send failed:', err);
     return { success: false, error: err.message || 'Failed to send email' };
   }
 }
