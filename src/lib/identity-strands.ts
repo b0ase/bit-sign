@@ -11,6 +11,11 @@ import { inscribeBitSignData } from '@/lib/bsv-inscription';
 import type { BitSignInscriptionData } from '@/lib/bsv-inscription';
 
 // ---------- Strand point values ----------
+// Identity levels are gated by strand types, not just score:
+//   Lv.1 Basic     — OAuth only (can be botted)
+//   Lv.2 Verified  — Self-attested (name+address form) OR ID docs (selfie/video/passport)
+//   Lv.3 Strong    — Paid signing via HandCash OR peer-verified (co-signed legal docs)
+//   Lv.4 Sovereign — Third-party KYC (Veriff)
 
 const STRAND_POINTS: Record<string, number> = {
   'TLDRAW': 1,
@@ -26,6 +31,13 @@ const STRAND_POINTS: Record<string, number> = {
   'oauth/microsoft': 1,
   'registered_signature': 3,
   'profile_photo': 1,
+  'id_document/passport': 5,
+  'id_document/driving_licence': 5,
+  'id_document/proof_of_address': 5,
+  'self_attestation': 3,
+  'paid_signing': 3,
+  'peer_attestation/cosign': 5,
+  'kyc/veriff': 10,
 };
 
 function strandKey(type: string, subtype?: string | null): string {
@@ -35,10 +47,23 @@ function strandKey(type: string, subtype?: string | null): string {
 
 // ---------- Strength calculation ----------
 
-export function getIdentityStrength(score: number): { level: number; label: string } {
-  if (score >= 20) return { level: 4, label: 'Sovereign' };
-  if (score >= 10) return { level: 3, label: 'Strong' };
-  if (score >= 5) return { level: 2, label: 'Verified' };
+export function getIdentityStrength(score: number, strandTypes?: string[]): { level: number; label: string } {
+  const types = strandTypes || [];
+  const hasKyc = types.includes('kyc/veriff');
+  const hasPeerAttestation = types.some(t => t.startsWith('peer_attestation/'));
+  const hasIdDocs = types.some(t =>
+    t.startsWith('id_document/') || t === 'CAMERA' || t === 'VIDEO'
+  );
+  const hasPaidSigning = types.includes('paid_signing');
+  const hasSelfAttestation = types.includes('self_attestation');
+
+  // Lv.4 Sovereign: Third-party KYC (Veriff) — can't be gamed
+  if (hasKyc) return { level: 4, label: 'Sovereign' };
+  // Lv.3 Strong: Paid signing (costs money = stops bots) OR peer-verified co-sign
+  if (hasPaidSigning || hasPeerAttestation) return { level: 3, label: 'Strong' };
+  // Lv.2 Verified: Self-attested name+address, ID docs, selfies, videos
+  if (hasIdDocs || hasSelfAttestation) return { level: 2, label: 'Verified' };
+  // Lv.1 Basic: OAuth strands only (can be botted)
   return { level: 1, label: 'Basic' };
 }
 
@@ -57,8 +82,10 @@ export async function recalculateIdentityStrength(identityId: string): Promise<n
   }
 
   let score = 0;
+  const strandTypes: string[] = [];
   for (const s of strands) {
     const key = strandKey(s.strand_type, s.strand_subtype);
+    strandTypes.push(key);
     score += STRAND_POINTS[key] || 1;
   }
 

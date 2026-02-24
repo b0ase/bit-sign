@@ -179,9 +179,18 @@ export default function AccountPage() {
     }, [vaultTab, signatures, documents, signaturesOnly, mediaItems]);
 
     const getStrengthLabel = (score: number) => {
-        if (score >= 20) return { level: 4, label: 'Sovereign', color: 'text-amber-400' };
-        if (score >= 10) return { level: 3, label: 'Strong', color: 'text-green-400' };
-        if (score >= 5) return { level: 2, label: 'Verified', color: 'text-blue-400' };
+        const strandTypes = strands.map(s => s.strand_subtype ? `${s.strand_type}/${s.strand_subtype}` : s.strand_type);
+        const hasKyc = strandTypes.includes('kyc/veriff');
+        const hasPeerAttestation = strandTypes.some(t => t.startsWith('peer_attestation/'));
+        const hasIdDocs = strandTypes.some(t =>
+            t.startsWith('id_document/') || t === 'CAMERA' || t === 'VIDEO'
+        );
+        const hasPaidSigning = strandTypes.includes('paid_signing');
+        const hasSelfAttestation = strandTypes.includes('self_attestation');
+
+        if (hasKyc) return { level: 4, label: 'Sovereign', color: 'text-amber-400' };
+        if (hasPaidSigning || hasPeerAttestation) return { level: 3, label: 'Strong', color: 'text-green-400' };
+        if (hasIdDocs || hasSelfAttestation) return { level: 2, label: 'Verified', color: 'text-blue-400' };
         return { level: 1, label: 'Basic', color: 'text-zinc-400' };
     };
 
