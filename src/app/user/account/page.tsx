@@ -1,14 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { bufferToBase64 } from '@/lib/attestation';
 import SovereignSignature from '@/components/SovereignSignature';
 import MediaCapture from '@/components/MediaCapture';
 import E2ESetupBanner from '@/components/E2ESetupBanner';
 import ShareModal from '@/components/ShareModal';
-import DocumentSigner from '@/components/DocumentSigner';
-import type { SignaturePlacement } from '@/components/DocumentSigner';
+import SignatureExplorer from '@/components/SignatureExplorer';
+import DocumentCanvas from '@/components/DocumentCanvas';
+import type { PlacedElement } from '@/components/DocumentCanvas';
 import {
     FiLock,
     FiFileText,
@@ -86,8 +87,26 @@ export default function AccountPage() {
     const [hasE2EKeys, setHasE2EKeys] = useState<boolean | null>(null);
     const [shareModal, setShareModal] = useState<{ documentId: string; documentType: string; itemType?: string; itemLabel?: string } | null>(null);
     const [sharedWithMe, setSharedWithMe] = useState<SharedDocument[]>([]);
-    const [sealingDoc, setSealingDoc] = useState<{ id: string; blobUrl: string } | null>(null);
     const [registeredSignatureSvg, setRegisteredSignatureSvg] = useState<string | null>(null);
+
+    // Workspace state
+    const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+    const [selectedDocBlobUrl, setSelectedDocBlobUrl] = useState<string | null>(null);
+    const [placedElements, setPlacedElements] = useState<PlacedElement[]>([]);
+
+    // Split vault items into categories
+    const signaturesOnly = useMemo(() =>
+        signatures.filter(s => s.signature_type === 'TLDRAW'),
+        [signatures]
+    );
+    const mediaItems = useMemo(() =>
+        signatures.filter(s => s.signature_type === 'CAMERA' || s.signature_type === 'VIDEO'),
+        [signatures]
+    );
+    const documents = useMemo(() =>
+        signatures.filter(s => s.signature_type === 'DOCUMENT' || s.signature_type === 'SEALED_DOCUMENT'),
+        [signatures]
+    );
 
     const registerSignature = async (sigId: string) => {
         setIsProcessing(true);
@@ -241,25 +260,41 @@ export default function AccountPage() {
         }
     };
 
-    const openDocumentSigner = async (sigId: string) => {
+    // Open document in the workspace canvas
+    const openDocumentInCanvas = async (sigId: string) => {
         try {
             const res = await fetch(`/api/bitsign/signatures/${sigId}/preview`);
             if (!res.ok) throw new Error('Failed to load document');
             const blob = await res.blob();
             const blobUrl = URL.createObjectURL(blob);
-            setSealingDoc({ id: sigId, blobUrl });
+            // Clean up previous blob URL
+            if (selectedDocBlobUrl && selectedDocBlobUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(selectedDocBlobUrl);
+            }
+            setSelectedDocumentId(sigId);
+            setSelectedDocBlobUrl(blobUrl);
+            setPlacedElements([]);
         } catch (error) {
             console.error('Failed to open document for signing:', error);
             alert('Failed to load document preview.');
         }
     };
 
-    const handleSeal = async (compositeBase64: string, placement: SignaturePlacement) => {
-        if (!handle) return;
+    const closeDocumentCanvas = () => {
+        if (selectedDocBlobUrl && selectedDocBlobUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(selectedDocBlobUrl);
+        }
+        setSelectedDocumentId(null);
+        setSelectedDocBlobUrl(null);
+        setPlacedElements([]);
+    };
+
+    // Multi-element seal handler
+    const handleSeal = async (compositeBase64: string, elements: PlacedElement[]) => {
+        if (!handle || !selectedDocumentId) return;
         setIsProcessing(true);
-        setSealingDoc(null);
+        closeDocumentCanvas();
         try {
-            // Wallet verify ($0.01)
             const verifyRes = await fetch('/api/bitsign/handcash-verify', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -274,9 +309,9 @@ export default function AccountPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    originalDocumentId: sealingDoc?.id,
+                    originalDocumentId: selectedDocumentId,
                     compositeData: compositeBase64,
-                    placement,
+                    elements,
                     walletSignature: verifyData.signature,
                     walletAddress: verifyData.walletAddress,
                     paymentTxid: verifyData.paymentTxid,
@@ -285,7 +320,6 @@ export default function AccountPage() {
             const sealData = await sealRes.json();
             if (!sealRes.ok) throw new Error(sealData.error || 'Seal failed');
 
-            // Add sealed doc to vault
             setSignatures(prev => [{
                 id: sealData.id,
                 signature_type: 'SEALED_DOCUMENT',
@@ -300,6 +334,25 @@ export default function AccountPage() {
             alert(error?.message || 'Failed to seal document.');
         } finally {
             setIsProcessing(false);
+        }
+    };
+
+    // Co-sign handler for shared documents
+    const openCoSign = async (doc: SharedDocument) => {
+        try {
+            const res = await fetch(`/api/bitsign/signatures/${doc.document_id}/preview`);
+            if (!res.ok) throw new Error('Failed to load shared document');
+            const blob = await res.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            if (selectedDocBlobUrl && selectedDocBlobUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(selectedDocBlobUrl);
+            }
+            setSelectedDocumentId(doc.document_id);
+            setSelectedDocBlobUrl(blobUrl);
+            setPlacedElements([]);
+        } catch (error) {
+            console.error('Failed to open shared document for co-signing:', error);
+            alert('Failed to load shared document.');
         }
     };
 
@@ -406,7 +459,6 @@ export default function AccountPage() {
                 metadata: { type: label, mimeType: blob.type }
             }, ...prev]);
 
-            // Auto-set camera photos as profile picture
             if (type === 'CAMERA' && data.signature?.id) {
                 try {
                     const ppRes = await fetch('/api/bitsign/profile-picture', {
@@ -421,7 +473,7 @@ export default function AccountPage() {
                         }
                     }
                 } catch {
-                    // Non-critical — avatar update failed silently
+                    // Non-critical
                 }
             }
         } catch (error: any) {
@@ -817,28 +869,224 @@ export default function AccountPage() {
                     </div>
                 </div>
 
-                {/* Vault Items — full width */}
-                <div className="space-y-8">
+                {/* ===== TWO-PANEL SIGNING WORKSPACE ===== */}
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
+                        <h3 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
+                            <span className="w-2 h-2 bg-green-500 rounded-full"></span> Signing Workspace
+                        </h3>
+                    </div>
+
+                    {signatures.length === 0 ? (
+                        <div className="py-24 flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-md text-center">
+                            <FiEdit3 className="text-zinc-700 text-3xl mb-4" />
+                            <p className="text-base text-zinc-400 font-medium">No vault items yet</p>
+                            <p className="text-sm text-zinc-600 mt-1">Create your first signature or upload a document.</p>
+                        </div>
+                    ) : (
+                        <div className="grid lg:grid-cols-12 gap-4 min-h-[500px]">
+                            {/* LEFT PANEL — Signatures & Media */}
+                            <div className="lg:col-span-3 border border-zinc-900 rounded-md bg-zinc-950/50 p-3 overflow-hidden flex flex-col">
+                                <SignatureExplorer
+                                    signatures={signaturesOnly}
+                                    media={mediaItems}
+                                    registeredSignatureId={registeredSignatureId}
+                                    onDragStart={() => {}}
+                                />
+                            </div>
+
+                            {/* RIGHT PANEL — Documents / Canvas */}
+                            <div className="lg:col-span-9 border border-zinc-900 rounded-md bg-zinc-950/50 overflow-hidden flex flex-col">
+                                {selectedDocBlobUrl && selectedDocumentId ? (
+                                    <DocumentCanvas
+                                        documentUrl={selectedDocBlobUrl}
+                                        documentId={selectedDocumentId}
+                                        elements={placedElements}
+                                        onElementsChange={setPlacedElements}
+                                        onSeal={handleSeal}
+                                        onClose={closeDocumentCanvas}
+                                    />
+                                ) : (
+                                    <div className="flex flex-col h-full">
+                                        <div className="px-4 py-3 border-b border-zinc-800 shrink-0">
+                                            <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider flex items-center gap-2">
+                                                <FiFileText size={12} /> Documents ({documents.length})
+                                            </h4>
+                                        </div>
+                                        <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                                            {documents.length === 0 ? (
+                                                <div className="py-16 flex flex-col items-center justify-center text-center">
+                                                    <FiFileText className="text-zinc-700 text-2xl mb-3" />
+                                                    <p className="text-sm text-zinc-500">No documents uploaded yet</p>
+                                                    <p className="text-xs text-zinc-600 mt-1">Upload a document using the button above</p>
+                                                </div>
+                                            ) : (
+                                                documents.map((sig) => {
+                                                    const isOnChain = sig.txid && !sig.txid.startsWith('pending-');
+                                                    const isExpanded = expandedSig === sig.id;
+                                                    const isSigned = sig.wallet_signed;
+                                                    const isSealed = sig.signature_type === 'SEALED_DOCUMENT';
+                                                    return (
+                                                        <div key={sig.id} className={`border rounded-md overflow-hidden ${isSealed ? 'border-amber-900/40' : 'border-zinc-800'}`}>
+                                                            <button
+                                                                onClick={() => previewSignature(sig)}
+                                                                className="w-full text-left bg-black hover:bg-zinc-950 transition-colors p-3 flex items-center gap-3"
+                                                            >
+                                                                <div className="text-zinc-500 shrink-0">
+                                                                    {isSealed ? <FiShield size={16} className="text-amber-500" /> : <FiFileText size={16} />}
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-sm font-medium text-white truncate">
+                                                                            {sig.metadata?.fileName || sig.metadata?.type || sig.signature_type}
+                                                                        </span>
+                                                                        {isSealed && (
+                                                                            <span className="px-1.5 py-0.5 bg-amber-950 text-amber-400 text-[10px] rounded shrink-0 flex items-center gap-1">
+                                                                                <FiShield size={10} /> Sealed
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <span className="block text-xs text-zinc-600">
+                                                                        {new Date(sig.created_at).toLocaleDateString()} at {new Date(sig.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                    </span>
+                                                                </div>
+
+                                                                {sig.signature_type === 'DOCUMENT' && (
+                                                                    <button
+                                                                        onClick={(e) => { e.stopPropagation(); openDocumentInCanvas(sig.id); }}
+                                                                        className="px-2 py-1 bg-amber-600/20 text-amber-400 text-xs rounded shrink-0 flex items-center gap-1 hover:bg-amber-600/30 transition-colors"
+                                                                        title="Open in signing workspace"
+                                                                    >
+                                                                        <FiEdit3 size={10} /> Sign
+                                                                    </button>
+                                                                )}
+
+                                                                {isSigned ? (
+                                                                    <span className="px-2 py-1 bg-green-950/30 text-green-400 text-xs rounded shrink-0 flex items-center gap-1">
+                                                                        <FiShield size={10} /> Signed
+                                                                    </span>
+                                                                ) : isOnChain ? (
+                                                                    <span className="px-2 py-1 bg-green-950/30 text-green-400 text-xs rounded shrink-0">On chain</span>
+                                                                ) : (
+                                                                    <span className="px-2 py-1 bg-zinc-900 text-zinc-500 text-xs rounded shrink-0">Unsigned</span>
+                                                                )}
+
+                                                                <div className="text-zinc-600 shrink-0">
+                                                                    {isExpanded ? <FiChevronUp size={14} /> : <FiChevronDown size={14} />}
+                                                                </div>
+                                                            </button>
+
+                                                            {isExpanded && (
+                                                                <div className="border-t border-zinc-900 bg-zinc-950 p-3 space-y-3">
+                                                                    {previewLoading ? (
+                                                                        <div className="flex items-center justify-center py-8">
+                                                                            <div className="w-8 h-8 border-t-2 border-white animate-spin rounded-full opacity-20" />
+                                                                        </div>
+                                                                    ) : previewData?.type === 'svg' ? (
+                                                                        <div className="bg-white rounded-md p-4 flex items-center justify-center">
+                                                                            <img src={previewData.url} alt="Signature" className="max-h-40 w-auto" />
+                                                                        </div>
+                                                                    ) : previewData?.type === 'image' ? (
+                                                                        <div className="bg-white rounded-md overflow-hidden">
+                                                                            <img src={previewData.url} alt="Document" className="max-h-[300px] w-full object-contain" />
+                                                                        </div>
+                                                                    ) : previewData?.type === 'pdf' ? (
+                                                                        <iframe src={previewData.url} className="w-full h-[400px] rounded-md border border-zinc-800" />
+                                                                    ) : previewData?.type === 'video' ? (
+                                                                        <video src={previewData.url} controls className="w-full max-h-[300px] rounded-md" />
+                                                                    ) : previewData?.type === 'decrypt-failed' ? (
+                                                                        <div className="text-center py-4 space-y-2">
+                                                                            <FiLock className="mx-auto text-amber-500" size={20} />
+                                                                            <p className="text-xs text-amber-400">Unable to decrypt</p>
+                                                                        </div>
+                                                                    ) : previewData?.type === 'no-data' ? (
+                                                                        <div className="text-center py-4">
+                                                                            <p className="text-xs text-zinc-500">No encrypted data stored</p>
+                                                                        </div>
+                                                                    ) : previewData?.type === 'no-key' ? (
+                                                                        <div className="text-center py-4">
+                                                                            <p className="text-xs text-zinc-500">Encryption key not available</p>
+                                                                        </div>
+                                                                    ) : previewData?.type === 'error' ? (
+                                                                        <p className="text-xs text-red-400 text-center py-3">Failed to load preview</p>
+                                                                    ) : previewData?.type === 'unsupported' ? (
+                                                                        <p className="text-xs text-zinc-500 text-center py-3">Preview not available</p>
+                                                                    ) : null}
+
+                                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                                        {sig.signature_type === 'DOCUMENT' && (
+                                                                            <button
+                                                                                onClick={(e) => { e.stopPropagation(); openDocumentInCanvas(sig.id); }}
+                                                                                className="px-3 py-1.5 bg-amber-600 text-black text-xs font-medium rounded-md hover:bg-amber-500 transition-all flex items-center gap-2"
+                                                                            >
+                                                                                <FiEdit3 size={12} /> Open in Workspace
+                                                                            </button>
+                                                                        )}
+                                                                        {!isSigned && (
+                                                                            <button
+                                                                                onClick={(e) => { e.stopPropagation(); attestSignature(sig.id); }}
+                                                                                className="px-3 py-1.5 border border-zinc-800 bg-black text-zinc-400 text-xs rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
+                                                                            >
+                                                                                <FiShield size={12} /> Sign with HandCash
+                                                                            </button>
+                                                                        )}
+                                                                        <button
+                                                                            onClick={(e) => { e.stopPropagation(); setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: sig.signature_type, itemLabel: sig.metadata?.type || sig.signature_type }); }}
+                                                                            className="px-3 py-1.5 border border-zinc-800 bg-black text-zinc-400 text-xs rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
+                                                                        >
+                                                                            <FiShare2 size={12} /> Share
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={(e) => { e.stopPropagation(); downloadSignature(sig.id, sig.metadata?.fileName); }}
+                                                                            className="px-3 py-1.5 border border-zinc-800 bg-black text-zinc-400 text-xs rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
+                                                                        >
+                                                                            <FiDownload size={12} /> Download
+                                                                        </button>
+                                                                        {isOnChain && (
+                                                                            <a
+                                                                                href={`https://whatsonchain.com/tx/${sig.txid}`}
+                                                                                target="_blank"
+                                                                                className="px-3 py-1.5 border border-zinc-800 bg-black text-zinc-400 text-xs rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
+                                                                            >
+                                                                                <FiExternalLink size={12} /> Chain
+                                                                            </a>
+                                                                        )}
+                                                                        <button
+                                                                            onClick={(e) => { e.stopPropagation(); deleteSignature(sig.id); }}
+                                                                            className="px-3 py-1.5 border border-red-900/30 bg-black text-red-900 text-xs rounded-md hover:text-red-400 hover:border-red-800 transition-all flex items-center gap-2 ml-auto"
+                                                                        >
+                                                                            <FiX size={12} /> Delete
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Non-document vault items (signatures & media with actions) */}
+                {(signaturesOnly.length > 0 || mediaItems.length > 0) && (
+                    <div className="space-y-4">
                         <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
                             <h3 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
-                                <span className="w-2 h-2 bg-green-500 rounded-full"></span> Your Vault
+                                <FiShield size={14} /> Signature & Media Vault
                             </h3>
                         </div>
-
                         <div className="space-y-2">
-                            {signatures.length === 0 ? (
-                                <div className="py-24 flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-md text-center">
-                                    <FiEdit3 className="text-zinc-700 text-3xl mb-4" />
-                                    <p className="text-base text-zinc-400 font-medium">No vault items yet</p>
-                                    <p className="text-sm text-zinc-600 mt-1">Create your first signature or upload a document.</p>
-                                </div>
-                            ) : (
-                                signatures.map((sig) => {
-                                    const isOnChain = sig.txid && !sig.txid.startsWith('pending-');
-                                    const isExpanded = expandedSig === sig.id;
-                                    const isRegistered = sig.id === registeredSignatureId;
-                                    const isSigned = sig.wallet_signed;
-                                    return (
+                            {[...signaturesOnly, ...mediaItems].map((sig) => {
+                                const isOnChain = sig.txid && !sig.txid.startsWith('pending-');
+                                const isExpanded = expandedSig === sig.id;
+                                const isRegistered = sig.id === registeredSignatureId;
+                                const isSigned = sig.wallet_signed;
+                                return (
                                     <div key={sig.id} className={`border rounded-md overflow-hidden ${isRegistered ? 'border-green-800' : 'border-zinc-900'}`}>
                                         <button
                                             onClick={() => previewSignature(sig)}
@@ -848,9 +1096,6 @@ export default function AccountPage() {
                                                 {sig.signature_type === 'TLDRAW' && <FiEdit3 size={18} />}
                                                 {sig.signature_type === 'CAMERA' && <FiCamera size={18} />}
                                                 {sig.signature_type === 'VIDEO' && <FiActivity size={18} />}
-                                                {sig.signature_type === 'DOCUMENT' && <FiFileText size={18} />}
-                                                {sig.signature_type === 'SEALED_DOCUMENT' && <FiShield size={18} className="text-amber-500" />}
-                                                {sig.signature_type === 'IDENTITY_MINT' && <FiCpu size={18} />}
                                             </div>
 
                                             <div className="flex-1 min-w-0">
@@ -863,26 +1108,11 @@ export default function AccountPage() {
                                                             <FiCheck size={10} /> Registered
                                                         </span>
                                                     )}
-                                                    {sig.signature_type === 'SEALED_DOCUMENT' && (
-                                                        <span className="px-1.5 py-0.5 bg-amber-950 text-amber-400 text-[10px] rounded shrink-0 flex items-center gap-1">
-                                                            <FiShield size={10} /> Sealed
-                                                        </span>
-                                                    )}
                                                 </div>
                                                 <span className="block text-xs text-zinc-600">
                                                     {new Date(sig.created_at).toLocaleDateString()} at {new Date(sig.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                             </div>
-
-                                            {sig.signature_type === 'DOCUMENT' && registeredSignatureSvg && (
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); openDocumentSigner(sig.id); }}
-                                                    className="px-2 py-1 bg-amber-600/20 text-amber-400 text-xs rounded shrink-0 flex items-center gap-1 hover:bg-amber-600/30 transition-colors"
-                                                    title="Place your signature on this document"
-                                                >
-                                                    <FiEdit3 size={10} /> Sign
-                                                </button>
-                                            )}
 
                                             {isSigned ? (
                                                 <span className="px-2 py-1 bg-green-950/30 text-green-400 text-xs rounded shrink-0 flex items-center gap-1">
@@ -911,10 +1141,8 @@ export default function AccountPage() {
                                                     </div>
                                                 ) : previewData?.type === 'image' ? (
                                                     <div className="bg-white rounded-md overflow-hidden">
-                                                        <img src={previewData.url} alt="Document" className="max-h-[400px] w-full object-contain" />
+                                                        <img src={previewData.url} alt="Photo" className="max-h-[400px] w-full object-contain" />
                                                     </div>
-                                                ) : previewData?.type === 'pdf' ? (
-                                                    <iframe src={previewData.url} className="w-full h-[500px] rounded-md border border-zinc-800" />
                                                 ) : previewData?.type === 'video' ? (
                                                     <video src={previewData.url} controls className="w-full max-h-[400px] rounded-md" />
                                                 ) : previewData?.type === 'decrypt-failed' ? (
@@ -943,14 +1171,6 @@ export default function AccountPage() {
                                                 ) : null}
 
                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                    {sig.signature_type === 'DOCUMENT' && registeredSignatureSvg && (
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); openDocumentSigner(sig.id); }}
-                                                            className="px-3 py-2 bg-amber-600 text-black text-sm font-medium rounded-md hover:bg-amber-500 transition-all flex items-center gap-2"
-                                                        >
-                                                            <FiEdit3 size={14} /> Place Signature & Seal
-                                                        </button>
-                                                    )}
                                                     {sig.signature_type === 'TLDRAW' && isOnChain && !isRegistered && (
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); registerSignature(sig.id); }}
@@ -968,11 +1188,11 @@ export default function AccountPage() {
                                                         </button>
                                                     )}
                                                     <button
-                                                            onClick={(e) => { e.stopPropagation(); setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: sig.signature_type, itemLabel: sig.metadata?.type || sig.signature_type }); }}
-                                                            className="px-3 py-2 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
-                                                        >
-                                                            <FiShare2 size={14} /> Share
-                                                        </button>
+                                                        onClick={(e) => { e.stopPropagation(); setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: sig.signature_type, itemLabel: sig.metadata?.type || sig.signature_type }); }}
+                                                        className="px-3 py-2 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
+                                                    >
+                                                        <FiShare2 size={14} /> Share
+                                                    </button>
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); downloadSignature(sig.id, sig.metadata?.fileName); }}
                                                         className="px-3 py-2 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
@@ -998,42 +1218,53 @@ export default function AccountPage() {
                                             </div>
                                         )}
                                     </div>
-                                    );
-                                })
-                            )}
+                                );
+                            })}
                         </div>
+                    </div>
+                )}
 
-                        {/* Shared With Me */}
-                        {sharedWithMe.length > 0 && (
-                            <div className="space-y-4 pt-4">
-                                <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
-                                    <h3 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
-                                        <FiUsers size={14} /> Shared With Me ({sharedWithMe.length})
-                                    </h3>
-                                </div>
-                                <div className="space-y-2">
-                                    {sharedWithMe.map((doc) => (
-                                        <div key={doc.id} className="border border-zinc-900 rounded-md bg-black p-4 flex items-center gap-4">
-                                            <div className="text-zinc-500 shrink-0">
-                                                <FiShare2 size={18} />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <span className="text-sm font-medium text-white truncate block">
-                                                    {doc.metadata?.fileName || doc.metadata?.type || doc.document_type}
-                                                </span>
-                                                <span className="text-xs text-zinc-600">
-                                                    From ${doc.grantor_handle} &middot; {new Date(doc.created_at).toLocaleDateString()}
-                                                </span>
-                                            </div>
-                                            <span className="px-2 py-1 bg-blue-950/30 text-blue-400 text-xs rounded shrink-0">
-                                                E2E Encrypted
+                {/* Shared With Me */}
+                {sharedWithMe.length > 0 && (
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
+                            <h3 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
+                                <FiUsers size={14} /> Shared With Me ({sharedWithMe.length})
+                            </h3>
+                        </div>
+                        <div className="space-y-2">
+                            {sharedWithMe.map((doc) => {
+                                const isSealed = doc.signature_type === 'SEALED_DOCUMENT' || doc.document_type === 'SEALED_DOCUMENT';
+                                return (
+                                    <div key={doc.id} className="border border-zinc-900 rounded-md bg-black p-4 flex items-center gap-4">
+                                        <div className="text-zinc-500 shrink-0">
+                                            {isSealed ? <FiShield size={18} className="text-amber-500" /> : <FiShare2 size={18} />}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <span className="text-sm font-medium text-white truncate block">
+                                                {doc.metadata?.fileName || doc.metadata?.type || doc.document_type}
+                                            </span>
+                                            <span className="text-xs text-zinc-600">
+                                                From ${doc.grantor_handle} &middot; {new Date(doc.created_at).toLocaleDateString()}
                                             </span>
                                         </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                                        {isSealed && (
+                                            <button
+                                                onClick={() => openCoSign(doc)}
+                                                className="px-3 py-1.5 bg-amber-600/20 text-amber-400 text-xs rounded flex items-center gap-1.5 hover:bg-amber-600/30 transition-colors shrink-0"
+                                            >
+                                                <FiEdit3 size={12} /> Co-Sign
+                                            </button>
+                                        )}
+                                        <span className="px-2 py-1 bg-blue-950/30 text-blue-400 text-xs rounded shrink-0">
+                                            E2E Encrypted
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
+                )}
 
                 {/* Footer */}
                 <footer className="pt-16 border-t border-zinc-900 space-y-6">
@@ -1069,15 +1300,6 @@ export default function AccountPage() {
                         mode={captureMode}
                         onCapture={handleMediaCapture}
                         onCancel={() => setCaptureMode(null)}
-                    />
-                )}
-
-                {sealingDoc && registeredSignatureSvg && (
-                    <DocumentSigner
-                        documentUrl={sealingDoc.blobUrl}
-                        signatureSvg={registeredSignatureSvg}
-                        onSeal={handleSeal}
-                        onCancel={() => setSealingDoc(null)}
                     />
                 )}
 

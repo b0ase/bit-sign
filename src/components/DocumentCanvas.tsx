@@ -1,0 +1,523 @@
+'use client';
+
+import { useRef, useState, useCallback, useEffect } from 'react';
+import { FiX, FiMove, FiMaximize2, FiType, FiTrash2, FiEdit3 } from 'react-icons/fi';
+
+export interface PlacedElement {
+    id: string;
+    type: 'signature' | 'text';
+    xPct: number;
+    yPct: number;
+    widthPct: number;
+    heightPct: number;
+    // Signature-specific
+    signatureId?: string;
+    signatureSvg?: string;
+    signaturePreviewUrl?: string;
+    // Text-specific
+    text?: string;
+    fontSize?: number;
+    fontFamily?: string;
+}
+
+interface DocumentCanvasProps {
+    documentUrl: string;
+    documentId: string;
+    elements: PlacedElement[];
+    onElementsChange: (elements: PlacedElement[]) => void;
+    onSeal: (compositeBase64: string, elements: PlacedElement[]) => void;
+    onClose: () => void;
+}
+
+export default function DocumentCanvas({
+    documentUrl,
+    documentId,
+    elements,
+    onElementsChange,
+    onSeal,
+    onClose,
+}: DocumentCanvasProps) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [docLoaded, setDocLoaded] = useState(false);
+    const [compositing, setCompositing] = useState(false);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [editingTextId, setEditingTextId] = useState<string | null>(null);
+    const [dragOver, setDragOver] = useState(false);
+
+    // Drag/resize state
+    const dragRef = useRef<{
+        elementId: string;
+        startX: number;
+        startY: number;
+        startEl: PlacedElement;
+        mode: 'move' | 'resize';
+    } | null>(null);
+
+    // Generate unique ID
+    const genId = () => `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+    // Drop handler — accept dragged signatures from SignatureExplorer
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        setDragOver(true);
+    }, []);
+
+    const handleDragLeave = useCallback(() => {
+        setDragOver(false);
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        setDragOver(false);
+
+        const container = containerRef.current;
+        if (!container) return;
+
+        let data: any;
+        try {
+            data = JSON.parse(e.dataTransfer.getData('application/json'));
+        } catch {
+            return;
+        }
+
+        if (!data.signatureId) return;
+
+        const rect = container.getBoundingClientRect();
+        const xPct = ((e.clientX - rect.left) / rect.width) * 100;
+        const yPct = ((e.clientY - rect.top) / rect.height) * 100;
+
+        const newElement: PlacedElement = {
+            id: genId(),
+            type: 'signature',
+            xPct: Math.max(0, Math.min(80, xPct - 15)),
+            yPct: Math.max(0, Math.min(85, yPct - 7.5)),
+            widthPct: 30,
+            heightPct: 15,
+            signatureId: data.signatureId,
+            signaturePreviewUrl: data.previewUrl || undefined,
+        };
+
+        // If it's a TLDRAW signature, fetch SVG for compositing
+        if (data.signatureType === 'TLDRAW' && data.previewUrl) {
+            fetchSignatureSvg(data.signatureId).then(svg => {
+                if (svg) {
+                    onElementsChange(elements.map(el =>
+                        el.id === newElement.id ? { ...el, signatureSvg: svg } : el
+                    ));
+                }
+            });
+        }
+
+        onElementsChange([...elements, newElement]);
+        setSelectedId(newElement.id);
+    }, [elements, onElementsChange]);
+
+    const fetchSignatureSvg = async (sigId: string): Promise<string | null> => {
+        try {
+            const res = await fetch(`/api/bitsign/signatures/${sigId}/preview`);
+            if (!res.ok) return null;
+            const contentType = res.headers.get('content-type') || '';
+            if (contentType.includes('svg')) {
+                return await res.text();
+            }
+            return null;
+        } catch {
+            return null;
+        }
+    };
+
+    // Add text element
+    const addTextElement = useCallback(() => {
+        const newElement: PlacedElement = {
+            id: genId(),
+            type: 'text',
+            xPct: 30,
+            yPct: 50,
+            widthPct: 40,
+            heightPct: 8,
+            text: 'Type here...',
+            fontSize: 16,
+            fontFamily: 'sans-serif',
+        };
+        onElementsChange([...elements, newElement]);
+        setSelectedId(newElement.id);
+        setEditingTextId(newElement.id);
+    }, [elements, onElementsChange]);
+
+    // Delete selected element
+    const deleteElement = useCallback((id: string) => {
+        onElementsChange(elements.filter(el => el.id !== id));
+        if (selectedId === id) setSelectedId(null);
+        if (editingTextId === id) setEditingTextId(null);
+    }, [elements, onElementsChange, selectedId, editingTextId]);
+
+    // Pointer-based move/resize (same approach as DocumentSigner)
+    const handlePointerDown = useCallback((e: React.PointerEvent, elementId: string, mode: 'move' | 'resize') => {
+        e.preventDefault();
+        e.stopPropagation();
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+
+        const el = elements.find(el => el.id === elementId);
+        if (!el) return;
+
+        dragRef.current = {
+            elementId,
+            startX: e.clientX,
+            startY: e.clientY,
+            startEl: { ...el },
+            mode,
+        };
+        setSelectedId(elementId);
+    }, [elements]);
+
+    const handlePointerMove = useCallback((e: React.PointerEvent) => {
+        if (!dragRef.current || !containerRef.current) return;
+        e.preventDefault();
+
+        const rect = containerRef.current.getBoundingClientRect();
+        const dx = ((e.clientX - dragRef.current.startX) / rect.width) * 100;
+        const dy = ((e.clientY - dragRef.current.startY) / rect.height) * 100;
+        const s = dragRef.current.startEl;
+
+        if (dragRef.current.mode === 'move') {
+            const updated = elements.map(el =>
+                el.id === dragRef.current!.elementId
+                    ? {
+                        ...el,
+                        xPct: Math.max(0, Math.min(100 - s.widthPct, s.xPct + dx)),
+                        yPct: Math.max(0, Math.min(100 - s.heightPct, s.yPct + dy)),
+                    }
+                    : el
+            );
+            onElementsChange(updated);
+        } else {
+            const aspect = s.widthPct / (s.heightPct || 1);
+            const newW = Math.max(8, Math.min(80, s.widthPct + dx));
+            const newH = s.type === 'text'
+                ? Math.max(4, Math.min(50, s.heightPct + dy))
+                : Math.max(4, Math.min(50, newW / aspect));
+            const updated = elements.map(el =>
+                el.id === dragRef.current!.elementId
+                    ? { ...el, widthPct: newW, heightPct: newH }
+                    : el
+            );
+            onElementsChange(updated);
+        }
+    }, [elements, onElementsChange]);
+
+    const handlePointerUp = useCallback(() => {
+        dragRef.current = null;
+    }, []);
+
+    // Click on canvas background deselects
+    const handleBackgroundClick = useCallback((e: React.MouseEvent) => {
+        if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'IMG') {
+            setSelectedId(null);
+            setEditingTextId(null);
+        }
+    }, []);
+
+    // Update text content
+    const updateText = useCallback((id: string, text: string) => {
+        onElementsChange(elements.map(el =>
+            el.id === id ? { ...el, text } : el
+        ));
+    }, [elements, onElementsChange]);
+
+    // Canvas compositing for seal
+    const handleSeal = useCallback(async () => {
+        if (!containerRef.current) return;
+        setCompositing(true);
+
+        try {
+            // Load document image
+            const docImg = new Image();
+            docImg.crossOrigin = 'anonymous';
+            await new Promise<void>((resolve, reject) => {
+                docImg.onload = () => resolve();
+                docImg.onerror = () => reject(new Error('Failed to load document'));
+                docImg.src = documentUrl;
+            });
+
+            const canvas = document.createElement('canvas');
+            canvas.width = docImg.naturalWidth;
+            canvas.height = docImg.naturalHeight;
+            const ctx = canvas.getContext('2d')!;
+
+            // Draw document
+            ctx.drawImage(docImg, 0, 0);
+
+            // Draw each element in order
+            for (const el of elements) {
+                const x = (el.xPct / 100) * canvas.width;
+                const y = (el.yPct / 100) * canvas.height;
+                const w = (el.widthPct / 100) * canvas.width;
+                const h = (el.heightPct / 100) * canvas.height;
+
+                if (el.type === 'signature') {
+                    // Try SVG first, then preview URL
+                    let sigImg: HTMLImageElement | null = null;
+
+                    if (el.signatureSvg) {
+                        const svgB64 = btoa(unescape(encodeURIComponent(el.signatureSvg)));
+                        sigImg = new Image();
+                        await new Promise<void>((resolve) => {
+                            sigImg!.onload = () => resolve();
+                            sigImg!.onerror = () => { sigImg = null; resolve(); };
+                            sigImg!.src = `data:image/svg+xml;base64,${svgB64}`;
+                        });
+                    }
+
+                    if (!sigImg && el.signaturePreviewUrl) {
+                        sigImg = new Image();
+                        sigImg.crossOrigin = 'anonymous';
+                        await new Promise<void>((resolve) => {
+                            sigImg!.onload = () => resolve();
+                            sigImg!.onerror = () => { sigImg = null; resolve(); };
+                            sigImg!.src = el.signaturePreviewUrl!;
+                        });
+                    }
+
+                    if (sigImg) {
+                        ctx.drawImage(sigImg, x, y, w, h);
+                    }
+                } else if (el.type === 'text' && el.text) {
+                    const fontSize = Math.round((el.fontSize || 16) * (canvas.width / 800));
+                    ctx.font = `${fontSize}px ${el.fontFamily || 'sans-serif'}`;
+                    ctx.fillStyle = '#000000';
+                    ctx.textBaseline = 'top';
+
+                    // Word wrap
+                    const words = el.text.split(' ');
+                    let line = '';
+                    let lineY = y + 4;
+                    const maxWidth = w - 8;
+
+                    for (const word of words) {
+                        const test = line + (line ? ' ' : '') + word;
+                        if (ctx.measureText(test).width > maxWidth && line) {
+                            ctx.fillText(line, x + 4, lineY);
+                            line = word;
+                            lineY += fontSize * 1.3;
+                        } else {
+                            line = test;
+                        }
+                    }
+                    if (line) {
+                        ctx.fillText(line, x + 4, lineY);
+                    }
+                }
+            }
+
+            const compositeBase64 = canvas.toDataURL('image/png');
+            onSeal(compositeBase64, elements);
+        } catch (error) {
+            console.error('Compositing failed:', error);
+            alert('Failed to create sealed document. Please try again.');
+        } finally {
+            setCompositing(false);
+        }
+    }, [documentUrl, elements, onSeal]);
+
+    // Cleanup blob URL on unmount
+    useEffect(() => {
+        return () => {
+            if (documentUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(documentUrl);
+            }
+        };
+    }, [documentUrl]);
+
+    return (
+        <div className="flex flex-col h-full">
+            {/* Toolbar */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-zinc-950/80 shrink-0">
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={addTextElement}
+                        className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-300 text-xs rounded-md hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-1.5"
+                    >
+                        <FiType size={12} /> Add Text
+                    </button>
+                    {selectedId && (
+                        <button
+                            onClick={() => deleteElement(selectedId)}
+                            className="px-3 py-1.5 border border-red-900/40 bg-zinc-900 text-red-400 text-xs rounded-md hover:bg-red-950 transition-all flex items-center gap-1.5"
+                        >
+                            <FiTrash2 size={12} /> Delete
+                        </button>
+                    )}
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleSeal}
+                        disabled={compositing || !docLoaded || elements.length === 0}
+                        className="px-4 py-1.5 bg-white text-black text-xs font-medium rounded-md hover:bg-zinc-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                        {compositing ? (
+                            <>
+                                <div className="w-3 h-3 border-t-2 border-black animate-spin rounded-full" />
+                                Sealing...
+                            </>
+                        ) : (
+                            'Seal with HandCash ($0.01)'
+                        )}
+                    </button>
+                    <button
+                        onClick={onClose}
+                        className="p-1.5 text-zinc-500 hover:text-white transition-colors"
+                    >
+                        <FiX size={16} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Canvas area */}
+            <div className="flex-1 overflow-auto p-4">
+                <div
+                    ref={containerRef}
+                    className={`relative max-w-3xl mx-auto select-none transition-all ${
+                        dragOver ? 'ring-2 ring-green-500/50 ring-offset-2 ring-offset-black' : ''
+                    }`}
+                    style={{ touchAction: 'none' }}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerUp}
+                    onClick={handleBackgroundClick}
+                >
+                    {/* Document image */}
+                    <img
+                        src={documentUrl}
+                        alt="Document"
+                        className="w-full h-auto rounded-md shadow-2xl"
+                        onLoad={() => setDocLoaded(true)}
+                        draggable={false}
+                    />
+
+                    {/* Drop overlay */}
+                    {dragOver && (
+                        <div className="absolute inset-0 bg-green-500/10 border-2 border-dashed border-green-500/40 rounded-md flex items-center justify-center pointer-events-none">
+                            <span className="text-green-400 text-sm font-medium bg-black/80 px-3 py-1.5 rounded">Drop signature here</span>
+                        </div>
+                    )}
+
+                    {/* Placed elements */}
+                    {docLoaded && elements.map(el => {
+                        const isSelected = el.id === selectedId;
+                        const isEditingText = el.id === editingTextId;
+
+                        return (
+                            <div
+                                key={el.id}
+                                className={`absolute group ${
+                                    isSelected
+                                        ? 'border-2 border-green-500/80 bg-green-500/5'
+                                        : 'border border-dashed border-transparent hover:border-zinc-500/40'
+                                }`}
+                                style={{
+                                    left: `${el.xPct}%`,
+                                    top: `${el.yPct}%`,
+                                    width: `${el.widthPct}%`,
+                                    height: `${el.heightPct}%`,
+                                }}
+                                onClick={(e) => { e.stopPropagation(); setSelectedId(el.id); }}
+                            >
+                                {el.type === 'signature' ? (
+                                    <>
+                                        {/* Signature image */}
+                                        {el.signaturePreviewUrl ? (
+                                            <img
+                                                src={el.signaturePreviewUrl}
+                                                alt="Signature"
+                                                className="w-full h-full object-contain pointer-events-none"
+                                                draggable={false}
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-zinc-500">
+                                                <FiEdit3 size={16} />
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <>
+                                        {/* Text element */}
+                                        {isEditingText ? (
+                                            <textarea
+                                                value={el.text || ''}
+                                                onChange={(e) => updateText(el.id, e.target.value)}
+                                                onBlur={() => setEditingTextId(null)}
+                                                autoFocus
+                                                className="w-full h-full bg-transparent text-black resize-none border-none outline-none p-1"
+                                                style={{
+                                                    fontSize: `${el.fontSize || 16}px`,
+                                                    fontFamily: el.fontFamily || 'sans-serif',
+                                                }}
+                                            />
+                                        ) : (
+                                            <div
+                                                onDoubleClick={(e) => { e.stopPropagation(); setEditingTextId(el.id); }}
+                                                className="w-full h-full p-1 cursor-text overflow-hidden"
+                                                style={{
+                                                    fontSize: `${el.fontSize || 16}px`,
+                                                    fontFamily: el.fontFamily || 'sans-serif',
+                                                    color: '#000000',
+                                                }}
+                                            >
+                                                {el.text || 'Double-click to edit'}
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                {/* Move handle — visible on select/hover */}
+                                {isSelected && (
+                                    <>
+                                        <div
+                                            className="absolute inset-0 cursor-move"
+                                            onPointerDown={(e) => handlePointerDown(e, el.id, 'move')}
+                                        />
+                                        <div className="absolute top-0.5 left-0.5 p-0.5 bg-black/70 rounded text-green-400 pointer-events-none">
+                                            <FiMove size={10} />
+                                        </div>
+                                        {/* Resize handle — bottom-right */}
+                                        <div
+                                            className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-green-500 border-2 border-black rounded-sm cursor-nwse-resize flex items-center justify-center z-10"
+                                            onPointerDown={(e) => handlePointerDown(e, el.id, 'resize')}
+                                        >
+                                            <FiMaximize2 size={8} className="text-black" />
+                                        </div>
+                                        {/* Delete button — top-right */}
+                                        <button
+                                            className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center z-10 hover:bg-red-500 transition-colors"
+                                            onClick={(e) => { e.stopPropagation(); deleteElement(el.id); }}
+                                        >
+                                            <FiX size={10} className="text-white" />
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        );
+                    })}
+
+                    {/* Loading state */}
+                    {!docLoaded && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-8 h-8 border-t-2 border-white animate-spin rounded-full opacity-20" />
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Footer hint */}
+            <div className="px-4 py-2 border-t border-zinc-800 text-center shrink-0">
+                <p className="text-[10px] text-zinc-600">
+                    Drag signatures from the left panel. Click to select, drag to move, corner to resize. Double-click text to edit.
+                </p>
+            </div>
+        </div>
+    );
+}
