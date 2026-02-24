@@ -265,6 +265,12 @@ export default function AccountPage() {
         try {
             const res = await fetch(`/api/bitsign/signatures/${sigId}/preview`);
             if (!res.ok) throw new Error('Failed to load document');
+            const contentType = res.headers.get('content-type') || '';
+            // Only image types can be composited in the canvas
+            if (!contentType.startsWith('image/')) {
+                alert('Only image documents (PNG, JPEG, etc.) can be opened in the signing workspace. PDF support coming soon.');
+                return;
+            }
             const blob = await res.blob();
             const blobUrl = URL.createObjectURL(blob);
             // Clean up previous blob URL
@@ -342,6 +348,11 @@ export default function AccountPage() {
         try {
             const res = await fetch(`/api/bitsign/signatures/${doc.document_id}/preview`);
             if (!res.ok) throw new Error('Failed to load shared document');
+            const contentType = res.headers.get('content-type') || '';
+            if (!contentType.startsWith('image/')) {
+                alert('Only image documents can be co-signed in the workspace currently.');
+                return;
+            }
             const blob = await res.blob();
             const blobUrl = URL.createObjectURL(blob);
             if (selectedDocBlobUrl && selectedDocBlobUrl.startsWith('blob:')) {
@@ -811,7 +822,7 @@ export default function AccountPage() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                         <button
                             onClick={() => setIsSignatureModalOpen(true)}
-                            className="group relative p-5 border border-zinc-900 bg-black rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-700 hover:bg-zinc-950 text-zinc-400 hover:text-white"
+                            className="group relative p-5 border border-zinc-700 bg-zinc-900 rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-500 hover:bg-zinc-800 text-zinc-400 hover:text-white"
                         >
                             <FiEdit3 className="text-xl" />
                             <div className="text-center">
@@ -821,7 +832,7 @@ export default function AccountPage() {
                         </button>
                         <button
                             onClick={() => setCaptureMode('PHOTO')}
-                            className="group relative p-5 border border-zinc-900 bg-black rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-700 hover:bg-zinc-950 text-zinc-400 hover:text-white"
+                            className="group relative p-5 border border-zinc-700 bg-zinc-900 rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-500 hover:bg-zinc-800 text-zinc-400 hover:text-white"
                         >
                             <FiCamera className="text-xl" />
                             <div className="text-center">
@@ -831,7 +842,7 @@ export default function AccountPage() {
                         </button>
                         <button
                             onClick={() => setCaptureMode('VIDEO')}
-                            className="group relative p-5 border border-zinc-900 bg-black rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-700 hover:bg-zinc-950 text-zinc-400 hover:text-white"
+                            className="group relative p-5 border border-zinc-700 bg-zinc-900 rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-500 hover:bg-zinc-800 text-zinc-400 hover:text-white"
                         >
                             <FiActivity className="text-xl" />
                             <div className="text-center">
@@ -839,7 +850,7 @@ export default function AccountPage() {
                                 <span className="block text-xs text-zinc-600">Recording</span>
                             </div>
                         </button>
-                        <label className="group relative p-5 border border-zinc-900 bg-black rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-700 hover:bg-zinc-950 text-zinc-400 hover:text-white cursor-pointer">
+                        <label className="group relative p-5 border border-zinc-700 bg-zinc-900 rounded-md flex flex-col items-center justify-center gap-2 transition-all hover:border-zinc-500 hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer">
                             <input key={uploadInputKey} type="file" multiple className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onChange={(e) => { handleDocumentUpload(e); setUploadInputKey(k => k + 1); }} />
                             <FiFileText className="text-xl" />
                             <div className="text-center">
@@ -1025,20 +1036,20 @@ export default function AccountPage() {
                                                                         {!isSigned && (
                                                                             <button
                                                                                 onClick={(e) => { e.stopPropagation(); attestSignature(sig.id); }}
-                                                                                className="px-3 py-1.5 border border-zinc-800 bg-black text-zinc-400 text-xs rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
+                                                                                className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
                                                                             >
                                                                                 <FiShield size={12} /> Sign with HandCash
                                                                             </button>
                                                                         )}
                                                                         <button
                                                                             onClick={(e) => { e.stopPropagation(); setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: sig.signature_type, itemLabel: sig.metadata?.type || sig.signature_type }); }}
-                                                                            className="px-3 py-1.5 border border-zinc-800 bg-black text-zinc-400 text-xs rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
+                                                                            className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
                                                                         >
                                                                             <FiShare2 size={12} /> Share
                                                                         </button>
                                                                         <button
                                                                             onClick={(e) => { e.stopPropagation(); downloadSignature(sig.id, sig.metadata?.fileName); }}
-                                                                            className="px-3 py-1.5 border border-zinc-800 bg-black text-zinc-400 text-xs rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
+                                                                            className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
                                                                         >
                                                                             <FiDownload size={12} /> Download
                                                                         </button>
@@ -1046,7 +1057,7 @@ export default function AccountPage() {
                                                                             <a
                                                                                 href={`https://whatsonchain.com/tx/${sig.txid}`}
                                                                                 target="_blank"
-                                                                                className="px-3 py-1.5 border border-zinc-800 bg-black text-zinc-400 text-xs rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
+                                                                                className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
                                                                             >
                                                                                 <FiExternalLink size={12} /> Chain
                                                                             </a>
@@ -1182,20 +1193,20 @@ export default function AccountPage() {
                                                     {!isSigned && (
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); attestSignature(sig.id); }}
-                                                            className="px-3 py-2 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
+                                                            className="px-3 py-2 border border-zinc-700 bg-zinc-900 text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
                                                         >
                                                             <FiShield size={14} /> Sign with HandCash
                                                         </button>
                                                     )}
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: sig.signature_type, itemLabel: sig.metadata?.type || sig.signature_type }); }}
-                                                        className="px-3 py-2 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
+                                                        className="px-3 py-2 border border-zinc-700 bg-zinc-900 text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
                                                     >
                                                         <FiShare2 size={14} /> Share
                                                     </button>
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); downloadSignature(sig.id, sig.metadata?.fileName); }}
-                                                        className="px-3 py-2 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
+                                                        className="px-3 py-2 border border-zinc-700 bg-zinc-900 text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
                                                     >
                                                         <FiDownload size={14} /> Download
                                                     </button>
@@ -1203,7 +1214,7 @@ export default function AccountPage() {
                                                         <a
                                                             href={`https://whatsonchain.com/tx/${sig.txid}`}
                                                             target="_blank"
-                                                            className="px-3 py-2 border border-zinc-800 bg-black text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
+                                                            className="px-3 py-2 border border-zinc-700 bg-zinc-900 text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
                                                         >
                                                             <FiExternalLink size={14} /> View on Chain
                                                         </a>
