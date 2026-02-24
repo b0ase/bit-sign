@@ -36,7 +36,8 @@ import {
     FiMessageCircle,
     FiMonitor,
     FiSmartphone,
-    FiEye
+    FiEye,
+    FiInbox
 } from 'react-icons/fi';
 
 interface Signature {
@@ -968,7 +969,7 @@ export default function AccountPage() {
                         <span className="block text-2xl font-semibold text-white">{signatures.length}</span>
                     </div>
                     <div className="bg-black p-4 border border-zinc-900 rounded-md">
-                        <span className="block text-xs text-zinc-500 mb-1">Shared With Me</span>
+                        <span className="block text-xs text-zinc-500 mb-1">Inbox</span>
                         <span className="block text-2xl font-semibold text-white">{sharedWithMe.length}</span>
                     </div>
                     <div className="bg-black p-4 border border-zinc-900 rounded-md">
@@ -978,6 +979,86 @@ export default function AccountPage() {
                             {hasE2EKeys ? 'E2E Active' : 'Not Set Up'}
                         </span>
                     </div>
+                </div>
+
+                {/* ===== INBOX ===== */}
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
+                        <h3 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
+                            <FiInbox size={14} /> Inbox
+                            {sharedWithMe.length > 0 && (
+                                <span className="px-1.5 py-0.5 bg-blue-950 text-blue-400 text-[10px] rounded-full font-medium">
+                                    {sharedWithMe.length}
+                                </span>
+                            )}
+                        </h3>
+                    </div>
+                    {sharedWithMe.length === 0 ? (
+                        <div className="py-10 flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-md text-center">
+                            <FiInbox className="text-zinc-700 text-2xl mb-3" />
+                            <p className="text-sm text-zinc-500">No documents received yet</p>
+                            <p className="text-xs text-zinc-600 mt-1">Documents shared with you or witness requests will appear here.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            {sharedWithMe.map((doc) => {
+                                const isSealed = doc.signature_type === 'SEALED_DOCUMENT' || doc.document_type === 'SEALED_DOCUMENT';
+                                const isWitnessRequest = doc.signature_type === 'WITNESS_REQUEST' || doc.document_type === 'WITNESS_REQUEST';
+                                return (
+                                    <div key={doc.id} className={`border rounded-md bg-black p-4 flex items-center gap-4 ${isWitnessRequest ? 'border-blue-900/40' : isSealed ? 'border-amber-900/40' : 'border-zinc-900'}`}>
+                                        <div className="text-zinc-500 shrink-0">
+                                            {isWitnessRequest ? (
+                                                <FiEye size={18} className="text-blue-400" />
+                                            ) : isSealed ? (
+                                                <FiShield size={18} className="text-amber-500" />
+                                            ) : (
+                                                <FiShare2 size={18} />
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm font-medium text-white truncate">
+                                                    {doc.metadata?.originalFileName || doc.metadata?.fileName || doc.metadata?.type || doc.document_type}
+                                                </span>
+                                                {isWitnessRequest && (
+                                                    <span className="px-1.5 py-0.5 bg-blue-950 text-blue-400 text-[10px] rounded shrink-0">
+                                                        Witness
+                                                    </span>
+                                                )}
+                                                {isSealed && !isWitnessRequest && (
+                                                    <span className="px-1.5 py-0.5 bg-amber-950 text-amber-400 text-[10px] rounded shrink-0">
+                                                        Sign
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <span className="text-xs text-zinc-600">
+                                                From ${doc.grantor_handle} &middot; {new Date(doc.created_at).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                        {(isSealed || isWitnessRequest) && (
+                                            <button
+                                                onClick={() => openCoSign(doc)}
+                                                className={`px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 ${
+                                                    isWitnessRequest
+                                                        ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30'
+                                                        : 'bg-amber-600/20 text-amber-400 hover:bg-amber-600/30'
+                                                }`}
+                                            >
+                                                {isWitnessRequest ? (
+                                                    <><FiEye size={12} /> Witness</>
+                                                ) : (
+                                                    <><FiEdit3 size={12} /> Co-Sign</>
+                                                )}
+                                            </button>
+                                        )}
+                                        <span className="px-2 py-1 bg-blue-950/30 text-blue-400 text-xs rounded shrink-0">
+                                            E2E Encrypted
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
 
                 {/* ===== TWO-PANEL SIGNING WORKSPACE ===== */}
@@ -1357,48 +1438,6 @@ export default function AccountPage() {
                                                 </div>
                                             </div>
                                         )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-
-                {/* Shared With Me */}
-                {sharedWithMe.length > 0 && (
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
-                            <h3 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
-                                <FiUsers size={14} /> Shared With Me ({sharedWithMe.length})
-                            </h3>
-                        </div>
-                        <div className="space-y-2">
-                            {sharedWithMe.map((doc) => {
-                                const isSealed = doc.signature_type === 'SEALED_DOCUMENT' || doc.document_type === 'SEALED_DOCUMENT';
-                                return (
-                                    <div key={doc.id} className="border border-zinc-900 rounded-md bg-black p-4 flex items-center gap-4">
-                                        <div className="text-zinc-500 shrink-0">
-                                            {isSealed ? <FiShield size={18} className="text-amber-500" /> : <FiShare2 size={18} />}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <span className="text-sm font-medium text-white truncate block">
-                                                {doc.metadata?.fileName || doc.metadata?.type || doc.document_type}
-                                            </span>
-                                            <span className="text-xs text-zinc-600">
-                                                From ${doc.grantor_handle} &middot; {new Date(doc.created_at).toLocaleDateString()}
-                                            </span>
-                                        </div>
-                                        {isSealed && (
-                                            <button
-                                                onClick={() => openCoSign(doc)}
-                                                className="px-3 py-1.5 bg-amber-600/20 text-amber-400 text-xs rounded flex items-center gap-1.5 hover:bg-amber-600/30 transition-colors shrink-0"
-                                            >
-                                                <FiEdit3 size={12} /> Co-Sign
-                                            </button>
-                                        )}
-                                        <span className="px-2 py-1 bg-blue-950/30 text-blue-400 text-xs rounded shrink-0">
-                                            E2E Encrypted
-                                        </span>
                                     </div>
                                 );
                             })}
