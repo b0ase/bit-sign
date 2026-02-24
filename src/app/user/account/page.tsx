@@ -943,7 +943,6 @@ export default function AccountPage() {
                                         { id: 'twitter', label: 'X', icon: FiTwitter, active: true, linked: !!identity.twitter_handle, handle: identity.twitter_handle ? `@${identity.twitter_handle}` : undefined, authUrl: '/api/auth/twitter' },
                                         { id: 'linkedin', label: 'LinkedIn', icon: FiLinkedin, active: true, linked: !!identity.linkedin_name, handle: identity.linkedin_name, authUrl: '/api/auth/linkedin' },
                                         { id: 'discord', label: 'Discord', icon: FiMessageCircle, active: true, linked: !!identity.discord_handle, handle: identity.discord_handle, authUrl: '/api/auth/discord' },
-                                        { id: 'microsoft', label: 'Microsoft', icon: FiMonitor, active: true, linked: !!identity.microsoft_email, handle: identity.microsoft_email, authUrl: '/api/auth/microsoft' },
                                     ].map((provider) => {
                                         if (provider.linked && provider.handle) {
                                             return (

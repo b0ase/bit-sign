@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bit-sign OAuth Setup Guide</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a0a; color: #e4e4e7; padding: 2rem; max-width: 900px; margin: 0 auto; line-height: 1.6; }
+  h1 { font-size: 2rem; margin-bottom: 0.5rem; color: white; }
+  .subtitle { color: #71717a; margin-bottom: 2rem; }
+  .card { background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
+  .card h2 { font-size: 1.25rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
+  .badge-easy { background: #052e16; color: #4ade80; }
+  .badge-medium { background: #422006; color: #fb923c; }
+  .badge-hard { background: #450a0a; color: #f87171; }
+  table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid #27272a; }
+  th { color: #71717a; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { font-size: 0.9rem; }
+  code { background: #27272a; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; color: #a1a1aa; font-family: 'SF Mono', 'Fira Code', monospace; }
+  a { color: #60a5fa; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .steps { list-style: none; counter-reset: step; }
+  .steps li { counter-increment: step; padding: 0.5rem 0; padding-left: 2rem; position: relative; }
+  .steps li::before { content: counter(step); position: absolute; left: 0; width: 1.5rem; height: 1.5rem; background: #27272a; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 600; color: #71717a; }
+  .env-block { background: #1a1a2e; border: 1px solid #27272a; border-radius: 6px; padding: 1rem; margin: 0.75rem 0; font-family: monospace; font-size: 0.85rem; white-space: pre-wrap; color: #a78bfa; }
+  .callback-url { background: #0a1628; border: 1px solid #1e3a5f; border-radius: 6px; padding: 0.75rem 1rem; margin: 0.5rem 0; font-family: monospace; font-size: 0.85rem; color: #60a5fa; }
+  .tip { background: #1a1a0a; border-left: 3px solid #eab308; padding: 0.75rem 1rem; margin: 0.75rem 0; border-radius: 0 6px 6px 0; font-size: 0.85rem; color: #fde68a; }
+  hr { border: none; border-top: 1px solid #27272a; margin: 2rem 0; }
+  .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+  .summary-item { background: #111; border: 1px solid #27272a; border-radius: 6px; padding: 1rem; }
+  .summary-item h4 { font-size: 0.8rem; color: #71717a; margin-bottom: 0.25rem; }
+  .summary-item p { font-size: 1rem; color: white; }
+</style>
+</head>
+<body>
+
+<h1>bit-sign OAuth Setup Guide</h1>
+<p class="subtitle">Register 5 OAuth apps. Prod only. Each takes ~3 minutes.</p>
+
+<div class="summary">
+  <div class="summary-item">
+    <h4>Production URL</h4>
+    <p>https://bit-sign.online</p>
+  </div>
+  <div class="summary-item">
+    <h4>Total env vars needed</h4>
+    <p>11 (5 pairs + 1 optional tenant)</p>
+  </div>
+</div>
+
+<hr>
+
+<!-- ===== GOOGLE ===== -->
+<div class="card">
+  <h2>Google <span class="badge badge-easy">Easy</span></h2>
+  <table>
+    <tr><th>Console</th><td><a href="https://console.cloud.google.com/apis/credentials" target="_blank">console.cloud.google.com/apis/credentials</a></td></tr>
+    <tr><th>Callback URL</th><td><code>https://bit-sign.online/api/auth/google/callback</code></td></tr>
+    <tr><th>Scopes</th><td><code>openid</code>, <code>email</code>, <code>profile</code></td></tr>
+  </table>
+  <ol class="steps">
+    <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console &rarr; Credentials</a></li>
+    <li>Click <strong>Create Credentials &rarr; OAuth Client ID</strong></li>
+    <li>If prompted, configure the <strong>OAuth Consent Screen</strong> first:<br>
+        &bull; App name: <code>bit-sign</code><br>
+        &bull; User support email: your email<br>
+        &bull; Authorized domain: <code>bit-sign.online</code><br>
+        &bull; Publish status: <strong>Production</strong> (submit for verification later)
+    </li>
+    <li>Application type: <strong>Web application</strong></li>
+    <li>Name: <code>bit-sign</code></li>
+    <li>Authorized redirect URIs: <code>https://bit-sign.online/api/auth/google/callback</code></li>
+    <li>Copy Client ID and Client Secret</li>
+  </ol>
+  <div class="env-block">GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret</div>
+  <div class="tip">Google requires OAuth consent screen verification for apps with 100+ users. Start in "Testing" mode (100 user cap) then submit for review when ready.</div>
+</div>
+
+<!-- ===== TWITTER / X ===== -->
+<div class="card">
+  <h2>X (Twitter) <span class="badge badge-medium">Medium</span></h2>
+  <table>
+    <tr><th>Portal</th><td><a href="https://developer.x.com/en/portal/dashboard" target="_blank">developer.x.com/en/portal/dashboard</a></td></tr>
+    <tr><th>Callback URL</th><td><code>https://bit-sign.online/api/auth/twitter/callback</code></td></tr>
+    <tr><th>Scopes</th><td><code>tweet.read</code>, <code>users.read</code></td></tr>
+    <tr><th>Auth type</th><td>OAuth 2.0 with PKCE</td></tr>
+  </table>
+  <ol class="steps">
+    <li>Go to <a href="https://developer.x.com/en/portal/dashboard" target="_blank">X Developer Portal</a></li>
+    <li>Create a <strong>Project</strong> if you don't have one, then create an <strong>App</strong></li>
+    <li>In App Settings &rarr; <strong>User authentication settings</strong> &rarr; Edit</li>
+    <li>Enable <strong>OAuth 2.0</strong></li>
+    <li>Type of App: <strong>Web App</strong></li>
+    <li>Callback URI: <code>https://bit-sign.online/api/auth/twitter/callback</code></li>
+    <li>Website URL: <code>https://bit-sign.online</code></li>
+    <li>Copy the <strong>Client ID</strong> and <strong>Client Secret</strong> (shown once!)</li>
+  </ol>
+  <div class="env-block">TWITTER_CLIENT_ID=your-client-id
+TWITTER_CLIENT_SECRET=your-client-secret</div>
+  <div class="tip">X requires at least the Free tier ($0). Make sure OAuth 2.0 is enabled (not just OAuth 1.0a). The Client Secret is shown only once when you first set up auth.</div>
+</div>
+
+<!-- ===== LINKEDIN ===== -->
+<div class="card">
+  <h2>LinkedIn <span class="badge badge-medium">Medium</span></h2>
+  <table>
+    <tr><th>Console</th><td><a href="https://www.linkedin.com/developers/apps" target="_blank">linkedin.com/developers/apps</a></td></tr>
+    <tr><th>Callback URL</th><td><code>https://bit-sign.online/api/auth/linkedin/callback</code></td></tr>
+    <tr><th>Scopes</th><td><code>openid</code>, <code>profile</code>, <code>email</code></td></tr>
+    <tr><th>Product</th><td>Sign In with LinkedIn using OpenID Connect</td></tr>
+  </table>
+  <ol class="steps">
+    <li>Go to <a href="https://www.linkedin.com/developers/apps" target="_blank">LinkedIn Developer Apps</a></li>
+    <li>Click <strong>Create App</strong></li>
+    <li>App name: <code>bit-sign</code>, Company: select your LinkedIn company page (required)</li>
+    <li>In the <strong>Products</strong> tab, request access to <strong>"Sign In with LinkedIn using OpenID Connect"</strong></li>
+    <li>In <strong>Auth</strong> tab, add redirect URL: <code>https://bit-sign.online/api/auth/linkedin/callback</code></li>
+    <li>Copy Client ID and Client Secret from Auth tab</li>
+  </ol>
+  <div class="env-block">LINKEDIN_CLIENT_ID=your-client-id
+LINKEDIN_CLIENT_SECRET=your-client-secret</div>
+  <div class="tip">LinkedIn requires a Company Page to create an app. The "Sign In with LinkedIn using OpenID Connect" product is auto-approved, but takes a few minutes to activate. If the old "Sign In with LinkedIn" shows, pick the OpenID Connect version.</div>
+</div>
+
+<!-- ===== DISCORD ===== -->
+<div class="card">
+  <h2>Discord <span class="badge badge-easy">Easy</span></h2>
+  <table>
+    <tr><th>Console</th><td><a href="https://discord.com/developers/applications" target="_blank">discord.com/developers/applications</a></td></tr>
+    <tr><th>Callback URL</th><td><code>https://bit-sign.online/api/auth/discord/callback</code></td></tr>
+    <tr><th>Scopes</th><td><code>identify</code>, <code>email</code></td></tr>
+  </table>
+  <ol class="steps">
+    <li>Go to <a href="https://discord.com/developers/applications" target="_blank">Discord Developer Portal</a></li>
+    <li>Click <strong>New Application</strong>, name it <code>bit-sign</code></li>
+    <li>Go to <strong>OAuth2</strong> in the left sidebar</li>
+    <li>Add redirect: <code>https://bit-sign.online/api/auth/discord/callback</code></li>
+    <li>Copy <strong>Client ID</strong> and <strong>Client Secret</strong> (click Reset Secret if needed)</li>
+  </ol>
+  <div class="env-block">DISCORD_CLIENT_ID=your-client-id
+DISCORD_CLIENT_SECRET=your-client-secret</div>
+  <div class="tip">Discord is the simplest. No approval needed, no limits. Works immediately.</div>
+</div>
+
+<!-- ===== MICROSOFT ===== -->
+<div class="card">
+  <h2>Microsoft <span class="badge badge-medium">Medium</span></h2>
+  <table>
+    <tr><th>Portal</th><td><a href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank">Azure Portal &rarr; App Registrations</a></td></tr>
+    <tr><th>Callback URL</th><td><code>https://bit-sign.online/api/auth/microsoft/callback</code></td></tr>
+    <tr><th>Scopes</th><td><code>openid</code>, <code>profile</code>, <code>email</code>, <code>User.Read</code></td></tr>
+  </table>
+  <ol class="steps">
+    <li>Go to <a href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank">Azure Portal &rarr; App Registrations</a></li>
+    <li>Click <strong>New registration</strong></li>
+    <li>Name: <code>bit-sign</code></li>
+    <li>Supported account types: <strong>Accounts in any organizational directory and personal Microsoft accounts</strong></li>
+    <li>Redirect URI: Platform = <strong>Web</strong>, URI = <code>https://bit-sign.online/api/auth/microsoft/callback</code></li>
+    <li>Click Register. Copy the <strong>Application (client) ID</strong></li>
+    <li>Go to <strong>Certificates &amp; secrets</strong> &rarr; New client secret &rarr; Copy the <strong>Value</strong> (shown once!)</li>
+  </ol>
+  <div class="env-block">MICROSOFT_CLIENT_ID=your-application-client-id
+MICROSOFT_CLIENT_SECRET=your-client-secret-value</div>
+  <div class="tip">Use tenant = <code>common</code> (default) to allow both personal Microsoft accounts and org accounts. If you only want personal accounts, use <code>consumers</code>.<br><br>Optional: <code>MICROSOFT_TENANT_ID=common</code> (defaults to common if not set)</div>
+</div>
+
+<hr>
+
+<!-- ===== SUMMARY ===== -->
+<div class="card" style="border-color: #3f3f46;">
+  <h2>Quick Copy: All Env Vars</h2>
+  <div class="env-block"># Google
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# X (Twitter)
+TWITTER_CLIENT_ID=
+TWITTER_CLIENT_SECRET=
+
+# LinkedIn
+LINKEDIN_CLIENT_ID=
+LINKEDIN_CLIENT_SECRET=
+
+# Discord
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+
+# Microsoft
+MICROSOFT_CLIENT_ID=
+MICROSOFT_CLIENT_SECRET=
+# MICROSOFT_TENANT_ID=common</div>
+</div>
+
+<div class="card" style="border-color: #3f3f46;">
+  <h2>All Callback URLs</h2>
+  <div class="callback-url">https://bit-sign.online/api/auth/google/callback</div>
+  <div class="callback-url">https://bit-sign.online/api/auth/twitter/callback</div>
+  <div class="callback-url">https://bit-sign.online/api/auth/linkedin/callback</div>
+  <div class="callback-url">https://bit-sign.online/api/auth/discord/callback</div>
+  <div class="callback-url">https://bit-sign.online/api/auth/microsoft/callback</div>
+</div>
+
+<div class="card" style="border-color: #3f3f46;">
+  <h2>After Setup</h2>
+  <ol class="steps">
+    <li>Add all env vars to <code>.env.local</code> on your machine</li>
+    <li>Add them to Vercel: Project Settings &rarr; Environment Variables (Production)</li>
+    <li>Redeploy (or push a commit)</li>
+    <li>Test each provider by clicking the link buttons on your account page</li>
+  </ol>
+</div>
+
+<p style="text-align: center; color: #52525b; margin-top: 2rem; font-size: 0.8rem;">bit-sign $401 Identity Protocol &mdash; Generated 2026-02-24</p>
+
+</body>
+</html>
