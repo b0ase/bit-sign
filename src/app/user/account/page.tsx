@@ -721,18 +721,13 @@ export default function AccountPage() {
             const response = await fetch('/api/bitsign/request', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    handle,
-                    message: "TEST VERIFICATION: Verify your Digital DNA connection.",
-                    fee: 0.01
-                })
             });
             const data = await response.json();
             if (data.error) throw new Error(data.error);
-            window.open(data.paymentUrl, '_blank');
-        } catch (error) {
+            alert(`Test payment of $0.01 sent to $${handle}. TX: ${data.transactionId?.slice(0, 12)}...`);
+        } catch (error: any) {
             console.error('Test verification failed:', error);
-            alert('Failed to send test verification request');
+            alert(error?.message || 'Failed to send test alert');
         } finally {
             setIsProcessing(false);
         }
