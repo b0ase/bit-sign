@@ -23,6 +23,7 @@ export interface PlacedElement {
 interface DocumentCanvasProps {
     documentUrl: string;
     documentId: string;
+    signerHandle?: string;
     elements: PlacedElement[];
     onElementsChange: (elements: PlacedElement[]) => void;
     onSeal: (compositeBase64: string, elements: PlacedElement[]) => void;
@@ -32,6 +33,7 @@ interface DocumentCanvasProps {
 export default function DocumentCanvas({
     documentUrl,
     documentId,
+    signerHandle,
     elements,
     onElementsChange,
     onSeal,
@@ -314,6 +316,46 @@ export default function DocumentCanvas({
                     }
                 }
             }
+
+            // Draw seal stamp at bottom-right
+            const stampPad = Math.round(canvas.width * 0.02);
+            const stampFontSize = Math.max(12, Math.round(canvas.width * 0.014));
+            const now = new Date();
+            const dateStr = now.toISOString().slice(0, 10);
+            const timeStr = now.toTimeString().slice(0, 5);
+            const line1 = `SEALED by $${signerHandle || 'unknown'}`;
+            const line2 = `${dateStr} ${timeStr} UTC`;
+            const line3 = 'BIT-SIGN PROTOCOL';
+
+            ctx.font = `bold ${stampFontSize}px monospace`;
+            const maxLineWidth = Math.max(
+                ctx.measureText(line1).width,
+                ctx.measureText(line2).width,
+                ctx.measureText(line3).width
+            );
+            const boxW = maxLineWidth + stampPad * 3;
+            const boxH = stampFontSize * 3 * 1.4 + stampPad * 2;
+            const boxX = canvas.width - boxW - stampPad * 2;
+            const boxY = canvas.height - boxH - stampPad * 2;
+
+            // Stamp background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            ctx.fillRect(boxX, boxY, boxW, boxH);
+            ctx.strokeStyle = 'rgba(245, 158, 11, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+            // Stamp text
+            ctx.fillStyle = '#f59e0b';
+            ctx.textBaseline = 'top';
+            ctx.font = `bold ${stampFontSize}px monospace`;
+            ctx.fillText(line1, boxX + stampPad * 1.5, boxY + stampPad);
+            ctx.fillStyle = '#d4d4d8';
+            ctx.font = `${stampFontSize}px monospace`;
+            ctx.fillText(line2, boxX + stampPad * 1.5, boxY + stampPad + stampFontSize * 1.4);
+            ctx.fillStyle = '#71717a';
+            ctx.font = `${Math.round(stampFontSize * 0.85)}px monospace`;
+            ctx.fillText(line3, boxX + stampPad * 1.5, boxY + stampPad + stampFontSize * 2.8);
 
             const compositeBase64 = canvas.toDataURL('image/png');
             onSeal(compositeBase64, elements);

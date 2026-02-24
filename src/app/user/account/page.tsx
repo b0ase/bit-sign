@@ -596,11 +596,28 @@ export default function AccountPage() {
         }
     };
 
-    const downloadSignature = async (sigId: string, fileName?: string) => {
+    const downloadSignature = async (sigId: string, sig?: Signature) => {
         try {
+            let filename: string;
+            if (sig?.metadata?.fileName) {
+                filename = sig.metadata.fileName;
+            } else if (sig?.signature_type === 'SEALED_DOCUMENT') {
+                const date = new Date(sig.created_at).toISOString().slice(0, 10);
+                const txShort = sig.txid && !sig.txid.startsWith('pending-') ? `-${sig.txid.slice(0, 8)}` : '';
+                filename = `sealed-document-${date}${txShort}.png`;
+            } else if (sig?.signature_type === 'TLDRAW') {
+                filename = `signature-${sigId.slice(0, 8)}.svg`;
+            } else if (sig?.signature_type === 'CAMERA') {
+                filename = `photo-${sigId.slice(0, 8)}.jpg`;
+            } else if (sig?.signature_type === 'VIDEO') {
+                filename = `video-${sigId.slice(0, 8)}.webm`;
+            } else {
+                const ext = sig?.metadata?.mimeType?.split('/')[1] || 'bin';
+                filename = `document-${sigId.slice(0, 8)}.${ext}`;
+            }
             const a = document.createElement('a');
             a.href = `/api/bitsign/signatures/${sigId}/preview`;
-            a.download = fileName || `bit-sign-${sigId.slice(0, 8)}`;
+            a.download = filename;
             a.click();
         } catch (error) {
             console.error('Download failed:', error);
@@ -926,6 +943,7 @@ export default function AccountPage() {
                                     <DocumentCanvas
                                         documentUrl={selectedDocBlobUrl}
                                         documentId={selectedDocumentId}
+                                        signerHandle={handle || undefined}
                                         elements={placedElements}
                                         onElementsChange={setPlacedElements}
                                         onSeal={handleSeal}
@@ -973,6 +991,9 @@ export default function AccountPage() {
                                                                     </div>
                                                                     <span className="block text-xs text-zinc-600">
                                                                         {new Date(sig.created_at).toLocaleDateString()} at {new Date(sig.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                        {isSealed && sig.txid && !sig.txid.startsWith('pending-') && (
+                                                                            <> &middot; <a href={`https://whatsonchain.com/tx/${sig.txid}`} target="_blank" onClick={(e) => e.stopPropagation()} className="text-amber-600 hover:text-amber-400 font-mono">tx:{sig.txid.slice(0, 8)}</a></>
+                                                                        )}
                                                                     </span>
                                                                 </div>
 
@@ -1062,7 +1083,7 @@ export default function AccountPage() {
                                                                             <FiShare2 size={12} /> Share
                                                                         </button>
                                                                         <button
-                                                                            onClick={(e) => { e.stopPropagation(); downloadSignature(sig.id, sig.metadata?.fileName); }}
+                                                                            onClick={(e) => { e.stopPropagation(); downloadSignature(sig.id, sig); }}
                                                                             className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
                                                                         >
                                                                             <FiDownload size={12} /> Download
@@ -1219,7 +1240,7 @@ export default function AccountPage() {
                                                         <FiShare2 size={14} /> Share
                                                     </button>
                                                     <button
-                                                        onClick={(e) => { e.stopPropagation(); downloadSignature(sig.id, sig.metadata?.fileName); }}
+                                                        onClick={(e) => { e.stopPropagation(); downloadSignature(sig.id, sig); }}
                                                         className="px-3 py-2 border border-zinc-700 bg-zinc-900 text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-600 transition-all flex items-center gap-2"
                                                     >
                                                         <FiDownload size={14} /> Download

@@ -72,7 +72,20 @@ export async function GET(
 
         // Determine content type from metadata
         const meta = signature.metadata || {};
-        const fileName = meta.fileName || 'file';
+        let fileName = meta.fileName || '';
+        if (!fileName) {
+            if (signature.signature_type === 'SEALED_DOCUMENT') {
+                fileName = `sealed-document-${id.slice(0, 8)}.png`;
+            } else if (signature.signature_type === 'TLDRAW') {
+                fileName = `signature-${id.slice(0, 8)}.svg`;
+            } else if (signature.signature_type === 'CAMERA') {
+                fileName = `photo-${id.slice(0, 8)}.jpg`;
+            } else if (signature.signature_type === 'VIDEO') {
+                fileName = `video-${id.slice(0, 8)}.webm`;
+            } else {
+                fileName = `document-${id.slice(0, 8)}`;
+            }
+        }
         let contentType = 'application/octet-stream';
 
         if (signature.signature_type === 'TLDRAW') {
