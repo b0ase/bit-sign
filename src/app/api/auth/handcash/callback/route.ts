@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handCashConnect } from '@/lib/handcash';
-import { mapHandCashUser } from '@/lib/supabase';
+import { mapHandCashUser, supabaseAdmin } from '@/lib/supabase';
 import { getCookieDomain } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
@@ -24,6 +24,26 @@ export async function GET(request: NextRequest) {
             console.log(`[HandCash/Auth] User ${publicProfile.handle} persisted in Supabase with sovereign token`);
         } catch (dbError) {
             console.error(`[HandCash/Auth] Database persistence failed for ${publicProfile.handle}:`, dbError);
+        }
+
+        // Sync avatar to bit_sign_identities if empty
+        if (publicProfile.avatarUrl) {
+            try {
+                const { data: identity } = await supabaseAdmin
+                    .from('bit_sign_identities')
+                    .select('id, avatar_url')
+                    .eq('user_handle', publicProfile.handle)
+                    .maybeSingle();
+                if (identity && !identity.avatar_url) {
+                    await supabaseAdmin
+                        .from('bit_sign_identities')
+                        .update({ avatar_url: publicProfile.avatarUrl })
+                        .eq('id', identity.id);
+                    console.log(`[HandCash/Auth] Synced avatar for ${publicProfile.handle}`);
+                }
+            } catch (avatarErr) {
+                // Non-fatal
+            }
         }
 
         const returnTo = request.cookies.get('auth_return_to')?.value || '/user/account';
