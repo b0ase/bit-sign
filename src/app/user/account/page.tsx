@@ -821,23 +821,7 @@ export default function AccountPage() {
                 metadata: { type: label, mimeType: blob.type }
             }, ...prev]);
 
-            if (type === 'CAMERA' && data.signature?.id) {
-                try {
-                    const ppRes = await fetch('/api/bitsign/profile-picture', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ signatureId: data.signature.id })
-                    });
-                    if (ppRes.ok) {
-                        const ppData = await ppRes.json();
-                        if (ppData.avatarUrl && identity) {
-                            setIdentity({ ...identity, avatar_url: ppData.avatarUrl });
-                        }
-                    }
-                } catch {
-                    // Non-critical
-                }
-            }
+            // Profile picture is now set explicitly by the user from attested photos only
         } catch (error: any) {
             console.error('Media capture failed:', error);
             alert(error?.message || 'Failed to save. Please try again.');
@@ -1035,6 +1019,24 @@ export default function AccountPage() {
             console.error('Identity mint failed:', error);
         } finally {
             setIsProcessing(false);
+        }
+    };
+
+    const setAsProfilePicture = async (sigId: string) => {
+        try {
+            const res = await fetch('/api/bitsign/profile-picture', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ signatureId: sigId })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed');
+            if (data.avatarUrl && identity) {
+                setIdentity({ ...identity, avatar_url: data.avatarUrl });
+            }
+            alert('Profile picture updated!');
+        } catch (error: any) {
+            alert(error?.message || 'Failed to set profile picture.');
         }
     };
 
@@ -1968,6 +1970,23 @@ export default function AccountPage() {
                                                         )}
                                                         <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: sig.signature_type, itemLabel: sig.metadata?.type || sig.signature_type })} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiShare2 size={11} /> Share</button>
                                                         <button onClick={() => downloadSignature(sig.id, sig)} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiDownload size={11} /> Download</button>
+                                                        {sig.signature_type === 'CAMERA' && isSigned && (
+                                                            <button
+                                                                onClick={() => setAsProfilePicture(sig.id)}
+                                                                className={`px-2.5 py-1 text-xs font-medium rounded transition-all flex items-center gap-1.5 ${
+                                                                    identity?.avatar_url?.includes(sig.id)
+                                                                        ? 'bg-green-950 text-green-400 border border-green-900/40'
+                                                                        : 'bg-blue-600 text-white hover:bg-blue-500'
+                                                                }`}
+                                                                disabled={identity?.avatar_url?.includes(sig.id)}
+                                                            >
+                                                                <FiCamera size={11} />
+                                                                {identity?.avatar_url?.includes(sig.id) ? 'Current Profile Pic' : 'Use as Profile Pic'}
+                                                            </button>
+                                                        )}
+                                                        {sig.signature_type === 'CAMERA' && !isSigned && (
+                                                            <span className="px-2.5 py-1 text-[10px] text-zinc-600 italic">Attest to use as profile pic</span>
+                                                        )}
                                                         {isOnChain && (
                                                             <a href={`https://whatsonchain.com/tx/${sig.txid}`} target="_blank" className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiExternalLink size={11} /> Chain</a>
                                                         )}

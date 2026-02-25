@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     // Verify vault item belongs to user and is a CAMERA type
     const { data: sig } = await supabaseAdmin
       .from('bit_sign_signatures')
-      .select('id, signature_type')
+      .select('id, signature_type, wallet_signed')
       .eq('id', signatureId)
       .eq('user_handle', handle)
       .eq('signature_type', 'CAMERA')
@@ -31,6 +31,11 @@ export async function POST(request: NextRequest) {
 
     if (!sig) {
       return NextResponse.json({ error: 'Photo not found or not a camera capture' }, { status: 404 });
+    }
+
+    // Only attested photos can be used as profile pictures
+    if (!sig.wallet_signed) {
+      return NextResponse.json({ error: 'Only attested photos can be used as profile pictures. Attest this photo first.' }, { status: 400 });
     }
 
     // Construct avatar URL pointing to the preview API
