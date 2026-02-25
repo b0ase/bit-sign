@@ -470,7 +470,7 @@ export default function DocumentCanvas({
                                 Sealing...
                             </>
                         ) : (
-                            'Stamp on Blockchain'
+                            'Seal'
                         )}
                     </button>
                     <button

@@ -1966,7 +1966,7 @@ export default function AccountPage() {
                                                             <button onClick={() => registerSignature(sig.id)} className="px-2.5 py-1 bg-white text-black text-xs font-medium rounded hover:bg-zinc-200 transition-all flex items-center gap-1.5"><FiEdit3 size={11} /> Register</button>
                                                         )}
                                                         {!isSigned && (
-                                                            <button onClick={() => attestSignature(sig.id)} className="px-2.5 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-500 transition-all flex items-center gap-1.5"><FiShield size={11} /> Attest with HandCash</button>
+                                                            <button onClick={() => attestSignature(sig.id)} className="px-2.5 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-500 transition-all flex items-center gap-1.5"><FiShield size={11} /> Seal</button>
                                                         )}
                                                         <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: sig.signature_type, itemLabel: sig.metadata?.type || sig.signature_type })} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiShare2 size={11} /> Share</button>
                                                         <button onClick={() => downloadSignature(sig.id, sig)} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiDownload size={11} /> Download</button>
@@ -1990,7 +1990,11 @@ export default function AccountPage() {
                                                         {isOnChain && (
                                                             <a href={`https://whatsonchain.com/tx/${sig.txid}`} target="_blank" className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiExternalLink size={11} /> Chain</a>
                                                         )}
-                                                        <button onClick={() => deleteSignature(sig.id)} className="px-2.5 py-1 border border-red-900/30 bg-black text-red-900 text-xs rounded hover:text-red-400 hover:border-red-800 transition-all flex items-center gap-1.5 ml-auto"><FiX size={11} /> Delete</button>
+                                                        {isSealed ? (
+                                                            <button onClick={() => deleteSignature(sig.id)} className="px-2.5 py-1 border border-amber-900/30 bg-black text-amber-700 text-xs rounded hover:text-amber-400 hover:border-amber-800 transition-all flex items-center gap-1.5 ml-auto"><FiLock size={11} /> Unseal</button>
+                                                        ) : (
+                                                            <button onClick={() => deleteSignature(sig.id)} className="px-2.5 py-1 border border-red-900/30 bg-black text-red-900 text-xs rounded hover:text-red-400 hover:border-red-800 transition-all flex items-center gap-1.5 ml-auto"><FiX size={11} /> Delete</button>
+                                                        )}
                                                         <button onClick={() => { setExpandedSig(null); setPreviewData(null); }} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiX size={11} /> Close</button>
                                                     </div>
                                                 </div>
