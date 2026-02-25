@@ -462,7 +462,7 @@ export default function DocumentCanvas({
                     <button
                         onClick={handleSeal}
                         disabled={compositing || !docLoaded || elements.length === 0}
-                        className="px-4 py-1.5 bg-white text-black text-xs font-medium rounded-md hover:bg-zinc-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="px-4 py-1.5 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
                     >
                         {compositing ? (
                             <>
@@ -470,7 +470,7 @@ export default function DocumentCanvas({
                                 Sealing...
                             </>
                         ) : (
-                            'Seal with HandCash ($0.01)'
+                            'Stamp on Blockchain'
                         )}
                     </button>
                     <button
