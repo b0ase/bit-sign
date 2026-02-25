@@ -20,9 +20,11 @@ interface SignatureExplorerProps {
     media: Signature[];
     registeredSignatureId: string | null;
     onDragStart: (sig: Signature, previewUrl: string) => void;
+    onSelect?: (sig: Signature, previewUrl: string) => void;
+    signingMode?: boolean;
 }
 
-export default function SignatureExplorer({ signatures, media, registeredSignatureId, onDragStart }: SignatureExplorerProps) {
+export default function SignatureExplorer({ signatures, media, registeredSignatureId, onDragStart, onSelect, signingMode }: SignatureExplorerProps) {
     const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
     const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
 
@@ -89,16 +91,24 @@ export default function SignatureExplorer({ signatures, media, registeredSignatu
                     <div className="grid grid-cols-2 gap-2">
                         {signatures.map(sig => {
                             const isRegistered = sig.id === registeredSignatureId;
+                            const isAttested = !!sig.wallet_signed;
                             const thumb = thumbnails[sig.id];
                             return (
                                 <div
                                     key={sig.id}
                                     draggable
                                     onDragStart={(e) => handleDragStart(e, sig)}
+                                    onClick={() => {
+                                        if (signingMode && onSelect) {
+                                            onSelect(sig, thumbnails[sig.id] || '');
+                                        }
+                                    }}
                                     className={`relative border rounded-md p-2 cursor-grab active:cursor-grabbing transition-all hover:border-zinc-600 bg-zinc-950 group ${
-                                        isRegistered ? 'border-green-800 ring-1 ring-green-900/30' : 'border-zinc-800'
+                                        signingMode ? 'hover:ring-2 hover:ring-green-500/40 cursor-pointer' : ''
+                                    } ${
+                                        isRegistered ? 'border-green-800 ring-1 ring-green-900/30' : isAttested ? 'border-zinc-700' : 'border-zinc-800'
                                     }`}
-                                    title={isRegistered ? 'Registered signing signature — drag onto a document' : 'Drag onto a document to place'}
+                                    title={signingMode ? 'Click to place on document' : isRegistered ? 'Registered signing signature — drag onto document' : isAttested ? 'Attested signature — drag onto document' : 'Drag onto document to place'}
                                 >
                                     <div className="aspect-[3/2] bg-white rounded overflow-hidden flex items-center justify-center">
                                         {thumb ? (
@@ -107,14 +117,30 @@ export default function SignatureExplorer({ signatures, media, registeredSignatu
                                             <div className="w-6 h-6 border-t-2 border-zinc-300 animate-spin rounded-full" />
                                         )}
                                     </div>
-                                    {isRegistered && (
-                                        <div className="absolute top-1 right-1 w-5 h-5 bg-green-900 rounded-full flex items-center justify-center">
-                                            <FiCheck size={10} className="text-green-400" />
-                                        </div>
-                                    )}
-                                    <p className="text-[10px] text-zinc-500 mt-1.5 truncate text-center group-hover:text-zinc-300 transition-colors">
-                                        {new Date(sig.created_at).toLocaleDateString()}
-                                    </p>
+                                    {/* Badges — top-right corner */}
+                                    <div className="absolute top-1 right-1 flex items-center gap-0.5">
+                                        {isRegistered && (
+                                            <div className="w-5 h-5 bg-green-900 rounded-full flex items-center justify-center" title="Registered">
+                                                <FiCheck size={10} className="text-green-400" />
+                                            </div>
+                                        )}
+                                        {isAttested && !isRegistered && (
+                                            <div className="w-5 h-5 bg-green-950 rounded-full flex items-center justify-center" title="Attested">
+                                                <FiCheck size={10} className="text-green-500" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center justify-between mt-1.5">
+                                        <p className="text-[10px] text-zinc-500 truncate group-hover:text-zinc-300 transition-colors">
+                                            {new Date(sig.created_at).toLocaleDateString()}
+                                        </p>
+                                        {isAttested && (
+                                            <span className="text-[9px] text-green-500 font-medium shrink-0">Attested</span>
+                                        )}
+                                        {!isAttested && (
+                                            <span className="text-[9px] text-zinc-600 shrink-0">Not attested</span>
+                                        )}
+                                    </div>
                                 </div>
                             );
                         })}
@@ -160,10 +186,10 @@ export default function SignatureExplorer({ signatures, media, registeredSignatu
                 </div>
             )}
 
-            {/* Drag Hint */}
+            {/* Hint */}
             <div className="text-center py-4 border-t border-zinc-900">
                 <p className="text-[10px] text-zinc-600">
-                    Drag a signature onto a document to place it
+                    {signingMode ? 'Click a signature to place it on the document' : 'Drag a signature onto a document to place it'}
                 </p>
             </div>
         </div>

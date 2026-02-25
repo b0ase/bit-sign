@@ -476,8 +476,9 @@ export default function AccountPage() {
         }
     };
 
-    // Open document in the workspace canvas
+    // Open document in the workspace canvas — auto-switch to signatures tab
     const openDocumentInCanvas = async (sigId: string) => {
+        setVaultTab('signatures');
         try {
             const res = await fetch(`/api/bitsign/signatures/${sigId}/preview`);
             if (!res.ok) throw new Error('Failed to load document');
@@ -1602,52 +1603,93 @@ export default function AccountPage() {
                         </div>
                     ) : (
                         <div className="grid lg:grid-cols-12 gap-3 h-[calc(100vh-12rem)]">
-                            {/* LEFT — Item list */}
+                            {/* LEFT — Item list / Signature Explorer */}
                             <div className="lg:col-span-4 border border-zinc-900 rounded-md bg-zinc-950/50 overflow-hidden flex flex-col">
-                                <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                                    {filteredVaultItems.map((sig) => {
-                                        const isOnChain = sig.txid && !sig.txid.startsWith('pending-');
-                                        const isSigned = sig.wallet_signed;
-                                        const isSealed = sig.signature_type === 'SEALED_DOCUMENT';
-                                        const isRegistered = sig.id === registeredSignatureId;
-                                        const isSelected = expandedSig === sig.id;
-                                        return (
-                                            <button
-                                                key={sig.id}
-                                                onClick={() => previewSignature(sig)}
-                                                className={`w-full text-left p-2.5 rounded transition-colors flex items-center gap-2.5 ${
-                                                    isSelected ? 'bg-zinc-800 border border-zinc-700' : 'hover:bg-zinc-900 border border-transparent'
-                                                }`}
-                                            >
-                                                <div className="text-zinc-500 shrink-0">
-                                                    {isSealed ? <FiShield size={14} className="text-amber-500" /> :
-                                                     sig.signature_type === 'DOCUMENT' ? <FiFileText size={14} /> :
-                                                     sig.signature_type === 'TLDRAW' ? <FiEdit3 size={14} /> :
-                                                     sig.signature_type === 'CAMERA' ? <FiCamera size={14} /> :
-                                                     sig.signature_type === 'VIDEO' ? <FiActivity size={14} /> :
-                                                     <FiFileText size={14} />}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <span className="block text-xs font-medium text-white truncate">
-                                                        {sig.metadata?.originalFileName || sig.metadata?.fileName || sig.metadata?.type || sig.signature_type}
-                                                    </span>
-                                                    <span className="block text-[10px] text-zinc-600">
-                                                        {new Date(sig.created_at).toLocaleDateString()}
-                                                    </span>
-                                                </div>
-                                                <div className="shrink-0 flex items-center gap-1">
-                                                    {isRegistered && <span className="w-1.5 h-1.5 bg-green-400 rounded-full" title="Registered" />}
-                                                    {isSealed && <span className="px-1 py-0.5 bg-amber-950 text-amber-400 text-[9px] rounded">Sealed</span>}
-                                                    {isSigned ? (
-                                                        <FiCheck size={11} className="text-green-400" />
-                                                    ) : isOnChain ? (
-                                                        <FiCheck size={11} className="text-green-600" />
-                                                    ) : null}
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
+                                {selectedDocBlobUrl && selectedDocumentId ? (
+                                    /* Signing mode: show draggable signature explorer with thumbnails */
+                                    <div className="flex-1 overflow-y-auto p-3">
+                                        <SignatureExplorer
+                                            signatures={signaturesOnly}
+                                            media={mediaItems}
+                                            registeredSignatureId={registeredSignatureId}
+                                            onDragStart={() => {}}
+                                            signingMode
+                                            onSelect={async (sig, previewUrl) => {
+                                                // Fetch SVG for compositing if TLDRAW
+                                                let svgData: string | undefined;
+                                                if (sig.signature_type === 'TLDRAW') {
+                                                    try {
+                                                        const res = await fetch(`/api/bitsign/signatures/${sig.id}/preview`);
+                                                        if (res.ok) {
+                                                            const ct = res.headers.get('content-type') || '';
+                                                            if (ct.includes('svg')) {
+                                                                svgData = await res.text();
+                                                            }
+                                                        }
+                                                    } catch {}
+                                                }
+                                                const newEl: PlacedElement = {
+                                                    id: `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                                                    type: 'signature',
+                                                    xPct: 25,
+                                                    yPct: 40,
+                                                    widthPct: 30,
+                                                    heightPct: 15,
+                                                    signatureId: sig.id,
+                                                    signaturePreviewUrl: previewUrl || undefined,
+                                                    signatureSvg: svgData,
+                                                };
+                                                setPlacedElements(prev => [...prev, newEl]);
+                                            }}
+                                        />
+                                    </div>
+                                ) : (
+                                    /* Browse mode: show compact item list */
+                                    <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                                        {filteredVaultItems.map((sig) => {
+                                            const isOnChain = sig.txid && !sig.txid.startsWith('pending-');
+                                            const isSigned = sig.wallet_signed;
+                                            const isSealed = sig.signature_type === 'SEALED_DOCUMENT';
+                                            const isRegistered = sig.id === registeredSignatureId;
+                                            const isSelected = expandedSig === sig.id;
+                                            return (
+                                                <button
+                                                    key={sig.id}
+                                                    onClick={() => previewSignature(sig)}
+                                                    className={`w-full text-left p-2.5 rounded transition-colors flex items-center gap-2.5 ${
+                                                        isSelected ? 'bg-zinc-800 border border-zinc-700' : 'hover:bg-zinc-900 border border-transparent'
+                                                    }`}
+                                                >
+                                                    <div className="text-zinc-500 shrink-0">
+                                                        {isSealed ? <FiShield size={14} className="text-amber-500" /> :
+                                                         sig.signature_type === 'DOCUMENT' ? <FiFileText size={14} /> :
+                                                         sig.signature_type === 'TLDRAW' ? <FiEdit3 size={14} /> :
+                                                         sig.signature_type === 'CAMERA' ? <FiCamera size={14} /> :
+                                                         sig.signature_type === 'VIDEO' ? <FiActivity size={14} /> :
+                                                         <FiFileText size={14} />}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <span className="block text-xs font-medium text-white truncate">
+                                                            {sig.metadata?.originalFileName || sig.metadata?.fileName || sig.metadata?.type || sig.signature_type}
+                                                        </span>
+                                                        <span className="block text-[10px] text-zinc-600">
+                                                            {new Date(sig.created_at).toLocaleDateString()}
+                                                        </span>
+                                                    </div>
+                                                    <div className="shrink-0 flex items-center gap-1">
+                                                        {isRegistered && <span className="w-1.5 h-1.5 bg-green-400 rounded-full" title="Registered" />}
+                                                        {isSealed && <span className="px-1 py-0.5 bg-amber-950 text-amber-400 text-[9px] rounded">Sealed</span>}
+                                                        {isSigned ? (
+                                                            <FiCheck size={11} className="text-green-400" />
+                                                        ) : isOnChain ? (
+                                                            <FiCheck size={11} className="text-green-600" />
+                                                        ) : null}
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
 
                             {/* RIGHT — Viewer / Canvas */}
