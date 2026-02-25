@@ -1674,7 +1674,11 @@ export default function AccountPage() {
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <span className="block text-xs font-medium text-white truncate">
-                                                            {sig.metadata?.originalFileName || sig.metadata?.fileName || sig.metadata?.type || sig.signature_type}
+                                                            {sig.metadata?.originalFileName || sig.metadata?.fileName || (
+                                                                sig.signature_type === 'SEALED_DOCUMENT' && sig.metadata?.originalDocumentId
+                                                                    ? (signatures.find(s => s.id === sig.metadata.originalDocumentId)?.metadata?.fileName || 'Sealed Document')
+                                                                    : (sig.metadata?.type || sig.signature_type)
+                                                            )}
                                                         </span>
                                                         <span className="block text-[10px] text-zinc-600">
                                                             {new Date(sig.created_at).toLocaleDateString()}
