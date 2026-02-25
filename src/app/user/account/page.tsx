@@ -176,25 +176,28 @@ export default function AccountPage() {
         signatures.filter(s => s.signature_type === 'CAMERA' || s.signature_type === 'VIDEO'),
         [signatures]
     );
+    const sealedItems = useMemo(() =>
+        signatures.filter(s => s.signature_type === 'SEALED_DOCUMENT'),
+        [signatures]
+    );
     const documents = useMemo(() => {
-        // Collect IDs of originals that have been sealed
         const sealedOriginalIds = new Set(
             signatures
                 .filter(s => s.signature_type === 'SEALED_DOCUMENT' && s.metadata?.originalDocumentId)
                 .map(s => s.metadata.originalDocumentId)
         );
         return signatures.filter(s =>
-            (s.signature_type === 'DOCUMENT' && !sealedOriginalIds.has(s.id)) ||
-            s.signature_type === 'SEALED_DOCUMENT'
+            s.signature_type === 'DOCUMENT' && !sealedOriginalIds.has(s.id)
         );
     }, [signatures]);
 
     const filteredVaultItems = useMemo(() => {
         if (vaultTab === 'documents') return documents;
+        if (vaultTab === 'sealed') return sealedItems;
         if (vaultTab === 'signatures') return signaturesOnly;
         if (vaultTab === 'media') return mediaItems;
         return signatures;
-    }, [vaultTab, signatures, documents, signaturesOnly, mediaItems]);
+    }, [vaultTab, signatures, documents, sealedItems, signaturesOnly, mediaItems]);
 
     const getStrengthLabel = (score: number) => {
         const strandTypes = strands.map(s => s.strand_subtype ? `${s.strand_type}/${s.strand_subtype}` : s.strand_type);
@@ -1578,6 +1581,7 @@ export default function AccountPage() {
                         {[
                             { key: 'all', label: 'All', count: signatures.length },
                             { key: 'documents', label: 'Documents', count: documents.length },
+                            { key: 'sealed', label: 'Sealed', count: sealedItems.length },
                             { key: 'signatures', label: 'Signatures', count: signaturesOnly.length },
                             { key: 'media', label: 'Media', count: mediaItems.length },
                         ].map((tab) => (
