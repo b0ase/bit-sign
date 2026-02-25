@@ -1685,12 +1685,14 @@ export default function AccountPage() {
                                                         </span>
                                                     </div>
                                                     <div className="shrink-0 flex items-center gap-1">
-                                                        {isRegistered && <span className="w-1.5 h-1.5 bg-green-400 rounded-full" title="Registered" />}
+                                                        {isRegistered && <span className="px-1 py-0.5 bg-green-950 text-green-400 text-[9px] rounded font-medium">Registered</span>}
                                                         {isSealed && <span className="px-1 py-0.5 bg-amber-950 text-amber-400 text-[9px] rounded">Sealed</span>}
                                                         {isSigned ? (
-                                                            <FiCheck size={11} className="text-green-400" />
+                                                            <span className="px-1 py-0.5 bg-green-950/50 text-green-500 text-[9px] rounded flex items-center gap-0.5">
+                                                                <FiCheck size={9} /> Attested
+                                                            </span>
                                                         ) : isOnChain ? (
-                                                            <FiCheck size={11} className="text-green-600" />
+                                                            <FiCheck size={11} className="text-green-600" title="On-chain" />
                                                         ) : null}
                                                     </div>
                                                 </button>
@@ -1745,7 +1747,7 @@ export default function AccountPage() {
                                                             <button onClick={() => registerSignature(sig.id)} className="px-2.5 py-1 bg-white text-black text-xs font-medium rounded hover:bg-zinc-200 transition-all flex items-center gap-1.5"><FiEdit3 size={11} /> Register</button>
                                                         )}
                                                         {!isSigned && (
-                                                            <button onClick={() => attestSignature(sig.id)} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiShield size={11} /> Attest</button>
+                                                            <button onClick={() => attestSignature(sig.id)} className="px-2.5 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-500 transition-all flex items-center gap-1.5"><FiShield size={11} /> Attest with HandCash</button>
                                                         )}
                                                         <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: sig.signature_type, itemLabel: sig.metadata?.type || sig.signature_type })} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiShare2 size={11} /> Share</button>
                                                         <button onClick={() => downloadSignature(sig.id, sig)} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiDownload size={11} /> Download</button>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { FiEdit3, FiCamera, FiActivity, FiCheck } from 'react-icons/fi';
+import { FiEdit3, FiCamera, FiActivity, FiCheck, FiShield, FiExternalLink } from 'react-icons/fi';
 
 interface Signature {
     id: string;
@@ -130,17 +130,34 @@ export default function SignatureExplorer({ signatures, media, registeredSignatu
                                             </div>
                                         )}
                                     </div>
-                                    <div className="flex items-center justify-between mt-1.5">
-                                        <p className="text-[10px] text-zinc-500 truncate group-hover:text-zinc-300 transition-colors">
-                                            {new Date(sig.created_at).toLocaleDateString()}
-                                        </p>
-                                        {isAttested && (
-                                            <span className="text-[9px] text-green-500 font-medium shrink-0">Attested</span>
-                                        )}
-                                        {!isAttested && (
+                                    {isAttested ? (
+                                        <div className="mt-1.5 bg-green-950/40 border border-green-900/30 rounded px-1.5 py-1 space-y-0.5">
+                                            <div className="flex items-center gap-1">
+                                                <FiShield size={9} className="text-green-400 shrink-0" />
+                                                <span className="text-[9px] text-green-400 font-semibold uppercase tracking-wider">Attested</span>
+                                                <span className="text-[9px] text-green-600 ml-auto">{new Date(sig.created_at).toLocaleDateString()}</span>
+                                            </div>
+                                            {sig.txid && !sig.txid.startsWith('pending-') && (
+                                                <a
+                                                    href={`https://whatsonchain.com/tx/${sig.txid}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="flex items-center gap-1 text-[8px] text-green-600 hover:text-green-400 transition-colors font-mono truncate"
+                                                >
+                                                    <FiExternalLink size={8} className="shrink-0" />
+                                                    {sig.txid.slice(0, 12)}...{sig.txid.slice(-6)}
+                                                </a>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center justify-between mt-1.5">
+                                            <p className="text-[10px] text-zinc-500 truncate group-hover:text-zinc-300 transition-colors">
+                                                {new Date(sig.created_at).toLocaleDateString()}
+                                            </p>
                                             <span className="text-[9px] text-zinc-600 shrink-0">Not attested</span>
-                                        )}
-                                    </div>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}
