@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useCallback, useEffect } from 'react';
-import { FiX, FiMove, FiMaximize2, FiType, FiTrash2, FiEdit3, FiPenTool } from 'react-icons/fi';
+import { FiX, FiMove, FiMaximize2, FiType, FiTrash2, FiEdit3, FiPenTool, FiCalendar } from 'react-icons/fi';
 import SovereignSignature from '@/components/SovereignSignature';
 
 export interface PlacedElement {
@@ -174,6 +174,25 @@ export default function DocumentCanvas({
         onElementsChange([...elements, newElement]);
         setSelectedId(newElement.id);
         setEditingTextId(newElement.id);
+    }, [elements, onElementsChange]);
+
+    // Add date element
+    const addDateElement = useCallback(() => {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        const newElement: PlacedElement = {
+            id: genId(),
+            type: 'text',
+            xPct: 55,
+            yPct: 50,
+            widthPct: 20,
+            heightPct: 5,
+            text: dateStr,
+            fontSize: 14,
+            fontFamily: 'sans-serif',
+        };
+        onElementsChange([...elements, newElement]);
+        setSelectedId(newElement.id);
     }, [elements, onElementsChange]);
 
     // Delete selected element
@@ -423,6 +442,12 @@ export default function DocumentCanvas({
                         className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-300 text-xs rounded-md hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-1.5"
                     >
                         <FiType size={12} /> Add Text
+                    </button>
+                    <button
+                        onClick={addDateElement}
+                        className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-300 text-xs rounded-md hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-1.5"
+                    >
+                        <FiCalendar size={12} /> Add Date
                     </button>
                     {selectedId && (
                         <button
