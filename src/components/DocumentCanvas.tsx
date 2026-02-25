@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useCallback, useEffect } from 'react';
-import { FiX, FiMove, FiMaximize2, FiType, FiTrash2, FiEdit3, FiPenTool, FiCalendar } from 'react-icons/fi';
+import { FiX, FiMove, FiMaximize2, FiType, FiTrash2, FiEdit3, FiPenTool, FiCalendar, FiMail } from 'react-icons/fi';
 import SovereignSignature from '@/components/SovereignSignature';
 
 export interface PlacedElement {
@@ -30,6 +30,7 @@ interface DocumentCanvasProps {
     onElementsChange: (elements: PlacedElement[]) => void;
     onSeal: (compositeBase64: string, elements: PlacedElement[]) => void;
     onClose: () => void;
+    onEmailRecipients?: () => void;
 }
 
 export default function DocumentCanvas({
@@ -41,6 +42,7 @@ export default function DocumentCanvas({
     onElementsChange,
     onSeal,
     onClose,
+    onEmailRecipients,
 }: DocumentCanvasProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [docLoaded, setDocLoaded] = useState(false);
@@ -449,6 +451,14 @@ export default function DocumentCanvas({
                     >
                         <FiCalendar size={12} /> Add Date
                     </button>
+                    {onEmailRecipients && (
+                        <button
+                            onClick={onEmailRecipients}
+                            className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-300 text-xs rounded-md hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-1.5"
+                        >
+                            <FiMail size={12} /> Email Recipients
+                        </button>
+                    )}
                     {selectedId && (
                         <button
                             onClick={() => deleteElement(selectedId)}

@@ -1933,6 +1933,10 @@ export default function AccountPage() {
                                         onElementsChange={setPlacedElements}
                                         onSeal={handleSeal}
                                         onClose={closeDocumentCanvas}
+                                        onEmailRecipients={() => {
+                                            const fileName = signatures.find(s => s.id === selectedDocumentId)?.metadata?.fileName || 'Document';
+                                            setShareModal({ documentId: selectedDocumentId!, documentType: 'vault_item', itemType: 'DOCUMENT', itemLabel: fileName });
+                                        }}
                                     />
                                 ) : expandedSig ? (
                                     <div className="flex flex-col h-full">
