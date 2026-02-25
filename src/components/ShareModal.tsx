@@ -27,6 +27,8 @@ export default function ShareModal({ documentId, documentType, itemType, itemLab
     const [handle, setHandle] = useState('');
     const [email, setEmail] = useState('');
     const [emailMessage, setEmailMessage] = useState('');
+    const [sendCopy, setSendCopy] = useState(false);
+    const [ccEmail, setCcEmail] = useState('');
     const [isSharing, setIsSharing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
@@ -137,6 +139,7 @@ export default function ShareModal({ documentId, documentType, itemType, itemLab
                     documentId,
                     recipientEmail: email.trim(),
                     message: emailMessage.trim() || undefined,
+                    ccEmail: sendCopy && ccEmail.trim() ? ccEmail.trim() : undefined,
                 }),
             });
 
@@ -307,6 +310,26 @@ export default function ShareModal({ documentId, documentType, itemType, itemLab
                                             rows={2}
                                             className="w-full px-4 py-2.5 bg-black border border-zinc-800 rounded-md text-white text-sm placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors resize-none"
                                         />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={sendCopy}
+                                                onChange={(e) => setSendCopy(e.target.checked)}
+                                                className="accent-white"
+                                            />
+                                            <span className="text-xs text-zinc-400">Send me a copy</span>
+                                        </label>
+                                        {sendCopy && (
+                                            <input
+                                                type="email"
+                                                value={ccEmail}
+                                                onChange={(e) => setCcEmail(e.target.value)}
+                                                placeholder="your@email.com"
+                                                className="w-full px-4 py-2.5 bg-black border border-zinc-800 rounded-md text-white text-sm placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors"
+                                            />
+                                        )}
                                     </div>
                                 </div>
 

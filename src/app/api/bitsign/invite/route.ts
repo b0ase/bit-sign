@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { documentId, recipientEmail, message } = await request.json();
+        const { documentId, recipientEmail, message, ccEmail } = await request.json();
 
         if (!documentId || !recipientEmail) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -93,7 +93,25 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        return NextResponse.json({ success: true, inviteId: invite.id });
+        // Send CC copy if requested
+        let ccSent = false;
+        if (ccEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ccEmail) && ccEmail !== recipientEmail) {
+            try {
+                const ccResult = await sendVaultShareInvitation({
+                    recipientEmail: ccEmail,
+                    senderHandle: handle,
+                    itemType,
+                    itemLabel,
+                    claimUrl,
+                    message: `[Copy] Sent to ${recipientEmail}${message ? ` — ${message}` : ''}`,
+                });
+                ccSent = ccResult.success;
+            } catch (ccErr) {
+                console.warn('[invite] CC email failed (non-fatal):', ccErr);
+            }
+        }
+
+        return NextResponse.json({ success: true, inviteId: invite.id, ccSent });
     } catch (error: any) {
         console.error('[invite] Error:', error);
         return NextResponse.json(
