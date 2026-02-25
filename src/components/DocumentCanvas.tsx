@@ -31,6 +31,7 @@ interface DocumentCanvasProps {
     onSeal: (compositeBase64: string, elements: PlacedElement[]) => void;
     onClose: () => void;
     onEmailRecipients?: () => void;
+    onSaveSignature?: (signatureData: { svg: string; json: string }) => Promise<string | null>;
 }
 
 export default function DocumentCanvas({
@@ -43,6 +44,7 @@ export default function DocumentCanvas({
     onSeal,
     onClose,
     onEmailRecipients,
+    onSaveSignature,
 }: DocumentCanvasProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [docLoaded, setDocLoaded] = useState(false);
@@ -141,24 +143,31 @@ export default function DocumentCanvas({
     };
 
     // Handle drawn signature from SovereignSignature modal
-    const handleDrawnSignature = useCallback((signatureData: { svg: string; json: string }) => {
+    const handleDrawnSignature = useCallback(async (signatureData: { svg: string; json: string }) => {
         const svgB64 = btoa(unescape(encodeURIComponent(signatureData.svg)));
         const previewUrl = `data:image/svg+xml;base64,${svgB64}`;
+
+        // Save to vault if callback provided
+        let savedId: string | null = null;
+        if (onSaveSignature) {
+            savedId = await onSaveSignature(signatureData);
+        }
 
         const newElement: PlacedElement = {
             id: genId(),
             type: 'signature',
-            xPct: 25,
+            xPct: 20,
             yPct: 40,
-            widthPct: 30,
-            heightPct: 15,
+            widthPct: 35,
+            heightPct: 10,
+            signatureId: savedId || undefined,
             signatureSvg: signatureData.svg,
             signaturePreviewUrl: previewUrl,
         };
         onElementsChange([...elements, newElement]);
         setSelectedId(newElement.id);
         setShowSignatureModal(false);
-    }, [elements, onElementsChange]);
+    }, [elements, onElementsChange, onSaveSignature]);
 
     // Add text element
     const addTextElement = useCallback(() => {

@@ -805,6 +805,42 @@ function AccountPageInner() {
         }
     };
 
+    // Save a drawn signature from the DocumentCanvas modal to vault, return the signature ID
+    const saveSignatureFromCanvas = async (signatureData: { svg: string; json: string }): Promise<string | null> => {
+        if (!handle) return null;
+        try {
+            const encoder = new TextEncoder();
+            const svgBytes = encoder.encode(signatureData.svg);
+            const base64 = bufferToBase64(svgBytes.buffer);
+
+            const response = await fetch('/api/bitsign/inscribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    plaintextData: base64,
+                    handle,
+                    signatureType: 'TLDRAW',
+                    metadata: { type: 'Hand-written Signature' }
+                })
+            });
+            const data = await response.json();
+            if (!response.ok) return null;
+
+            const newSig = {
+                id: data.signature?.id || data.txid,
+                signature_type: 'TLDRAW',
+                txid: data.txid,
+                created_at: new Date().toISOString(),
+                metadata: { type: 'Hand-written Signature' }
+            };
+            setSignatures(prev => [newSig, ...prev]);
+            addToast('Signature saved to vault.', 'success');
+            return newSig.id;
+        } catch {
+            return null;
+        }
+    };
+
     const handleMediaCapture = async (blob: Blob, modeOverride?: 'PHOTO' | 'VIDEO') => {
         if (!handle) return;
         setIsProcessing(true);
@@ -2040,6 +2076,7 @@ function AccountPageInner() {
                                             const fileName = signatures.find(s => s.id === selectedDocumentId)?.metadata?.fileName || 'Document';
                                             setShareModal({ documentId: selectedDocumentId!, documentType: 'vault_item', itemType: 'DOCUMENT', itemLabel: fileName });
                                         }}
+                                        onSaveSignature={saveSignatureFromCanvas}
                                     />
                                 ) : expandedSig ? (
                                     <div className="flex flex-col h-full">
