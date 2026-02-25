@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { handCashConnect } from '@/lib/handcash';
 import { mapHandCashUser, supabaseAdmin } from '@/lib/supabase';
 import { getCookieDomain } from '@/lib/auth';
+import { inscribeBitSignData } from '@/lib/bsv-inscription';
+import { linkExistingVaultItems } from '@/lib/identity-strands';
 
 export async function GET(request: NextRequest) {
     const authToken = request.nextUrl.searchParams.get('authToken');
@@ -44,6 +46,56 @@ export async function GET(request: NextRequest) {
             } catch (avatarErr) {
                 // Non-fatal
             }
+        }
+
+        // Auto-mint identity if no bit_sign_identities row exists
+        try {
+            const { data: existingIdentity } = await supabaseAdmin
+                .from('bit_sign_identities')
+                .select('id, token_id')
+                .eq('user_handle', publicProfile.handle)
+                .maybeSingle();
+
+            if (!existingIdentity) {
+                console.log(`[HandCash/Auth] No identity for ${publicProfile.handle}, auto-minting...`);
+                let tokenId = 'pending';
+                try {
+                    const inscriptionResult = await inscribeBitSignData({
+                        type: 'identity_root',
+                        walletAddress: publicProfile.handle,
+                        documentHash: `identity-root-${publicProfile.handle}-${Date.now()}`,
+                    });
+                    tokenId = inscriptionResult.txid;
+                    console.log(`[HandCash/Auth] Identity inscribed: ${tokenId}`);
+                } catch (inscribeErr) {
+                    console.error(`[HandCash/Auth] Inscription failed for ${publicProfile.handle}, using pending:`, inscribeErr);
+                }
+
+                const { data: newIdentity } = await supabaseAdmin
+                    .from('bit_sign_identities')
+                    .insert({
+                        user_handle: publicProfile.handle,
+                        token_id: tokenId,
+                        metadata: { symbol: `$${publicProfile.handle.toUpperCase()}`, type: 'Identity Root' },
+                        avatar_url: publicProfile.avatarUrl || null,
+                        identity_strength: 1,
+                    })
+                    .select('id')
+                    .single();
+
+                if (newIdentity && tokenId !== 'pending') {
+                    try {
+                        await linkExistingVaultItems(newIdentity.id, tokenId, publicProfile.handle);
+                        console.log(`[HandCash/Auth] Linked existing vault items for ${publicProfile.handle}`);
+                    } catch (linkErr) {
+                        console.error(`[HandCash/Auth] linkExistingVaultItems failed:`, linkErr);
+                    }
+                }
+                console.log(`[HandCash/Auth] Identity auto-minted for ${publicProfile.handle}`);
+            }
+        } catch (mintErr) {
+            console.error(`[HandCash/Auth] Auto-mint failed for ${publicProfile.handle}:`, mintErr);
+            // Non-fatal — user can still access account, just won't have identity yet
         }
 
         const returnTo = request.cookies.get('auth_return_to')?.value || '/user/account';

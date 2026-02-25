@@ -1,7 +1,8 @@
 'use client';
 
 import { useRef, useState, useCallback, useEffect } from 'react';
-import { FiX, FiMove, FiMaximize2, FiType, FiTrash2, FiEdit3 } from 'react-icons/fi';
+import { FiX, FiMove, FiMaximize2, FiType, FiTrash2, FiEdit3, FiPenTool } from 'react-icons/fi';
+import SovereignSignature from '@/components/SovereignSignature';
 
 export interface PlacedElement {
     id: string;
@@ -48,6 +49,7 @@ export default function DocumentCanvas({
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [editingTextId, setEditingTextId] = useState<string | null>(null);
     const [dragOver, setDragOver] = useState(false);
+    const [showSignatureModal, setShowSignatureModal] = useState(false);
 
     // Keep a ref to latest elements so async callbacks don't use stale closures
     const elementsRef = useRef(elements);
@@ -135,6 +137,26 @@ export default function DocumentCanvas({
             return null;
         }
     };
+
+    // Handle drawn signature from SovereignSignature modal
+    const handleDrawnSignature = useCallback((signatureData: { svg: string; json: string }) => {
+        const svgB64 = btoa(unescape(encodeURIComponent(signatureData.svg)));
+        const previewUrl = `data:image/svg+xml;base64,${svgB64}`;
+
+        const newElement: PlacedElement = {
+            id: genId(),
+            type: 'signature',
+            xPct: 25,
+            yPct: 40,
+            widthPct: 30,
+            heightPct: 15,
+            signatureSvg: signatureData.svg,
+            signaturePreviewUrl: previewUrl,
+        };
+        onElementsChange([...elements, newElement]);
+        setSelectedId(newElement.id);
+        setShowSignatureModal(false);
+    }, [elements, onElementsChange]);
 
     // Add text element
     const addTextElement = useCallback(() => {
@@ -391,6 +413,12 @@ export default function DocumentCanvas({
             <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-zinc-950/80 shrink-0">
                 <div className="flex items-center gap-2">
                     <button
+                        onClick={() => setShowSignatureModal(true)}
+                        className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-300 text-xs rounded-md hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-1.5"
+                    >
+                        <FiPenTool size={12} /> Draw Signature
+                    </button>
+                    <button
                         onClick={addTextElement}
                         className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-300 text-xs rounded-md hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-1.5"
                     >
@@ -568,6 +596,18 @@ export default function DocumentCanvas({
                         );
                     })}
 
+                    {/* Empty state hint */}
+                    {docLoaded && elements.length === 0 && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <div className="bg-black/70 backdrop-blur-sm text-center px-6 py-4 rounded-lg border border-zinc-700/50">
+                                <p className="text-sm text-zinc-300">
+                                    Click <span className="font-medium text-white">Draw Signature</span> or <span className="font-medium text-white">Add Text</span> to place elements on this document
+                                </p>
+                                <p className="text-xs text-zinc-500 mt-1">Or drag a signature from the left panel</p>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Loading state */}
                     {!docLoaded && (
                         <div className="absolute inset-0 flex items-center justify-center">
@@ -583,6 +623,14 @@ export default function DocumentCanvas({
                     Drag signatures from the left panel. Click to select, drag to move, corner to resize. Double-click text to edit.
                 </p>
             </div>
+
+            {/* SovereignSignature modal for drawing */}
+            {showSignatureModal && (
+                <SovereignSignature
+                    onSave={handleDrawnSignature}
+                    onCancel={() => setShowSignatureModal(false)}
+                />
+            )}
         </div>
     );
 }

@@ -2,13 +2,7 @@
 
 import { useState } from 'react';
 import { FiLock, FiCheck, FiLoader } from 'react-icons/fi';
-import {
-    generateKeyPair,
-    exportPublicKey,
-    deriveProtectionKey,
-    encryptPrivateKey,
-    bufferToBase64,
-} from '@/lib/e2e-crypto';
+import { setupE2EKeys } from '@/lib/e2e-setup';
 
 interface E2ESetupBannerProps {
     onSetupComplete: () => void;
@@ -23,45 +17,7 @@ export default function E2ESetupBanner({ onSetupComplete }: E2ESetupBannerProps)
         setError(null);
 
         try {
-            // 1. Generate ECDH keypair client-side
-            const { publicKey, privateKey } = await generateKeyPair();
-
-            // 2. Sign a challenge with HandCash to derive protection key
-            const challengeRes = await fetch('/api/bitsign/handcash-verify', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    message: 'BIT-SIGN E2E KEY PROTECTION',
-                }),
-            });
-
-            if (!challengeRes.ok) {
-                throw new Error('Failed to sign with HandCash wallet');
-            }
-
-            const { signature: handcashSignature } = await challengeRes.json();
-
-            // 3. Derive protection key from HandCash signature
-            const protectionKey = await deriveProtectionKey(handcashSignature);
-
-            // 4. Encrypt private key with protection key
-            const { encrypted, iv } = await encryptPrivateKey(privateKey, protectionKey);
-
-            // 5. Upload public key + encrypted private key to server
-            const storeRes = await fetch('/api/bitsign/keypair', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    public_key: exportPublicKey(publicKey),
-                    encrypted_private_key: bufferToBase64(encrypted),
-                    private_key_iv: bufferToBase64(iv.buffer),
-                }),
-            });
-
-            if (!storeRes.ok) {
-                throw new Error('Failed to store keypair');
-            }
-
+            await setupE2EKeys();
             onSetupComplete();
         } catch (err: any) {
             console.error('E2E setup failed:', err);

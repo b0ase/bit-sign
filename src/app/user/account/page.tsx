@@ -7,6 +7,7 @@ import SovereignSignature from '@/components/SovereignSignature';
 import MediaCapture from '@/components/MediaCapture';
 import PhoneCaptureModal from '@/components/PhoneCaptureModal';
 import E2ESetupBanner from '@/components/E2ESetupBanner';
+import { setupE2EKeys } from '@/lib/e2e-setup';
 import ShareModal from '@/components/ShareModal';
 import SignatureExplorer from '@/components/SignatureExplorer';
 import DocumentCanvas from '@/components/DocumentCanvas';
@@ -145,6 +146,7 @@ export default function AccountPage() {
     const [sentCoSignRequests, setSentCoSignRequests] = useState<CoSignRequest[]>([]);
     const [coSignModal, setCoSignModal] = useState<{ documentId: string; documentName: string } | null>(null);
     const [copiedTxid, setCopiedTxid] = useState<string | null>(null);
+    const [e2eAutoSetupStatus, setE2eAutoSetupStatus] = useState<'idle' | 'running' | 'done' | 'failed'>('idle');
 
     // Self-attestation form state
     const [selfAttestOpen, setSelfAttestOpen] = useState(false);
@@ -354,11 +356,27 @@ export default function AccountPage() {
     const checkE2EKeys = async () => {
         try {
             const res = await fetch('/api/bitsign/keypair');
-            if (!res.ok) { setHasE2EKeys(false); return; }
+            if (!res.ok) { setHasE2EKeys(false); autoSetupE2E(); return; }
             const data = await res.json();
-            setHasE2EKeys(!!data.public_key);
+            const hasKeys = !!data.public_key;
+            setHasE2EKeys(hasKeys);
+            if (!hasKeys) autoSetupE2E();
         } catch {
             setHasE2EKeys(false);
+            autoSetupE2E();
+        }
+    };
+
+    const autoSetupE2E = async () => {
+        setE2eAutoSetupStatus('running');
+        try {
+            await setupE2EKeys();
+            setHasE2EKeys(true);
+            setE2eAutoSetupStatus('done');
+        } catch (err) {
+            console.error('Auto E2E setup failed:', err);
+            setE2eAutoSetupStatus('failed');
+            // Banner will show as fallback
         }
     };
 
@@ -468,7 +486,13 @@ export default function AccountPage() {
             let blob: Blob;
             if (contentType === 'application/pdf') {
                 const arrayBuffer = await res.arrayBuffer();
-                blob = await pdfToImage(arrayBuffer);
+                try {
+                    blob = await pdfToImage(arrayBuffer);
+                } catch (pdfErr) {
+                    console.error('PDF to image conversion failed:', pdfErr);
+                    // Fall back to showing raw PDF blob
+                    blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+                }
             } else if (contentType.startsWith('image/')) {
                 blob = await res.blob();
             } else {
@@ -563,7 +587,12 @@ export default function AccountPage() {
             let blob: Blob;
             if (contentType === 'application/pdf') {
                 const arrayBuffer = await res.arrayBuffer();
-                blob = await pdfToImage(arrayBuffer);
+                try {
+                    blob = await pdfToImage(arrayBuffer);
+                } catch (pdfErr) {
+                    console.error('PDF to image conversion failed:', pdfErr);
+                    blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+                }
             } else if (contentType.startsWith('image/')) {
                 blob = await res.blob();
             } else {
@@ -1031,13 +1060,12 @@ export default function AccountPage() {
                                 <p className="text-zinc-500 text-sm mt-1">Identity Vault</p>
                             </div>
 
-                            {identity && (
-                                <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-2 flex-wrap">
                                     {[
-                                        { id: 'github', label: 'GitHub', icon: FiGithub, active: true, linked: !!identity.github_handle, handle: identity.github_handle, authUrl: '/api/auth/github' },
-                                        { id: 'google', label: 'Google', icon: FiMail, active: true, linked: !!identity.google_email, handle: identity.google_email, authUrl: '/api/auth/google' },
-                                        { id: 'twitter', label: 'X', icon: FiTwitter, active: true, linked: !!identity.twitter_handle, handle: identity.twitter_handle ? `@${identity.twitter_handle}` : undefined, authUrl: '/api/auth/twitter' },
-                                        { id: 'linkedin', label: 'LinkedIn', icon: FiLinkedin, active: true, linked: !!identity.linkedin_name, handle: identity.linkedin_name, authUrl: '/api/auth/linkedin' },
+                                        { id: 'github', label: 'GitHub', icon: FiGithub, active: true, linked: !!identity?.github_handle, handle: identity?.github_handle, authUrl: '/api/auth/github' },
+                                        { id: 'google', label: 'Google', icon: FiMail, active: true, linked: !!identity?.google_email, handle: identity?.google_email, authUrl: '/api/auth/google' },
+                                        { id: 'twitter', label: 'X', icon: FiTwitter, active: true, linked: !!identity?.twitter_handle, handle: identity?.twitter_handle ? `@${identity.twitter_handle}` : undefined, authUrl: '/api/auth/twitter' },
+                                        { id: 'linkedin', label: 'LinkedIn', icon: FiLinkedin, active: true, linked: !!identity?.linkedin_name, handle: identity?.linkedin_name, authUrl: '/api/auth/linkedin' },
                                     ].map((provider) => {
                                         if (provider.linked && provider.handle) {
                                             return (
@@ -1068,7 +1096,6 @@ export default function AccountPage() {
                                         );
                                     })}
                                 </div>
-                            )}
                         </div>
                     </div>
 
@@ -1091,16 +1118,7 @@ export default function AccountPage() {
                             </div>
                         )}
 
-                        {!identity ? (
-                            <button
-                                onClick={mintIdentity}
-                                disabled={isProcessing}
-                                className="w-full lg:w-auto px-6 py-3 bg-white text-black hover:bg-zinc-200 font-medium text-sm rounded-md transition-all flex items-center justify-center gap-3"
-                            >
-                                <FiCpu className="text-lg" />
-                                <span>Mint Identity Token</span>
-                            </button>
-                        ) : (
+                        {identity ? (
                             <div className="flex items-center gap-3">
                                 {(() => {
                                     const s = getStrengthLabel(identity.identity_strength || 0);
@@ -1121,21 +1139,34 @@ export default function AccountPage() {
                                         <span className="block text-xs text-zinc-500">Identity Token</span>
                                         <span className="block font-mono text-sm text-white font-medium">{identity.metadata?.symbol || 'UNREGISTERED'}</span>
                                     </div>
-                                    <a
-                                        href={`https://whatsonchain.com/tx/${identity.token_id}`}
-                                        target="_blank"
-                                        className="p-2 bg-zinc-900 text-zinc-500 hover:text-white transition-colors rounded-md"
-                                    >
-                                        <FiExternalLink />
-                                    </a>
+                                    {identity.token_id && identity.token_id !== 'pending' && (
+                                        <a
+                                            href={`https://whatsonchain.com/tx/${identity.token_id}`}
+                                            target="_blank"
+                                            className="p-2 bg-zinc-900 text-zinc-500 hover:text-white transition-colors rounded-md"
+                                        >
+                                            <FiExternalLink />
+                                        </a>
+                                    )}
                                 </div>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2 px-3 py-2.5 bg-zinc-950 border border-zinc-900 rounded-md">
+                                <FiLoader className="animate-spin text-zinc-500" size={14} />
+                                <span className="text-xs text-zinc-500">Setting up identity...</span>
                             </div>
                         )}
                     </div>
                 </header>
 
-                {/* E2E Setup Banner */}
-                {hasE2EKeys === false && (
+                {/* E2E Setup — auto-setup indicator or fallback banner */}
+                {hasE2EKeys === false && e2eAutoSetupStatus === 'running' && (
+                    <div className="flex items-center gap-3 px-4 py-3 border border-blue-900/30 bg-blue-950/10 rounded-md">
+                        <FiLoader className="animate-spin text-blue-400" size={14} />
+                        <span className="text-xs text-zinc-400">Setting up encryption...</span>
+                    </div>
+                )}
+                {hasE2EKeys === false && e2eAutoSetupStatus === 'failed' && (
                     <E2ESetupBanner onSetupComplete={() => setHasE2EKeys(true)} />
                 )}
 
@@ -1570,7 +1601,7 @@ export default function AccountPage() {
                             <p className="text-xs text-zinc-600 mt-1">Create your first signature or upload a document.</p>
                         </div>
                     ) : (
-                        <div className="grid lg:grid-cols-12 gap-3 min-h-[500px]">
+                        <div className="grid lg:grid-cols-12 gap-3 h-[calc(100vh-12rem)]">
                             {/* LEFT — Item list */}
                             <div className="lg:col-span-4 border border-zinc-900 rounded-md bg-zinc-950/50 overflow-hidden flex flex-col">
                                 <div className="flex-1 overflow-y-auto p-2 space-y-1">
@@ -1634,6 +1665,16 @@ export default function AccountPage() {
                                     />
                                 ) : expandedSig ? (
                                     <div className="flex flex-col h-full">
+                                        {/* Preview header with close */}
+                                        <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 shrink-0">
+                                            <span className="text-xs text-zinc-500">Preview</span>
+                                            <button
+                                                onClick={() => { setExpandedSig(null); setPreviewData(null); }}
+                                                className="p-1.5 text-zinc-500 hover:text-white transition-colors"
+                                            >
+                                                <FiX size={16} />
+                                            </button>
+                                        </div>
                                         {/* Preview */}
                                         <div className="flex-1 overflow-y-auto p-4">
                                             {previewLoading ? (
