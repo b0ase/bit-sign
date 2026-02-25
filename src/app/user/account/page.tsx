@@ -45,6 +45,9 @@ import {
     FiAlertCircle,
     FiBookOpen,
     FiPlus,
+    FiCreditCard,
+    FiHome,
+    FiUserCheck,
 } from 'react-icons/fi';
 
 interface Signature {
@@ -162,6 +165,19 @@ export default function AccountPage() {
     const [ipThreadDescription, setIpThreadDescription] = useState('');
     const [ipThreadSubmitting, setIpThreadSubmitting] = useState(false);
 
+    // ID Document upload state
+    const [idDocUploadKey, setIdDocUploadKey] = useState(0);
+    const [idDocType, setIdDocType] = useState<'passport' | 'utility_bill' | null>(null);
+
+    // Peer Attestation state
+    const [peerAttestModal, setPeerAttestModal] = useState(false);
+    const [peerAttestHandle, setPeerAttestHandle] = useState('');
+    const [peerAttestMessage, setPeerAttestMessage] = useState('');
+    const [peerAttestSubmitting, setPeerAttestSubmitting] = useState(false);
+    const [peerAttestRequests, setPeerAttestRequests] = useState<any[]>([]);
+    const [peerAttestRespondModal, setPeerAttestRespondModal] = useState<any | null>(null);
+    const [peerAttestRespondSubmitting, setPeerAttestRespondSubmitting] = useState(false);
+
     // Workspace state
     const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
     const [selectedDocBlobUrl, setSelectedDocBlobUrl] = useState<string | null>(null);
@@ -181,15 +197,14 @@ export default function AccountPage() {
         [signatures]
     );
     const documents = useMemo(() => {
-        // Hide originals that have a sealed version (show sealed instead)
+        // Unsealed documents only — exclude sealed docs and originals that have been sealed
         const sealedOriginalIds = new Set(
             signatures
                 .filter(s => s.signature_type === 'SEALED_DOCUMENT' && s.metadata?.originalDocumentId)
                 .map(s => s.metadata.originalDocumentId)
         );
         return signatures.filter(s =>
-            (s.signature_type === 'DOCUMENT' && !sealedOriginalIds.has(s.id)) ||
-            s.signature_type === 'SEALED_DOCUMENT'
+            s.signature_type === 'DOCUMENT' && !sealedOriginalIds.has(s.id)
         );
     }, [signatures]);
 
@@ -351,6 +366,7 @@ export default function AccountPage() {
             fetchSharedWithMe();
             fetchCoSignRequests();
             fetchSentCoSignRequests();
+            fetchPeerAttestRequests();
             fetchRegisteredSignatureSvg();
             fetchIpThreads();
         } else {
@@ -413,6 +429,17 @@ export default function AccountPage() {
             if (!res.ok) return;
             const data = await res.json();
             setSentCoSignRequests(data.requests || []);
+        } catch {
+            // Not critical
+        }
+    };
+
+    const fetchPeerAttestRequests = async () => {
+        try {
+            const res = await fetch('/api/bitsign/peer-attest');
+            if (!res.ok) return;
+            const data = await res.json();
+            setPeerAttestRequests(data.requests || []);
         } catch {
             // Not critical
         }
@@ -873,6 +900,122 @@ export default function AccountPage() {
         }
     };
 
+    const handleIdDocUpload = async (e: React.ChangeEvent<HTMLInputElement>, docType: 'passport' | 'utility_bill') => {
+        const file = e.target.files?.[0];
+        if (!file || !handle) return;
+
+        setIsProcessing(true);
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const base64 = bufferToBase64(arrayBuffer);
+
+            // 1. Upload the document to vault
+            const response = await fetch('/api/bitsign/inscribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    plaintextData: base64,
+                    handle,
+                    signatureType: 'DOCUMENT',
+                    metadata: {
+                        type: docType === 'passport' ? 'Passport' : 'Utility Bill',
+                        fileName: file.name,
+                        mimeType: file.type,
+                        idDocumentType: docType,
+                    }
+                })
+            });
+            if (response.status === 413) throw new Error('File too large. Must be under 3MB.');
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Upload failed');
+
+            const sigId = data.signature?.id || data.txid;
+
+            setSignatures(prev => [{
+                id: sigId,
+                signature_type: 'DOCUMENT',
+                txid: data.txid,
+                created_at: new Date().toISOString(),
+                metadata: { type: docType === 'passport' ? 'Passport' : 'Utility Bill', fileName: file.name, mimeType: file.type, idDocumentType: docType }
+            }, ...prev]);
+
+            // 2. Create the identity strand
+            const strandRes = await fetch('/api/bitsign/id-document', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ signatureId: sigId, documentType: docType })
+            });
+            const strandData = await strandRes.json();
+            if (strandRes.ok && strandData.success) {
+                setStrands(prev => [...prev, {
+                    id: strandData.strandId,
+                    strand_type: 'id_document',
+                    strand_subtype: docType === 'passport' ? 'passport' : 'proof_of_address',
+                    strand_txid: strandData.strandTxid,
+                    label: docType === 'passport' ? 'Passport' : 'Proof of Address (Utility Bill)',
+                    created_at: new Date().toISOString(),
+                }]);
+                alert(`${docType === 'passport' ? 'Passport' : 'Utility bill'} uploaded and identity strand created!`);
+            } else {
+                alert(strandData.error || 'Document uploaded but strand creation failed.');
+            }
+        } catch (error: any) {
+            console.error('ID document upload failed:', error);
+            alert(error?.message || 'Failed to upload. Please try again.');
+        } finally {
+            setIsProcessing(false);
+            setIdDocUploadKey(k => k + 1);
+        }
+    };
+
+    const requestPeerAttestation = async () => {
+        if (!handle || !peerAttestHandle.trim()) return;
+        setPeerAttestSubmitting(true);
+        try {
+            const res = await fetch('/api/bitsign/peer-attest', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'request',
+                    peerHandle: peerAttestHandle.trim(),
+                    message: peerAttestMessage.trim() || undefined,
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed');
+
+            alert(`Attestation request sent to ${peerAttestHandle.trim()}!`);
+            setPeerAttestModal(false);
+            setPeerAttestHandle('');
+            setPeerAttestMessage('');
+        } catch (error: any) {
+            alert(error?.message || 'Failed to send attestation request.');
+        } finally {
+            setPeerAttestSubmitting(false);
+        }
+    };
+
+    const respondPeerAttestation = async (requestId: string, declaration: string) => {
+        setPeerAttestRespondSubmitting(true);
+        try {
+            const res = await fetch('/api/bitsign/peer-attest', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'respond', requestId, declaration })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed');
+
+            alert('Attestation signed and submitted!');
+            setPeerAttestRespondModal(null);
+            setPeerAttestRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'attested' } : r));
+        } catch (error: any) {
+            alert(error?.message || 'Failed to submit attestation.');
+        } finally {
+            setPeerAttestRespondSubmitting(false);
+        }
+    };
+
     const mintIdentity = async () => {
         if (!handle) return;
         setIsProcessing(true);
@@ -1176,22 +1319,33 @@ export default function AccountPage() {
                     <E2ESetupBanner onSetupComplete={() => setHasE2EKeys(true)} />
                 )}
 
-                {/* Add to vault — compact inline bar */}
-                <div className="flex items-center gap-2">
-                    <span className="text-xs text-zinc-500 shrink-0">Add:</span>
-                    <div className="flex gap-1.5 flex-1">
+                {/* Add to vault — prominent button grid */}
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Add to Vault</span>
+                        <div className="flex items-center gap-3 text-xs text-zinc-500">
+                            <span>{signatures.length} items</span>
+                            <span>{strands.length} strands</span>
+                            <span className={`flex items-center gap-1 ${hasE2EKeys ? 'text-green-500' : 'text-zinc-600'}`}>
+                                <FiLock size={11} /> {hasE2EKeys ? 'E2E' : 'No E2E'}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2">
                         <button
                             onClick={() => setIsSignatureModalOpen(true)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-800 bg-zinc-900 rounded text-xs text-zinc-400 hover:text-white hover:border-zinc-600 transition-all"
+                            className="flex flex-col items-center gap-1.5 px-3 py-3 border border-zinc-700 bg-zinc-800/60 rounded-lg text-sm text-zinc-300 hover:text-white hover:border-zinc-500 hover:bg-zinc-700/60 transition-all"
                         >
-                            <FiEdit3 size={13} /> Signature
+                            <FiEdit3 size={18} />
+                            <span className="text-xs">Signature</span>
                         </button>
                         <div className="relative">
                             <button
                                 onClick={() => setShowDeviceChoice(showDeviceChoice === 'PHOTO' ? null : 'PHOTO')}
-                                className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-800 bg-zinc-900 rounded text-xs text-zinc-400 hover:text-white hover:border-zinc-600 transition-all"
+                                className="w-full flex flex-col items-center gap-1.5 px-3 py-3 border border-zinc-700 bg-zinc-800/60 rounded-lg text-sm text-zinc-300 hover:text-white hover:border-zinc-500 hover:bg-zinc-700/60 transition-all"
                             >
-                                <FiCamera size={13} /> Photo
+                                <FiCamera size={18} />
+                                <span className="text-xs">Photo</span>
                             </button>
                             {showDeviceChoice === 'PHOTO' && (
                                 <div className="absolute top-full left-0 mt-1 z-30 bg-zinc-900 border border-zinc-700 rounded-md overflow-hidden shadow-xl min-w-[160px]">
@@ -1213,9 +1367,10 @@ export default function AccountPage() {
                         <div className="relative">
                             <button
                                 onClick={() => setShowDeviceChoice(showDeviceChoice === 'VIDEO' ? null : 'VIDEO')}
-                                className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-800 bg-zinc-900 rounded text-xs text-zinc-400 hover:text-white hover:border-zinc-600 transition-all"
+                                className="w-full flex flex-col items-center gap-1.5 px-3 py-3 border border-zinc-700 bg-zinc-800/60 rounded-lg text-sm text-zinc-300 hover:text-white hover:border-zinc-500 hover:bg-zinc-700/60 transition-all"
                             >
-                                <FiActivity size={13} /> Video
+                                <FiActivity size={18} />
+                                <span className="text-xs">Video</span>
                             </button>
                             {showDeviceChoice === 'VIDEO' && (
                                 <div className="absolute top-full left-0 mt-1 z-30 bg-zinc-900 border border-zinc-700 rounded-md overflow-hidden shadow-xl min-w-[160px]">
@@ -1234,30 +1389,59 @@ export default function AccountPage() {
                                 </div>
                             )}
                         </div>
-                        <label className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-800 bg-zinc-900 rounded text-xs text-zinc-400 hover:text-white hover:border-zinc-600 transition-all cursor-pointer relative">
+                        <label className="flex flex-col items-center gap-1.5 px-3 py-3 border border-zinc-700 bg-zinc-800/60 rounded-lg text-sm text-zinc-300 hover:text-white hover:border-zinc-500 hover:bg-zinc-700/60 transition-all cursor-pointer relative">
                             <input key={uploadInputKey} type="file" multiple className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={(e) => { handleDocumentUpload(e); setUploadInputKey(k => k + 1); }} />
-                            <FiFileText size={13} /> Document
+                            <FiFileText size={18} />
+                            <span className="text-xs">Document</span>
                         </label>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-zinc-500 shrink-0">
-                        <span>{signatures.length} items</span>
-                        <span>{strands.length} strands</span>
-                        <span className={`flex items-center gap-1 ${hasE2EKeys ? 'text-green-500' : 'text-zinc-600'}`}>
-                            <FiLock size={11} /> {hasE2EKeys ? 'E2E' : 'No E2E'}
-                        </span>
+                        <label className={`flex flex-col items-center gap-1.5 px-3 py-3 border rounded-lg text-sm transition-all cursor-pointer relative ${
+                            strands.some(s => s.strand_type === 'id_document' && s.strand_subtype === 'passport')
+                                ? 'border-green-900/40 bg-green-950/20 text-green-400'
+                                : 'border-zinc-700 bg-zinc-800/60 text-zinc-300 hover:text-white hover:border-zinc-500 hover:bg-zinc-700/60'
+                        }`}>
+                            <input key={`passport-${idDocUploadKey}`} type="file" accept="image/*,.pdf" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={(e) => handleIdDocUpload(e, 'passport')} />
+                            <FiCreditCard size={18} />
+                            <span className="text-xs">Passport</span>
+                            {strands.some(s => s.strand_type === 'id_document' && s.strand_subtype === 'passport') && (
+                                <FiCheck size={10} className="absolute top-1 right-1 text-green-400" />
+                            )}
+                        </label>
+                        <label className={`flex flex-col items-center gap-1.5 px-3 py-3 border rounded-lg text-sm transition-all cursor-pointer relative ${
+                            strands.some(s => s.strand_type === 'id_document' && s.strand_subtype === 'proof_of_address')
+                                ? 'border-green-900/40 bg-green-950/20 text-green-400'
+                                : 'border-zinc-700 bg-zinc-800/60 text-zinc-300 hover:text-white hover:border-zinc-500 hover:bg-zinc-700/60'
+                        }`}>
+                            <input key={`utility-${idDocUploadKey}`} type="file" accept="image/*,.pdf" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={(e) => handleIdDocUpload(e, 'utility_bill')} />
+                            <FiHome size={18} />
+                            <span className="text-xs">Utility Bill</span>
+                            {strands.some(s => s.strand_type === 'id_document' && s.strand_subtype === 'proof_of_address') && (
+                                <FiCheck size={10} className="absolute top-1 right-1 text-green-400" />
+                            )}
+                        </label>
+                        <button
+                            onClick={() => setPeerAttestModal(true)}
+                            className={`flex flex-col items-center gap-1.5 px-3 py-3 border rounded-lg text-sm transition-all ${
+                                strands.some(s => s.strand_type === 'peer_attestation')
+                                    ? 'border-green-900/40 bg-green-950/20 text-green-400'
+                                    : 'border-blue-900/40 bg-blue-950/20 text-blue-400 hover:text-blue-300 hover:border-blue-800/60 hover:bg-blue-950/30'
+                            }`}
+                        >
+                            <FiUserCheck size={18} />
+                            <span className="text-xs">Peer Attest</span>
+                        </button>
                     </div>
                 </div>
 
                 {/* ===== INBOX ===== */}
-                {(sharedWithMe.length + coSignRequests.filter(r => r.status === 'pending').length) > 0 && (
+                {(sharedWithMe.length + coSignRequests.filter(r => r.status === 'pending').length + peerAttestRequests.filter(r => r.status === 'pending').length) > 0 && (
                 <div className="space-y-2">
                     <h3 className="text-xs font-medium text-zinc-500 flex items-center gap-2">
                         <FiInbox size={12} /> Inbox
                         <span className="px-1.5 py-0.5 bg-blue-950 text-blue-400 text-[10px] rounded-full font-medium">
-                            {sharedWithMe.length + coSignRequests.filter(r => r.status === 'pending').length}
+                            {sharedWithMe.length + coSignRequests.filter(r => r.status === 'pending').length + peerAttestRequests.filter(r => r.status === 'pending').length}
                         </span>
                     </h3>
-                    {sharedWithMe.length === 0 && coSignRequests.filter(r => r.status === 'pending').length === 0 ? (
+                    {sharedWithMe.length === 0 && coSignRequests.filter(r => r.status === 'pending').length === 0 && peerAttestRequests.filter(r => r.status === 'pending').length === 0 ? (
                         <></>
 
                     ) : (
@@ -1289,6 +1473,37 @@ export default function AccountPage() {
                                         className="px-3 py-1.5 bg-amber-600/20 text-amber-400 text-xs rounded flex items-center gap-1.5 hover:bg-amber-600/30 transition-colors shrink-0"
                                     >
                                         <FiEdit3 size={12} /> Co-Sign
+                                    </button>
+                                </div>
+                            ))}
+
+                            {/* Peer attestation requests */}
+                            {peerAttestRequests.filter(r => r.status === 'pending').map((req) => (
+                                <div key={`peer-${req.id}`} className="border border-green-900/40 rounded-md bg-black p-4 flex items-center gap-4">
+                                    <div className="text-green-500 shrink-0">
+                                        <FiUserCheck size={18} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium text-white truncate">
+                                                Peer Attestation
+                                            </span>
+                                            <span className="px-1.5 py-0.5 bg-green-950 text-green-400 text-[10px] rounded shrink-0">
+                                                Witness Request
+                                            </span>
+                                        </div>
+                                        <span className="text-xs text-zinc-600">
+                                            From ${req.requester_handle} &middot; {new Date(req.created_at).toLocaleDateString()}
+                                        </span>
+                                        {req.message && (
+                                            <p className="text-xs text-zinc-500 mt-1 truncate">&ldquo;{req.message}&rdquo;</p>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => setPeerAttestRespondModal(req)}
+                                        className="px-3 py-1.5 bg-green-600/20 text-green-400 text-xs rounded flex items-center gap-1.5 hover:bg-green-600/30 transition-colors shrink-0"
+                                    >
+                                        <FiShield size={12} /> Attest
                                     </button>
                                 </div>
                             ))}
@@ -1582,7 +1797,7 @@ export default function AccountPage() {
                     <div className="flex items-center gap-1 border-b border-zinc-900">
                         {[
                             { key: 'all', label: 'All', count: signatures.length },
-                            { key: 'documents', label: 'Documents', count: documents.length },
+                            { key: 'documents', label: 'Unsealed', count: documents.length },
                             { key: 'sealed', label: 'Sealed', count: sealedItems.length },
                             { key: 'signatures', label: 'Signatures', count: signaturesOnly.length },
                             { key: 'media', label: 'Media', count: mediaItems.length },
@@ -1876,6 +2091,96 @@ export default function AccountPage() {
                         onSubmit={submitCoSignRequest}
                         onClose={() => setCoSignModal(null)}
                     />
+                )}
+
+                {/* Peer Attestation Request Modal */}
+                {peerAttestModal && (
+                    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setPeerAttestModal(false)}>
+                        <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-6 max-w-md w-full space-y-4" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                                    <FiUserCheck className="text-blue-400" size={20} />
+                                    Request Peer Attestation
+                                </h3>
+                                <button onClick={() => setPeerAttestModal(false)} className="text-zinc-500 hover:text-white"><FiX size={18} /></button>
+                            </div>
+                            <p className="text-xs text-zinc-400">
+                                Ask a trusted peer to attest your identity. They will sign a formal declaration confirming they know you and have witnessed your identity documents.
+                            </p>
+                            <div className="space-y-3">
+                                <input
+                                    type="text"
+                                    placeholder="Peer's HandCash handle (e.g. johndoe)"
+                                    value={peerAttestHandle}
+                                    onChange={(e) => setPeerAttestHandle(e.target.value)}
+                                    className="w-full px-3 py-2.5 bg-black border border-zinc-800 rounded-lg text-sm text-white placeholder-zinc-600 focus:border-blue-600 focus:outline-none"
+                                />
+                                <textarea
+                                    placeholder="Optional message to your peer..."
+                                    value={peerAttestMessage}
+                                    onChange={(e) => setPeerAttestMessage(e.target.value)}
+                                    rows={3}
+                                    className="w-full px-3 py-2.5 bg-black border border-zinc-800 rounded-lg text-sm text-white placeholder-zinc-600 focus:border-blue-600 focus:outline-none resize-none"
+                                />
+                            </div>
+                            <button
+                                onClick={requestPeerAttestation}
+                                disabled={peerAttestSubmitting || !peerAttestHandle.trim()}
+                                className="w-full px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                            >
+                                {peerAttestSubmitting ? <FiLoader className="animate-spin" size={14} /> : <FiSend size={14} />}
+                                {peerAttestSubmitting ? 'Sending...' : 'Send Attestation Request'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Peer Attestation Respond Modal */}
+                {peerAttestRespondModal && (
+                    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setPeerAttestRespondModal(null)}>
+                        <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-6 max-w-lg w-full space-y-4" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                                    <FiShield className="text-green-400" size={20} />
+                                    Sign Peer Attestation
+                                </h3>
+                                <button onClick={() => setPeerAttestRespondModal(null)} className="text-zinc-500 hover:text-white"><FiX size={18} /></button>
+                            </div>
+                            <div className="bg-black border border-zinc-800 rounded-lg p-4 space-y-3">
+                                <p className="text-xs text-zinc-500 uppercase tracking-wider font-medium">Pro-Forma Witness Declaration</p>
+                                <div className="text-sm text-zinc-300 leading-relaxed space-y-2">
+                                    <p>I, <span className="text-white font-semibold">{handle}</span>, hereby attest that the individual known as <span className="text-white font-semibold">${peerAttestRespondModal.requester_handle}</span> is known to me personally.</p>
+                                    <p>I confirm that I have witnessed their identity documents and I trust that they are the person in control of their HandCash handle.</p>
+                                    <p>I make this declaration in good faith on <span className="text-white font-semibold">{new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>.</p>
+                                </div>
+                                {peerAttestRespondModal.message && (
+                                    <div className="border-t border-zinc-800 pt-2">
+                                        <p className="text-xs text-zinc-500">Message from requester:</p>
+                                        <p className="text-xs text-zinc-400 italic">&ldquo;{peerAttestRespondModal.message}&rdquo;</p>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setPeerAttestRespondModal(null)}
+                                    className="flex-1 px-4 py-2.5 border border-zinc-800 text-zinc-400 text-sm rounded-lg hover:text-white hover:border-zinc-600 transition-colors"
+                                >
+                                    Decline
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        const declaration = `I, ${handle}, hereby attest that the individual known as $${peerAttestRespondModal.requester_handle} is known to me personally. I confirm that I have witnessed their identity documents and I trust that they are the person in control of their HandCash handle. Signed on ${new Date().toISOString()}.`;
+                                        respondPeerAttestation(peerAttestRespondModal.id, declaration);
+                                    }}
+                                    disabled={peerAttestRespondSubmitting}
+                                    className="flex-1 px-4 py-2.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                                >
+                                    {peerAttestRespondSubmitting ? <FiLoader className="animate-spin" size={14} /> : <FiShield size={14} />}
+                                    {peerAttestRespondSubmitting ? 'Signing...' : 'Sign & Attest'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 )}
 
                 {isProcessing && (
