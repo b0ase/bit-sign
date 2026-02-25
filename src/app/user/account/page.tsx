@@ -48,6 +48,7 @@ import {
     FiCreditCard,
     FiHome,
     FiUserCheck,
+    FiRotateCcw,
 } from 'react-icons/fi';
 
 interface Signature {
@@ -139,6 +140,7 @@ export default function AccountPage() {
     const [vaultTab, setVaultTab] = useState('all');
     const [previewData, setPreviewData] = useState<{ url: string; type: string } | null>(null);
     const [previewLoading, setPreviewLoading] = useState(false);
+    const [previewRotation, setPreviewRotation] = useState(0);
     const [registeredSignatureId, setRegisteredSignatureId] = useState<string | null>(null);
     const [hasE2EKeys, setHasE2EKeys] = useState<boolean | null>(null);
     const [shareModal, setShareModal] = useState<{ documentId: string; documentType: string; itemType?: string; itemLabel?: string } | null>(null);
@@ -1097,6 +1099,7 @@ export default function AccountPage() {
         setExpandedSig(sig.id);
         setPreviewLoading(true);
         setPreviewData(null);
+        setPreviewRotation(0);
 
         try {
             const previewUrl = `/api/bitsign/signatures/${sig.id}/preview`;
@@ -2015,8 +2018,23 @@ export default function AccountPage() {
                                                     <img src={previewData.url} alt="Signature" className="max-h-48 w-auto" />
                                                 </div>
                                             ) : previewData?.type === 'image' ? (
-                                                <div className="bg-white rounded-md overflow-hidden">
-                                                    <img src={previewData.url} alt="Photo" className="max-h-[400px] w-full object-contain" />
+                                                <div className="space-y-2">
+                                                    <div className="bg-white rounded-md overflow-hidden flex items-center justify-center">
+                                                        <img
+                                                            src={previewData.url}
+                                                            alt="Photo"
+                                                            className="max-h-[400px] w-full object-contain transition-transform duration-200"
+                                                            style={{ transform: `rotate(${previewRotation}deg)` }}
+                                                        />
+                                                    </div>
+                                                    <div className="flex justify-center">
+                                                        <button
+                                                            onClick={() => setPreviewRotation(r => (r + 90) % 360)}
+                                                            className="px-3 py-1.5 border border-zinc-800 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"
+                                                        >
+                                                            <FiRotateCcw size={11} /> Rotate
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             ) : previewData?.type === 'pdf' ? (
                                                 <iframe src={previewData.url} className="w-full h-[500px] rounded-md border border-zinc-800" />

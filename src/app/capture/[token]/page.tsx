@@ -147,7 +147,7 @@ export default function CapturePage({ params }: { params: Promise<{ token: strin
     return (
         <MediaCapture
             mode={captureMode}
-            facingMode="environment"
+            facingMode="user"
             onCapture={handleCapture}
             onCancel={() => {
                 // Can't really cancel on phone — just show a message

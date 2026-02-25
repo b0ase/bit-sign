@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
-import { FiCamera, FiVideo, FiX, FiCheck, FiRotateCcw, FiActivity } from 'react-icons/fi';
+import { FiCamera, FiVideo, FiX, FiCheck, FiRotateCcw, FiActivity, FiRefreshCw } from 'react-icons/fi';
 
 interface MediaCaptureProps {
     mode: 'PHOTO' | 'VIDEO';
@@ -19,10 +19,16 @@ export default function MediaCapture({ mode, facingMode = 'user', onCapture, onC
     const [isRecording, setIsRecording] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
     const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
+    const [rotation, setRotation] = useState(0); // 0, 90, 180, 270
+    const [isMobile, setIsMobile] = useState(false);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
 
     useEffect(() => {
+        // Detect mobile
+        const mobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        setIsMobile(mobile);
+
         startCamera(currentFacing);
         navigator.mediaDevices.enumerateDevices().then(devices => {
             const videoInputs = devices.filter(d => d.kind === 'videoinput');
@@ -49,10 +55,15 @@ export default function MediaCapture({ mode, facingMode = 'user', onCapture, onC
 
     const startCamera = async (facing: 'user' | 'environment') => {
         try {
-            const s = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: facing, width: 1280, height: 720 },
+            // On mobile, request portrait-friendly resolution
+            const mobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            const constraints: MediaStreamConstraints = {
+                video: mobile
+                    ? { facingMode: facing, width: { ideal: 1080 }, height: { ideal: 1920 } }
+                    : { facingMode: facing, width: 1280, height: 720 },
                 audio: mode === 'VIDEO'
-            });
+            };
+            const s = await navigator.mediaDevices.getUserMedia(constraints);
             setStream(s);
             if (videoRef.current) videoRef.current.srcObject = s;
         } catch (err) {
@@ -77,6 +88,27 @@ export default function MediaCapture({ mode, facingMode = 'user', onCapture, onC
         startCamera(newFacing);
     };
 
+    const rotateImage = () => {
+        setRotation(prev => (prev + 90) % 360);
+    };
+
+    const applyRotation = (sourceCanvas: HTMLCanvasElement, degrees: number): HTMLCanvasElement => {
+        if (degrees === 0) return sourceCanvas;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d')!;
+        if (degrees === 90 || degrees === 270) {
+            canvas.width = sourceCanvas.height;
+            canvas.height = sourceCanvas.width;
+        } else {
+            canvas.width = sourceCanvas.width;
+            canvas.height = sourceCanvas.height;
+        }
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((degrees * Math.PI) / 180);
+        ctx.drawImage(sourceCanvas, -sourceCanvas.width / 2, -sourceCanvas.height / 2);
+        return canvas;
+    };
+
     const takePhoto = () => {
         if (!videoRef.current) return;
         const canvas = document.createElement('canvas');
@@ -84,11 +116,17 @@ export default function MediaCapture({ mode, facingMode = 'user', onCapture, onC
         canvas.height = videoRef.current.videoHeight;
         const ctx = canvas.getContext('2d');
         if (ctx) {
+            // Mirror selfie camera
+            if (currentFacing === 'user') {
+                ctx.translate(canvas.width, 0);
+                ctx.scale(-1, 1);
+            }
             ctx.drawImage(videoRef.current, 0, 0);
             canvas.toBlob((blob) => {
                 if (blob) {
                     setCapturedBlob(blob);
                     setPreviewUrl(URL.createObjectURL(blob));
+                    setRotation(0);
                     stopCamera();
                 }
             }, 'image/jpeg', 0.9);
@@ -106,12 +144,10 @@ export default function MediaCapture({ mode, facingMode = 'user', onCapture, onC
             const blob = new Blob(chunksRef.current, { type: 'video/webm' });
             setCapturedBlob(blob);
             setPreviewUrl(URL.createObjectURL(blob));
-            // Stop camera AFTER blob is created — stopping earlier kills the stream
-            // before MediaRecorder can flush its final data chunk
             stopCamera();
         };
         mediaRecorderRef.current = recorder;
-        recorder.start(1000); // collect data every 1s for reliable chunk capture
+        recorder.start(1000);
         setIsRecording(true);
         setRecordingTime(0);
     };
@@ -120,77 +156,129 @@ export default function MediaCapture({ mode, facingMode = 'user', onCapture, onC
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
             mediaRecorderRef.current.stop();
             setIsRecording(false);
-            // Don't call stopCamera() here — it's called in recorder.onstop
         }
     };
 
     const handleConfirm = () => {
-        if (capturedBlob) onCapture(capturedBlob);
+        if (!capturedBlob) return;
+
+        // If image is rotated, apply rotation before saving
+        if (rotation !== 0 && mode === 'PHOTO' && previewUrl) {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                const ctx = canvas.getContext('2d')!;
+                ctx.drawImage(img, 0, 0);
+                const rotated = applyRotation(canvas, rotation);
+                rotated.toBlob((blob) => {
+                    if (blob) onCapture(blob);
+                }, 'image/jpeg', 0.9);
+            };
+            img.src = previewUrl;
+        } else {
+            onCapture(capturedBlob);
+        }
     };
 
     const handleReset = () => {
         setCapturedBlob(null);
         setPreviewUrl(null);
+        setRotation(0);
         startCamera(currentFacing);
     };
 
+    // Determine aspect ratio classes
+    const isPortrait = isMobile && !capturedBlob;
+    const aspectClass = isPortrait ? 'aspect-[9/16] max-h-[70vh]' : 'aspect-video';
+
     return (
-        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-6">
+        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6">
             <div className="w-full max-w-4xl bg-zinc-900/50 border border-white/[0.05] rounded-sm overflow-hidden flex flex-col relative group">
-                <button
-                    onClick={onCancel}
-                    className="absolute top-6 right-6 z-20 p-3 bg-black/50 text-white hover:bg-white hover:text-black transition-all rounded-full"
-                >
-                    <FiX size={20} />
-                </button>
-
-                {hasMultipleCameras && !capturedBlob && (
+                {/* Top controls */}
+                <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
                     <button
-                        onClick={flipCamera}
-                        className="absolute top-6 left-6 z-20 p-3 bg-black/50 text-white hover:bg-white hover:text-black transition-all rounded-full"
-                        title={currentFacing === 'user' ? 'Switch to rear camera' : 'Switch to selfie camera'}
+                        onClick={onCancel}
+                        className="p-3 bg-black/50 text-white hover:bg-white hover:text-black transition-all rounded-full"
                     >
-                        <FiRotateCcw size={20} />
+                        <FiX size={20} />
                     </button>
-                )}
+                </div>
 
-                <div className="relative aspect-video bg-black flex items-center justify-center border-b border-white/[0.05]">
+                <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
+                    {hasMultipleCameras && !capturedBlob && (
+                        <button
+                            onClick={flipCamera}
+                            className="p-3 bg-black/50 text-white hover:bg-white hover:text-black transition-all rounded-full"
+                            title={currentFacing === 'user' ? 'Switch to rear camera' : 'Switch to selfie camera'}
+                        >
+                            <FiRefreshCw size={20} />
+                        </button>
+                    )}
+                    {capturedBlob && mode === 'PHOTO' && (
+                        <button
+                            onClick={rotateImage}
+                            className="p-3 bg-black/50 text-white hover:bg-white hover:text-black transition-all rounded-full"
+                            title="Rotate 90°"
+                        >
+                            <FiRotateCcw size={20} />
+                        </button>
+                    )}
+                </div>
+
+                {/* Camera / Preview */}
+                <div className={`relative ${capturedBlob ? 'aspect-auto' : aspectClass} bg-black flex items-center justify-center border-b border-white/[0.05] overflow-hidden`}>
                     {!capturedBlob ? (
                         <video
                             ref={videoRef}
                             autoPlay
                             playsInline
                             muted
-                            className="w-full h-full object-cover"
+                            className={`w-full h-full object-cover ${currentFacing === 'user' ? 'scale-x-[-1]' : ''}`}
                         />
                     ) : (
                         mode === 'PHOTO' ? (
-                            <img src={previewUrl!} className="w-full h-full object-cover" />
+                            <img
+                                src={previewUrl!}
+                                className="max-w-full max-h-[70vh] object-contain transition-transform duration-200"
+                                style={{ transform: `rotate(${rotation}deg)` }}
+                            />
                         ) : (
                             <video src={previewUrl!} controls className="w-full h-full object-cover" />
                         )
                     )}
 
                     {isRecording && (
-                        <div className="absolute top-6 left-6 flex items-center gap-3 px-4 py-2 bg-red-600 animate-pulse text-white text-sm font-medium rounded-md">
+                        <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-2 bg-red-600 animate-pulse text-white text-sm font-medium rounded-md">
                             <FiActivity /> Recording 0:{recordingTime.toString().padStart(2, '0')}
+                        </div>
+                    )}
+
+                    {/* Camera mode indicator */}
+                    {!capturedBlob && (
+                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1 bg-black/60 rounded-full text-[10px] text-zinc-400 uppercase tracking-wider">
+                            {currentFacing === 'user' ? 'Selfie' : 'Rear'} Camera
                         </div>
                     )}
                 </div>
 
-                <div className="p-6 flex items-center justify-between border-t border-white/[0.05] bg-zinc-950/50 backdrop-blur-md">
+                {/* Bottom controls */}
+                <div className="p-4 sm:p-6 flex items-center justify-between border-t border-white/[0.05] bg-zinc-950/50 backdrop-blur-md">
                     <div className="space-y-1">
                         <h3 className="text-sm font-medium text-white">
                             {mode === 'PHOTO' ? 'Take Photo' : 'Record Video'}
                         </h3>
                         <p className="text-xs text-zinc-500 max-w-xs">
-                            {mode === 'PHOTO'
-                                ? 'Capture a photo for identity verification.'
-                                : 'Record a short video (max 10s).'}
+                            {capturedBlob && mode === 'PHOTO' && rotation !== 0
+                                ? `Rotated ${rotation}°`
+                                : mode === 'PHOTO'
+                                    ? 'Capture a photo for identity verification.'
+                                    : 'Record a short video (max 10s).'}
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                         {!capturedBlob ? (
                             mode === 'PHOTO' ? (
                                 <button
