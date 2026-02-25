@@ -601,9 +601,9 @@ export default function DocumentCanvas({
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                             <div className="bg-black/70 backdrop-blur-sm text-center px-6 py-4 rounded-lg border border-zinc-700/50">
                                 <p className="text-sm text-zinc-300">
-                                    Click <span className="font-medium text-white">Draw Signature</span> or <span className="font-medium text-white">Add Text</span> to place elements on this document
+                                    Drag a signature from the left panel onto this document
                                 </p>
-                                <p className="text-xs text-zinc-500 mt-1">Or drag a signature from the left panel</p>
+                                <p className="text-xs text-zinc-500 mt-1">Or use <span className="text-zinc-400">Draw Signature</span> / <span className="text-zinc-400">Add Text</span> above</p>
                             </div>
                         </div>
                     )}

@@ -1665,16 +1665,48 @@ export default function AccountPage() {
                                     />
                                 ) : expandedSig ? (
                                     <div className="flex flex-col h-full">
-                                        {/* Preview header with close */}
-                                        <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 shrink-0">
-                                            <span className="text-xs text-zinc-500">Preview</span>
-                                            <button
-                                                onClick={() => { setExpandedSig(null); setPreviewData(null); }}
-                                                className="p-1.5 text-zinc-500 hover:text-white transition-colors"
-                                            >
-                                                <FiX size={16} />
-                                            </button>
-                                        </div>
+                                        {/* Actions bar — TOP of viewer */}
+                                        {(() => {
+                                            const sig = signatures.find(s => s.id === expandedSig);
+                                            if (!sig) return null;
+                                            const isOnChain = sig.txid && !sig.txid.startsWith('pending-');
+                                            const isSigned = sig.wallet_signed;
+                                            const isSealed = sig.signature_type === 'SEALED_DOCUMENT';
+                                            const isRegistered = sig.id === registeredSignatureId;
+                                            return (
+                                                <div className="border-b border-zinc-900 p-3 space-y-2 shrink-0">
+                                                    {isSealed && (
+                                                        <div className="flex items-center gap-2 flex-wrap pb-2 mb-2 border-b border-zinc-800">
+                                                            <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Send:</span>
+                                                            <button onClick={() => setCoSignModal({ documentId: sig.id, documentName: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-white text-black text-xs font-medium rounded hover:bg-zinc-200 transition-all flex items-center gap-1.5"><FiEdit3 size={11} /> Co-Sign</button>
+                                                            <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-amber-600 text-black text-xs font-medium rounded hover:bg-amber-500 transition-all flex items-center gap-1.5"><FiMail size={11} /> Email</button>
+                                                            <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT_HC', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-green-600 text-black text-xs font-medium rounded hover:bg-green-500 transition-all flex items-center gap-1.5"><FiUsers size={11} /> HandCash</button>
+                                                            <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'WITNESS_REQUEST', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-blue-600 text-black text-xs font-medium rounded hover:bg-blue-500 transition-all flex items-center gap-1.5"><FiEye size={11} /> Witness</button>
+                                                            {!ipThreads.some(t => t.metadata?.documentId === sig.id) && (
+                                                                <button onClick={() => setIpThreadModal({ documentId: sig.id, documentName: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-amber-700 text-white text-xs font-medium rounded hover:bg-amber-600 transition-all flex items-center gap-1.5"><FiBookOpen size={11} /> IP Thread</button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        {sig.signature_type === 'DOCUMENT' && (
+                                                            <button onClick={() => openDocumentInCanvas(sig.id)} className="px-2.5 py-1 bg-amber-600 text-black text-xs font-medium rounded hover:bg-amber-500 transition-all flex items-center gap-1.5"><FiEdit3 size={11} /> Sign</button>
+                                                        )}
+                                                        {sig.signature_type === 'TLDRAW' && isOnChain && !isRegistered && (
+                                                            <button onClick={() => registerSignature(sig.id)} className="px-2.5 py-1 bg-white text-black text-xs font-medium rounded hover:bg-zinc-200 transition-all flex items-center gap-1.5"><FiEdit3 size={11} /> Register</button>
+                                                        )}
+                                                        {!isSigned && (
+                                                            <button onClick={() => attestSignature(sig.id)} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiShield size={11} /> Attest</button>
+                                                        )}
+                                                        <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: sig.signature_type, itemLabel: sig.metadata?.type || sig.signature_type })} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiShare2 size={11} /> Share</button>
+                                                        <button onClick={() => downloadSignature(sig.id, sig)} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiDownload size={11} /> Download</button>
+                                                        {isOnChain && (
+                                                            <a href={`https://whatsonchain.com/tx/${sig.txid}`} target="_blank" className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiExternalLink size={11} /> Chain</a>
+                                                        )}
+                                                        <button onClick={() => { setExpandedSig(null); setPreviewData(null); }} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5 ml-auto"><FiX size={11} /> Close</button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                         {/* Preview */}
                                         <div className="flex-1 overflow-y-auto p-4">
                                             {previewLoading ? (
@@ -1712,48 +1744,6 @@ export default function AccountPage() {
                                                 <p className="text-xs text-zinc-500 text-center py-6">Preview not available</p>
                                             ) : null}
                                         </div>
-                                        {/* Actions bar */}
-                                        {(() => {
-                                            const sig = signatures.find(s => s.id === expandedSig);
-                                            if (!sig) return null;
-                                            const isOnChain = sig.txid && !sig.txid.startsWith('pending-');
-                                            const isSigned = sig.wallet_signed;
-                                            const isSealed = sig.signature_type === 'SEALED_DOCUMENT';
-                                            const isRegistered = sig.id === registeredSignatureId;
-                                            return (
-                                                <div className="border-t border-zinc-900 p-3 space-y-2 shrink-0">
-                                                    {isSealed && (
-                                                        <div className="flex items-center gap-2 flex-wrap pb-2 mb-2 border-b border-zinc-800">
-                                                            <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Send:</span>
-                                                            <button onClick={() => setCoSignModal({ documentId: sig.id, documentName: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-white text-black text-xs font-medium rounded hover:bg-zinc-200 transition-all flex items-center gap-1.5"><FiEdit3 size={11} /> Co-Sign</button>
-                                                            <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-amber-600 text-black text-xs font-medium rounded hover:bg-amber-500 transition-all flex items-center gap-1.5"><FiMail size={11} /> Email</button>
-                                                            <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT_HC', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-green-600 text-black text-xs font-medium rounded hover:bg-green-500 transition-all flex items-center gap-1.5"><FiUsers size={11} /> HandCash</button>
-                                                            <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'WITNESS_REQUEST', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-blue-600 text-black text-xs font-medium rounded hover:bg-blue-500 transition-all flex items-center gap-1.5"><FiEye size={11} /> Witness</button>
-                                                            {!ipThreads.some(t => t.metadata?.documentId === sig.id) && (
-                                                                <button onClick={() => setIpThreadModal({ documentId: sig.id, documentName: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-amber-700 text-white text-xs font-medium rounded hover:bg-amber-600 transition-all flex items-center gap-1.5"><FiBookOpen size={11} /> IP Thread</button>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                                        {sig.signature_type === 'DOCUMENT' && (
-                                                            <button onClick={() => openDocumentInCanvas(sig.id)} className="px-2.5 py-1 bg-amber-600 text-black text-xs font-medium rounded hover:bg-amber-500 transition-all flex items-center gap-1.5"><FiEdit3 size={11} /> Sign</button>
-                                                        )}
-                                                        {sig.signature_type === 'TLDRAW' && isOnChain && !isRegistered && (
-                                                            <button onClick={() => registerSignature(sig.id)} className="px-2.5 py-1 bg-white text-black text-xs font-medium rounded hover:bg-zinc-200 transition-all flex items-center gap-1.5"><FiEdit3 size={11} /> Register</button>
-                                                        )}
-                                                        {!isSigned && (
-                                                            <button onClick={() => attestSignature(sig.id)} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiShield size={11} /> Attest</button>
-                                                        )}
-                                                        <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: sig.signature_type, itemLabel: sig.metadata?.type || sig.signature_type })} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiShare2 size={11} /> Share</button>
-                                                        <button onClick={() => downloadSignature(sig.id, sig)} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiDownload size={11} /> Download</button>
-                                                        {isOnChain && (
-                                                            <a href={`https://whatsonchain.com/tx/${sig.txid}`} target="_blank" className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiExternalLink size={11} /> Chain</a>
-                                                        )}
-                                                        <button onClick={() => deleteSignature(sig.id)} className="px-2.5 py-1 border border-red-900/30 bg-black text-red-900 text-xs rounded hover:text-red-400 hover:border-red-800 transition-all flex items-center gap-1.5 ml-auto"><FiX size={11} /> Delete</button>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })()}
                                     </div>
                                 ) : (
                                     <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
