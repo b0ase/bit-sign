@@ -8,6 +8,7 @@ import MediaCapture from '@/components/MediaCapture';
 import PhoneCaptureModal from '@/components/PhoneCaptureModal';
 import E2ESetupBanner from '@/components/E2ESetupBanner';
 import { setupE2EKeys } from '@/lib/e2e-setup';
+import { ToastProvider, useToast } from '@/components/Toast';
 import ShareModal from '@/components/ShareModal';
 import SignatureExplorer from '@/components/SignatureExplorer';
 import DocumentCanvas from '@/components/DocumentCanvas';
@@ -125,6 +126,15 @@ interface CoSignRequest {
 }
 
 export default function AccountPage() {
+    return (
+        <ToastProvider>
+            <AccountPageInner />
+        </ToastProvider>
+    );
+}
+
+function AccountPageInner() {
+    const { addToast } = useToast();
     const [handle, setHandle] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [signatures, setSignatures] = useState<Signature[]>([]);
@@ -210,13 +220,26 @@ export default function AccountPage() {
         );
     }, [signatures]);
 
+    // Sent items: sealed documents that have been shared or co-sign requested
+    const sentItems = useMemo(() => {
+        const sentDocIds = new Set(sentCoSignRequests.map(r => r.document_id));
+        return sealedItems.filter(s => sentDocIds.has(s.id));
+    }, [sealedItems, sentCoSignRequests]);
+
+    // Signed & Returned: co-sign requests we sent that came back signed
+    const signedReturnedItems = useMemo(() =>
+        sentCoSignRequests.filter(r => r.status === 'signed' && r.response_document_id),
+        [sentCoSignRequests]
+    );
+
     const filteredVaultItems = useMemo(() => {
         if (vaultTab === 'documents') return documents;
         if (vaultTab === 'sealed') return sealedItems;
+        if (vaultTab === 'sent') return sentItems;
         if (vaultTab === 'signatures') return signaturesOnly;
         if (vaultTab === 'media') return mediaItems;
         return signatures;
-    }, [vaultTab, signatures, documents, sealedItems, signaturesOnly, mediaItems]);
+    }, [vaultTab, signatures, documents, sealedItems, sentItems, signaturesOnly, mediaItems]);
 
     const getStrengthLabel = (score: number) => {
         const strandTypes = strands.map(s => s.strand_subtype ? `${s.strand_type}/${s.strand_subtype}` : s.strand_type);
@@ -281,6 +304,7 @@ export default function AccountPage() {
             setSignatures(prev => prev.map(s =>
                 s.id === sigId ? { ...s, wallet_signed: true, wallet_address: verifyData.walletAddress } : s
             ));
+            addToast('Item sealed with HandCash wallet.', 'success');
         } catch (error: any) {
             console.error('Attest failed:', error);
             alert(error?.message || 'Failed to sign with wallet.');
@@ -470,6 +494,7 @@ export default function AccountPage() {
             if (!res.ok) throw new Error(data.error || 'Failed to create co-sign request');
             setCoSignModal(null);
             fetchSentCoSignRequests();
+            addToast('Co-sign request sent!', 'success');
             return data;
         } catch (error: any) {
             throw error;
@@ -543,6 +568,7 @@ export default function AccountPage() {
             setSelectedDocumentId(sigId);
             setSelectedDocBlobUrl(blobUrl);
             setPlacedElements([]);
+            addToast('Document opened. Add signatures, text, or dates then seal.', 'info');
         } catch (error) {
             console.error('Failed to open document for signing:', error);
             alert('Failed to load document preview.');
@@ -601,6 +627,8 @@ export default function AccountPage() {
                 wallet_signed: true,
                 wallet_address: verifyData.walletAddress,
             }, ...prev]);
+
+            addToast('Document sealed! Download a copy for your records.', 'download');
 
             // If this was a co-sign, link the response
             handleCoSignResponse(sealData.id, selectedDocumentId!);
@@ -1084,6 +1112,7 @@ export default function AccountPage() {
             a.href = `/api/bitsign/signatures/${sigId}/preview`;
             a.download = filename;
             a.click();
+            addToast('Downloading...', 'download');
         } catch (error) {
             console.error('Download failed:', error);
             alert('Failed to download. Please try again.');
@@ -1100,6 +1129,10 @@ export default function AccountPage() {
         setPreviewLoading(true);
         setPreviewData(null);
         setPreviewRotation(0);
+
+        if (sig.signature_type === 'SEALED_DOCUMENT') {
+            addToast('Viewing sealed document. Download a copy for your records.', 'download');
+        }
 
         try {
             const previewUrl = `/api/bitsign/signatures/${sig.id}/preview`;
@@ -1804,6 +1837,8 @@ export default function AccountPage() {
                             { key: 'all', label: 'All', count: signatures.length },
                             { key: 'documents', label: 'Unsealed', count: documents.length },
                             { key: 'sealed', label: 'Sealed', count: sealedItems.length },
+                            { key: 'sent', label: 'Sent', count: sentItems.length },
+                            { key: 'returned', label: 'Signed & Returned', count: signedReturnedItems.length },
                             { key: 'signatures', label: 'Signatures', count: signaturesOnly.length },
                             { key: 'media', label: 'Media', count: mediaItems.length },
                         ].map((tab) => (
@@ -1872,7 +1907,55 @@ export default function AccountPage() {
                                 ) : (
                                     /* Browse mode: show compact item list */
                                     <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                                        {filteredVaultItems.map((sig) => {
+                                        {vaultTab === 'returned' ? (
+                                            signedReturnedItems.length === 0 ? (
+                                                <div className="py-8 text-center">
+                                                    <FiCheck className="text-zinc-700 mx-auto mb-2" size={20} />
+                                                    <p className="text-xs text-zinc-600">No signed & returned documents yet.</p>
+                                                </div>
+                                            ) : signedReturnedItems.map((req) => (
+                                                <button
+                                                    key={req.id}
+                                                    onClick={() => {
+                                                        if (req.response_document_id) {
+                                                            const responseSig = signatures.find(s => s.id === req.response_document_id);
+                                                            if (responseSig) previewSignature(responseSig);
+                                                        }
+                                                    }}
+                                                    className="w-full text-left p-2.5 rounded transition-colors flex items-center gap-2.5 hover:bg-zinc-900 border border-transparent"
+                                                >
+                                                    <div className="shrink-0">
+                                                        <FiCheck size={14} className="text-green-400" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <span className="block text-xs font-medium text-white truncate">
+                                                            {req.document_name}
+                                                        </span>
+                                                        <span className="block text-[10px] text-zinc-600">
+                                                            Signed by ${req.recipient_handle || req.recipient_email || 'unknown'} &middot; {req.signed_at ? new Date(req.signed_at).toLocaleDateString() : ''}
+                                                        </span>
+                                                    </div>
+                                                    <div className="shrink-0 flex items-center gap-1">
+                                                        <span className="px-1 py-0.5 bg-green-950/30 text-green-400 text-[9px] rounded">Co-Signed</span>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (req.response_document_id) {
+                                                                    const a = document.createElement('a');
+                                                                    a.href = `/api/bitsign/signatures/${req.response_document_id}/preview`;
+                                                                    a.download = `cosigned-${req.document_name}`;
+                                                                    a.click();
+                                                                    addToast('Downloading co-signed document...', 'download');
+                                                                }
+                                                            }}
+                                                            className="px-1.5 py-0.5 border border-zinc-700 bg-zinc-900 text-zinc-400 text-[9px] rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1"
+                                                        >
+                                                            <FiDownload size={9} /> Download
+                                                        </button>
+                                                    </div>
+                                                </button>
+                                            ))
+                                        ) : filteredVaultItems.map((sig) => {
                                             const isOnChain = sig.txid && !sig.txid.startsWith('pending-');
                                             const isSigned = sig.wallet_signed;
                                             const isSealed = sig.signature_type === 'SEALED_DOCUMENT';
