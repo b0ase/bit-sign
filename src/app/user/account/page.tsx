@@ -181,13 +181,15 @@ export default function AccountPage() {
         [signatures]
     );
     const documents = useMemo(() => {
+        // Hide originals that have a sealed version (show sealed instead)
         const sealedOriginalIds = new Set(
             signatures
                 .filter(s => s.signature_type === 'SEALED_DOCUMENT' && s.metadata?.originalDocumentId)
                 .map(s => s.metadata.originalDocumentId)
         );
         return signatures.filter(s =>
-            s.signature_type === 'DOCUMENT' && !sealedOriginalIds.has(s.id)
+            (s.signature_type === 'DOCUMENT' && !sealedOriginalIds.has(s.id)) ||
+            s.signature_type === 'SEALED_DOCUMENT'
         );
     }, [signatures]);
 
@@ -1754,7 +1756,8 @@ export default function AccountPage() {
                                                         {isOnChain && (
                                                             <a href={`https://whatsonchain.com/tx/${sig.txid}`} target="_blank" className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiExternalLink size={11} /> Chain</a>
                                                         )}
-                                                        <button onClick={() => { setExpandedSig(null); setPreviewData(null); }} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5 ml-auto"><FiX size={11} /> Close</button>
+                                                        <button onClick={() => deleteSignature(sig.id)} className="px-2.5 py-1 border border-red-900/30 bg-black text-red-900 text-xs rounded hover:text-red-400 hover:border-red-800 transition-all flex items-center gap-1.5 ml-auto"><FiX size={11} /> Delete</button>
+                                                        <button onClick={() => { setExpandedSig(null); setPreviewData(null); }} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiX size={11} /> Close</button>
                                                     </div>
                                                 </div>
                                             );
