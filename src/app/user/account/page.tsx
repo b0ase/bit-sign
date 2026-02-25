@@ -220,10 +220,10 @@ function AccountPageInner() {
         );
     }, [signatures]);
 
-    // Sent items: sealed documents that have been shared or co-sign requested
+    // Sent items: sealed documents that have been shared, co-sign requested, or manually marked
     const sentItems = useMemo(() => {
         const sentDocIds = new Set(sentCoSignRequests.map(r => r.document_id));
-        return sealedItems.filter(s => sentDocIds.has(s.id));
+        return sealedItems.filter(s => sentDocIds.has(s.id) || s.metadata?.sent);
     }, [sealedItems, sentCoSignRequests]);
 
     // Signed & Returned: co-sign requests we sent that came back signed
@@ -1116,6 +1116,23 @@ function AccountPageInner() {
         } catch (error) {
             console.error('Download failed:', error);
             alert('Failed to download. Please try again.');
+        }
+    };
+
+    const markAsSent = async (sigId: string) => {
+        try {
+            const res = await fetch(`/api/bitsign/signatures/${sigId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ metadata: { sent: true, sent_at: new Date().toISOString() } }),
+            });
+            if (!res.ok) throw new Error('Failed to mark as sent');
+            setSignatures(prev => prev.map(s =>
+                s.id === sigId ? { ...s, metadata: { ...s.metadata, sent: true, sent_at: new Date().toISOString() } } : s
+            ));
+            addToast('Marked as sent.', 'success');
+        } catch {
+            alert('Failed to mark as sent.');
         }
     };
 
@@ -2045,6 +2062,9 @@ function AccountPageInner() {
                                                             <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'WITNESS_REQUEST', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-blue-600 text-black text-xs font-medium rounded hover:bg-blue-500 transition-all flex items-center gap-1.5"><FiEye size={11} /> Witness</button>
                                                             {!ipThreads.some(t => t.metadata?.documentId === sig.id) && (
                                                                 <button onClick={() => setIpThreadModal({ documentId: sig.id, documentName: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-amber-700 text-white text-xs font-medium rounded hover:bg-amber-600 transition-all flex items-center gap-1.5"><FiBookOpen size={11} /> IP Thread</button>
+                                                            )}
+                                                            {!sig.metadata?.sent && (
+                                                                <button onClick={() => markAsSent(sig.id)} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiSend size={11} /> Mark as Sent</button>
                                                             )}
                                                         </div>
                                                     )}
