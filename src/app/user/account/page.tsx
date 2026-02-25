@@ -1106,6 +1106,13 @@ function AccountPageInner() {
         }
     };
 
+    const unsealDocument = async (sigId: string) => {
+        if (!confirm('Unseal this document? It will be opened in the signing workspace so you can add more signatures or elements.')) return;
+        // Open the sealed composite as a new editable document
+        await openDocumentInCanvas(sigId);
+        addToast('Document unsealed. Add your signatures then re-seal.', 'info');
+    };
+
     const deleteSignature = async (sigId: string) => {
         if (!confirm('Delete this item permanently?')) return;
         try {
@@ -2138,7 +2145,7 @@ function AccountPageInner() {
                                                             <a href={`https://whatsonchain.com/tx/${sig.txid}`} target="_blank" className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiExternalLink size={11} /> Chain</a>
                                                         )}
                                                         {isSealed ? (
-                                                            <button onClick={() => deleteSignature(sig.id)} className="px-2.5 py-1 border border-amber-900/30 bg-black text-amber-700 text-xs rounded hover:text-amber-400 hover:border-amber-800 transition-all flex items-center gap-1.5 ml-auto"><FiLock size={11} /> Unseal</button>
+                                                            <button onClick={() => unsealDocument(sig.id)} className="px-2.5 py-1 border border-amber-900/30 bg-black text-amber-700 text-xs rounded hover:text-amber-400 hover:border-amber-800 transition-all flex items-center gap-1.5 ml-auto"><FiLock size={11} /> Unseal</button>
                                                         ) : (
                                                             <button onClick={() => deleteSignature(sig.id)} className="px-2.5 py-1 border border-red-900/30 bg-black text-red-900 text-xs rounded hover:text-red-400 hover:border-red-800 transition-all flex items-center gap-1.5 ml-auto"><FiX size={11} /> Delete</button>
                                                         )}
