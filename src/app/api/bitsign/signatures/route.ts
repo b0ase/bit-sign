@@ -21,10 +21,19 @@ export async function GET(request: Request) {
         if (identityError) throw identityError;
 
         // 2. Fetch Signature Chain (exclude large encrypted_payload from list)
-        const { data: signatures, error: sigError } = await supabaseAdmin
+        const showTrash = searchParams.get('trash') === 'true';
+        let sigQuery = supabaseAdmin
             .from('bit_sign_signatures')
-            .select('id, user_handle, signature_type, payload_hash, iv, txid, metadata, created_at, wallet_signed, wallet_signature, wallet_address')
-            .eq('user_handle', handle)
+            .select('id, user_handle, signature_type, payload_hash, iv, txid, metadata, created_at, wallet_signed, wallet_signature, wallet_address, deleted_at')
+            .eq('user_handle', handle);
+
+        if (showTrash) {
+            sigQuery = sigQuery.not('deleted_at', 'is', null);
+        } else {
+            sigQuery = sigQuery.is('deleted_at', null);
+        }
+
+        const { data: signatures, error: sigError } = await sigQuery
             .order('created_at', { ascending: false });
 
         if (sigError) throw sigError;

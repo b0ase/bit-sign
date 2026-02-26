@@ -50,6 +50,7 @@ import {
     FiHome,
     FiUserCheck,
     FiRotateCcw,
+    FiTrash2,
 } from 'react-icons/fi';
 
 interface Signature {
@@ -62,6 +63,7 @@ interface Signature {
     wallet_signature?: string;
     wallet_address?: string;
     encryption_version?: number;
+    deleted_at?: string | null;
 }
 
 interface Identity {
@@ -164,6 +166,7 @@ function AccountPageInner() {
     const [copiedTxid, setCopiedTxid] = useState<string | null>(null);
     const [fullscreenPreview, setFullscreenPreview] = useState<string | null>(null);
     const [deleteConfirmModal, setDeleteConfirmModal] = useState<{ id: string; name: string; isSealed: boolean } | null>(null);
+    const [trashItems, setTrashItems] = useState<Signature[]>([]);
     const [e2eAutoSetupStatus, setE2eAutoSetupStatus] = useState<'idle' | 'running' | 'done' | 'failed'>('idle');
 
     // Self-attestation form state
@@ -449,6 +452,9 @@ function AccountPageInner() {
             fetchPeerAttestRequests();
             fetchRegisteredSignatureSvg();
             fetchIpThreads();
+            fetchTrash();
+            // Auto-purge expired trash (fire and forget)
+            fetch('/api/bitsign/trash-purge', { method: 'POST' }).catch(() => {});
         } else {
             setLoading(false);
         }
@@ -520,6 +526,18 @@ function AccountPageInner() {
             if (!res.ok) return;
             const data = await res.json();
             setPeerAttestRequests(data.requests || []);
+        } catch {
+            // Not critical
+        }
+    };
+
+    const fetchTrash = async () => {
+        if (!handle) return;
+        try {
+            const res = await fetch(`/api/bitsign/signatures?handle=${handle}&trash=true`);
+            if (!res.ok) return;
+            const data = await res.json();
+            setTrashItems(data.signatures || []);
         } catch {
             // Not critical
         }
@@ -1279,16 +1297,61 @@ function AccountPageInner() {
                 const data = await res.json().catch(() => ({}));
                 throw new Error(data.error || 'Delete failed');
             }
+            // Move to trash locally
+            const deleted = signatures.find(s => s.id === sigId);
             setSignatures(prev => prev.filter(s => s.id !== sigId));
+            if (deleted) {
+                setTrashItems(prev => [{ ...deleted, deleted_at: new Date().toISOString() }, ...prev]);
+            }
             if (expandedSig === sigId) {
                 setExpandedSig(null);
                 setPreviewData(null);
             }
-            addToast('Item deleted', 'info');
+            addToast('Moved to trash', 'info');
         } catch (error) {
             console.error('Delete failed:', error);
             addToast('Failed to delete. Please try again.', 'warning');
         }
+    };
+
+    const restoreFromTrash = async (sigId: string) => {
+        try {
+            const res = await fetch(`/api/bitsign/signatures/${sigId}/delete`, { method: 'PATCH' });
+            if (!res.ok) throw new Error('Restore failed');
+            const restored = trashItems.find(s => s.id === sigId);
+            setTrashItems(prev => prev.filter(s => s.id !== sigId));
+            if (restored) {
+                setSignatures(prev => [{ ...restored, deleted_at: null }, ...prev]);
+            }
+            addToast('Restored from trash', 'success');
+        } catch {
+            addToast('Failed to restore', 'warning');
+        }
+    };
+
+    const permanentDelete = async (sigId: string) => {
+        if (!confirm('Permanently delete this item? This cannot be undone.')) return;
+        try {
+            const res = await fetch(`/api/bitsign/signatures/${sigId}/delete?permanent=true`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Delete failed');
+            setTrashItems(prev => prev.filter(s => s.id !== sigId));
+            addToast('Permanently deleted', 'info');
+        } catch {
+            addToast('Failed to delete permanently', 'warning');
+        }
+    };
+
+    const emptyTrash = async () => {
+        if (!confirm(`Permanently delete all ${trashItems.length} items in trash? This cannot be undone.`)) return;
+        let deleted = 0;
+        for (const item of trashItems) {
+            try {
+                const res = await fetch(`/api/bitsign/signatures/${item.id}/delete?permanent=true`, { method: 'DELETE' });
+                if (res.ok) deleted++;
+            } catch {}
+        }
+        setTrashItems([]);
+        addToast(`Permanently deleted ${deleted} items`, 'info');
     };
 
     const confirmDelete = (sigId: string, sig?: Signature) => {
@@ -2189,6 +2252,7 @@ function AccountPageInner() {
                             { key: 'returned', label: 'Signed & Returned', count: signedReturnedItems.length },
                             { key: 'signatures', label: 'Signatures', count: signaturesOnly.length },
                             { key: 'media', label: 'Media', count: mediaItems.length },
+                            { key: 'trash', label: 'Trash', count: trashItems.length },
                         ].map((tab) => (
                             <button
                                 key={tab.key}
@@ -2198,6 +2262,8 @@ function AccountPageInner() {
                                         ? 'border-white text-white'
                                         : tab.key === 'received' && tab.count > 0
                                         ? 'border-transparent text-blue-400 hover:text-blue-300'
+                                        : tab.key === 'trash' && tab.count > 0
+                                        ? 'border-transparent text-red-500/60 hover:text-red-400'
                                         : 'border-transparent text-zinc-500 hover:text-zinc-300'
                                 }`}
                             >
@@ -2206,7 +2272,7 @@ function AccountPageInner() {
                         ))}
                     </div>
 
-                    {signatures.length === 0 && allReceivedDocs.length === 0 && coSignRequests.length === 0 ? (
+                    {signatures.length === 0 && allReceivedDocs.length === 0 && coSignRequests.length === 0 && trashItems.length === 0 ? (
                         <div className="py-16 flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-md text-center">
                             <FiEdit3 className="text-zinc-700 text-2xl mb-3" />
                             <p className="text-sm text-zinc-400 font-medium">No vault items yet</p>
@@ -2395,6 +2461,72 @@ function AccountPageInner() {
                                                     </div>
                                                 </button>
                                             ))
+                                        ) : vaultTab === 'trash' ? (
+                                            trashItems.length === 0 ? (
+                                                <div className="py-8 text-center">
+                                                    <FiX className="text-zinc-700 mx-auto mb-2" size={20} />
+                                                    <p className="text-xs text-zinc-600">Trash is empty</p>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <div className="px-2 py-2 flex items-center justify-between border-b border-zinc-800 mb-1">
+                                                        <span className="text-[10px] text-zinc-600">{trashItems.length} item{trashItems.length !== 1 ? 's' : ''} in trash</span>
+                                                        <button
+                                                            onClick={emptyTrash}
+                                                            className="px-2 py-0.5 text-[10px] text-red-500/70 border border-red-900/20 rounded hover:text-red-400 hover:border-red-900/40 transition-colors"
+                                                        >
+                                                            Empty trash
+                                                        </button>
+                                                    </div>
+                                                    {trashItems.map((sig) => {
+                                                        const isSelected = expandedSig === sig.id;
+                                                        const daysLeft = sig.deleted_at ? Math.max(0, 30 - Math.floor((Date.now() - new Date(sig.deleted_at).getTime()) / 86400000)) : 30;
+                                                        return (
+                                                            <div
+                                                                key={sig.id}
+                                                                className={`rounded transition-colors ${isSelected ? 'bg-zinc-800 border border-zinc-700' : 'hover:bg-zinc-900 border border-transparent'}`}
+                                                            >
+                                                                <button
+                                                                    onClick={() => previewSignature(sig)}
+                                                                    className="w-full text-left p-2.5 flex items-center gap-2.5"
+                                                                >
+                                                                    <div className="text-zinc-700 shrink-0">
+                                                                        {sig.signature_type === 'SEALED_DOCUMENT' ? <FiShield size={14} /> :
+                                                                         sig.signature_type === 'DOCUMENT' ? <FiFileText size={14} /> :
+                                                                         sig.signature_type === 'TLDRAW' ? <FiEdit3 size={14} /> :
+                                                                         sig.signature_type === 'CAMERA' ? <FiCamera size={14} /> :
+                                                                         <FiFileText size={14} />}
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <span className="block text-xs font-medium text-zinc-400 truncate line-through">
+                                                                            {sig.metadata?.originalFileName || sig.metadata?.fileName || sig.metadata?.type || sig.signature_type}
+                                                                        </span>
+                                                                        <span className="block text-[10px] text-zinc-700">
+                                                                            {daysLeft > 0 ? `Deletes in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}` : 'Pending deletion'}
+                                                                        </span>
+                                                                    </div>
+                                                                </button>
+                                                                {isSelected && (
+                                                                    <div className="px-2.5 pb-2 flex items-center gap-1.5">
+                                                                        <button
+                                                                            onClick={() => restoreFromTrash(sig.id)}
+                                                                            className="px-2 py-1 text-[10px] bg-green-900/30 text-green-400 rounded border border-green-900/30 hover:bg-green-900/50 transition-colors flex items-center gap-1"
+                                                                        >
+                                                                            <FiRotateCcw size={9} /> Restore
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => permanentDelete(sig.id)}
+                                                                            className="px-2 py-1 text-[10px] bg-red-900/20 text-red-500 rounded border border-red-900/20 hover:bg-red-900/40 transition-colors flex items-center gap-1"
+                                                                        >
+                                                                            <FiX size={9} /> Delete forever
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </>
+                                            )
                                         ) : filteredVaultItems.map((sig) => {
                                             const isOnChain = sig.txid && !sig.txid.startsWith('pending-');
                                             const isSigned = sig.wallet_signed;
