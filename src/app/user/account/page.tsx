@@ -550,7 +550,7 @@ function AccountPageInner() {
         if (!matchingReq) return;
 
         try {
-            await fetch('/api/bitsign/co-sign-respond', {
+            const res = await fetch('/api/bitsign/co-sign-respond', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -558,6 +558,9 @@ function AccountPageInner() {
                     responseDocumentId: sealedDocId,
                 }),
             });
+            if (res.ok) {
+                addToast(`Co-signed document returned to $${matchingReq.sender_handle}`, 'success');
+            }
             fetchCoSignRequests();
         } catch {
             // Non-critical — the sealed document is already created

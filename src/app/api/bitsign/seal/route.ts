@@ -33,16 +33,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Verify original document belongs to user
+    // Verify original document belongs to user or they have an access grant
     const { data: originalDoc } = await supabaseAdmin
       .from('bit_sign_signatures')
-      .select('id, signature_type, metadata')
+      .select('id, signature_type, metadata, user_handle')
       .eq('id', originalDocumentId)
-      .eq('user_handle', handle)
       .single();
 
     if (!originalDoc) {
-      return NextResponse.json({ error: 'Document not found or not yours' }, { status: 404 });
+      return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+    }
+
+    if (originalDoc.user_handle !== handle) {
+      // Check for access grant (shared / co-sign)
+      const { data: grant } = await supabaseAdmin
+        .from('document_access_grants')
+        .select('id')
+        .eq('document_id', originalDocumentId)
+        .eq('grantee_handle', handle)
+        .is('revoked_at', null)
+        .maybeSingle();
+
+      if (!grant) {
+        return NextResponse.json({ error: 'Document not found or not yours' }, { status: 404 });
+      }
     }
 
     const originalFileName = originalDoc.metadata?.fileName || originalDoc.metadata?.type || 'Document';
