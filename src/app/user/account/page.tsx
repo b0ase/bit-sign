@@ -234,11 +234,45 @@ function AccountPageInner() {
         [sentCoSignRequests]
     );
 
-    // Deduplicated shared items: exclude docs that already appear as co-sign requests
+    // Deduplicated shared items for inbox: exclude docs that already appear as co-sign requests
     const dedupedSharedWithMe = useMemo(() => {
         const coSignDocIds = new Set(coSignRequests.map(r => r.document_id));
         return sharedWithMe.filter(doc => !coSignDocIds.has(doc.document_id));
     }, [sharedWithMe, coSignRequests]);
+
+    // All received documents: merge co-sign requests and shared-with-me (dedup by document_id)
+    const allReceivedDocs = useMemo(() => {
+        const docMap = new Map<string, SharedDocument>();
+        // Add shared-with-me items first
+        for (const doc of sharedWithMe) {
+            docMap.set(doc.document_id, doc);
+        }
+        // Add co-sign request docs that aren't already in shared-with-me
+        for (const req of coSignRequests) {
+            if (!docMap.has(req.document_id)) {
+                docMap.set(req.document_id, {
+                    id: req.id,
+                    document_id: req.document_id,
+                    document_type: 'vault_item',
+                    grantor_handle: req.sender_handle,
+                    wrapped_key: '',
+                    ephemeral_public_key: '',
+                    created_at: req.created_at,
+                    signature_type: 'SEALED_DOCUMENT',
+                    metadata: { originalFileName: req.document_name },
+                });
+            }
+        }
+        return Array.from(docMap.values()).sort((a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+    }, [sharedWithMe, coSignRequests]);
+
+    // Pending co-sign document IDs (for showing co-sign button in received tab)
+    const pendingCoSignDocIds = useMemo(() =>
+        new Set(coSignRequests.filter(r => r.status === 'pending').map(r => r.document_id)),
+        [coSignRequests]
+    );
 
     const filteredVaultItems = useMemo(() => {
         if (vaultTab === 'documents') return documents;
@@ -1993,7 +2027,7 @@ function AccountPageInner() {
                     <div className="flex items-center gap-1 border-b border-zinc-900">
                         {[
                             { key: 'all', label: 'All', count: signatures.length },
-                            { key: 'received', label: 'Received', count: dedupedSharedWithMe.length },
+                            { key: 'received', label: 'Received', count: allReceivedDocs.length },
                             { key: 'documents', label: 'Unsealed', count: documents.length },
                             { key: 'sealed', label: 'Sealed', count: sealedItems.length },
                             { key: 'sent', label: 'Sent', count: sentItems.length },
@@ -2017,7 +2051,7 @@ function AccountPageInner() {
                         ))}
                     </div>
 
-                    {signatures.length === 0 && dedupedSharedWithMe.length === 0 && coSignRequests.length === 0 ? (
+                    {signatures.length === 0 && allReceivedDocs.length === 0 && coSignRequests.length === 0 ? (
                         <div className="py-16 flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-md text-center">
                             <FiEdit3 className="text-zinc-700 text-2xl mb-3" />
                             <p className="text-sm text-zinc-400 font-medium">No vault items yet</p>
@@ -2070,19 +2104,20 @@ function AccountPageInner() {
                                     /* Browse mode: show compact item list */
                                     <div className="flex-1 overflow-y-auto p-2 space-y-1">
                                         {vaultTab === 'received' ? (
-                                            dedupedSharedWithMe.length === 0 ? (
+                                            allReceivedDocs.length === 0 ? (
                                                 <div className="py-8 text-center">
                                                     <FiInbox className="text-zinc-700 mx-auto mb-2" size={20} />
                                                     <p className="text-xs text-zinc-600">No received documents yet.</p>
                                                     <p className="text-[10px] text-zinc-700 mt-1">Documents shared with you will appear here.</p>
                                                 </div>
-                                            ) : dedupedSharedWithMe.map((doc) => {
+                                            ) : allReceivedDocs.map((doc) => {
                                                 const isSealed = doc.signature_type === 'SEALED_DOCUMENT' || doc.document_type === 'SEALED_DOCUMENT';
                                                 const isSelected = expandedSig === doc.document_id;
+                                                const hasPendingCoSign = pendingCoSignDocIds.has(doc.document_id);
                                                 return (
                                                     <button
                                                         key={doc.id}
-                                                        onClick={() => previewSharedDoc(doc)}
+                                                        onClick={() => hasPendingCoSign ? openCoSign(doc) : previewSharedDoc(doc)}
                                                         className={`w-full text-left p-2.5 rounded transition-colors flex items-center gap-2.5 ${
                                                             isSelected ? 'bg-zinc-800 border border-zinc-700' : 'hover:bg-zinc-900 border border-transparent'
                                                         }`}
@@ -2100,17 +2135,12 @@ function AccountPageInner() {
                                                         </div>
                                                         <div className="shrink-0 flex items-center gap-1">
                                                             {isSealed && <span className="px-1 py-0.5 bg-amber-950 text-amber-400 text-[9px] rounded">Sealed</span>}
-                                                            <span className="px-1 py-0.5 bg-blue-950/30 text-blue-400 text-[9px] rounded">Shared</span>
-                                                            {isSealed && (
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        openCoSign(doc);
-                                                                    }}
-                                                                    className="px-1.5 py-0.5 bg-amber-600/20 text-amber-400 text-[9px] rounded hover:bg-amber-600/30 transition-colors flex items-center gap-0.5"
-                                                                >
+                                                            {hasPendingCoSign ? (
+                                                                <span className="px-1.5 py-0.5 bg-amber-600/20 text-amber-400 text-[9px] rounded flex items-center gap-0.5">
                                                                     <FiEdit3 size={9} /> Co-Sign
-                                                                </button>
+                                                                </span>
+                                                            ) : (
+                                                                <span className="px-1 py-0.5 bg-blue-950/30 text-blue-400 text-[9px] rounded">Shared</span>
                                                             )}
                                                         </div>
                                                     </button>
@@ -2174,7 +2204,7 @@ function AccountPageInner() {
                                                 <button
                                                     key={sig.id}
                                                     onClick={() => previewSignature(sig)}
-                                                    className={`w-full text-left p-2.5 rounded transition-colors flex items-center gap-2.5 ${
+                                                    className={`group w-full text-left p-2.5 rounded transition-colors flex items-center gap-2.5 ${
                                                         isSelected ? 'bg-zinc-800 border border-zinc-700' : 'hover:bg-zinc-900 border border-transparent'
                                                     }`}
                                                 >
@@ -2208,6 +2238,15 @@ function AccountPageInner() {
                                                         ) : isOnChain ? (
                                                             <FiCheck size={11} className="text-green-600" title="On-chain" />
                                                         ) : null}
+                                                        {!isSealed && (
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); deleteSignature(sig.id); }}
+                                                                className="p-0.5 text-zinc-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                                                                title="Delete"
+                                                            >
+                                                                <FiX size={11} />
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </button>
                                             );
@@ -2234,6 +2273,7 @@ function AccountPageInner() {
                                         }}
                                         onSaveSignature={saveSignatureFromCanvas}
                                         pageCount={docPageCount}
+                                        onEffectivePagesDetected={(pages) => setDocPageCount(pages)}
                                     />
                                 ) : expandedSig ? (
                                     <div className="flex flex-col h-full">
