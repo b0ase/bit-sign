@@ -233,6 +233,12 @@ function AccountPageInner() {
         [sentCoSignRequests]
     );
 
+    // Deduplicated shared items: exclude docs that already appear as co-sign requests
+    const dedupedSharedWithMe = useMemo(() => {
+        const coSignDocIds = new Set(coSignRequests.map(r => r.document_id));
+        return sharedWithMe.filter(doc => !coSignDocIds.has(doc.document_id));
+    }, [sharedWithMe, coSignRequests]);
+
     const filteredVaultItems = useMemo(() => {
         if (vaultTab === 'documents') return documents;
         if (vaultTab === 'sealed') return sealedItems;
@@ -1612,15 +1618,15 @@ function AccountPageInner() {
                 </div>
 
                 {/* ===== INBOX ===== */}
-                {(sharedWithMe.length + coSignRequests.filter(r => r.status === 'pending').length + peerAttestRequests.filter(r => r.status === 'pending').length) > 0 && (
+                {(dedupedSharedWithMe.length + coSignRequests.filter(r => r.status === 'pending').length + peerAttestRequests.filter(r => r.status === 'pending').length) > 0 && (
                 <div className="space-y-2">
                     <h3 className="text-xs font-medium text-zinc-500 flex items-center gap-2">
                         <FiInbox size={12} /> Inbox
                         <span className="px-1.5 py-0.5 bg-blue-950 text-blue-400 text-[10px] rounded-full font-medium">
-                            {sharedWithMe.length + coSignRequests.filter(r => r.status === 'pending').length + peerAttestRequests.filter(r => r.status === 'pending').length}
+                            {dedupedSharedWithMe.length + coSignRequests.filter(r => r.status === 'pending').length + peerAttestRequests.filter(r => r.status === 'pending').length}
                         </span>
                     </h3>
-                    {sharedWithMe.length === 0 && coSignRequests.filter(r => r.status === 'pending').length === 0 && peerAttestRequests.filter(r => r.status === 'pending').length === 0 ? (
+                    {dedupedSharedWithMe.length === 0 && coSignRequests.filter(r => r.status === 'pending').length === 0 && peerAttestRequests.filter(r => r.status === 'pending').length === 0 ? (
                         <></>
 
                     ) : (
@@ -1688,7 +1694,7 @@ function AccountPageInner() {
                             ))}
 
                             {/* Shared documents */}
-                            {sharedWithMe.map((doc) => {
+                            {dedupedSharedWithMe.map((doc) => {
                                 const isSealed = doc.signature_type === 'SEALED_DOCUMENT' || doc.document_type === 'SEALED_DOCUMENT';
                                 const isWitnessRequest = doc.signature_type === 'WITNESS_REQUEST' || doc.document_type === 'WITNESS_REQUEST';
                                 return (
@@ -1983,7 +1989,7 @@ function AccountPageInner() {
                     <div className="flex items-center gap-1 border-b border-zinc-900">
                         {[
                             { key: 'all', label: 'All', count: signatures.length },
-                            { key: 'received', label: 'Received', count: sharedWithMe.length },
+                            { key: 'received', label: 'Received', count: dedupedSharedWithMe.length },
                             { key: 'documents', label: 'Unsealed', count: documents.length },
                             { key: 'sealed', label: 'Sealed', count: sealedItems.length },
                             { key: 'sent', label: 'Sent', count: sentItems.length },
@@ -2007,7 +2013,7 @@ function AccountPageInner() {
                         ))}
                     </div>
 
-                    {signatures.length === 0 && sharedWithMe.length === 0 ? (
+                    {signatures.length === 0 && dedupedSharedWithMe.length === 0 && coSignRequests.length === 0 ? (
                         <div className="py-16 flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-md text-center">
                             <FiEdit3 className="text-zinc-700 text-2xl mb-3" />
                             <p className="text-sm text-zinc-400 font-medium">No vault items yet</p>
@@ -2059,13 +2065,13 @@ function AccountPageInner() {
                                     /* Browse mode: show compact item list */
                                     <div className="flex-1 overflow-y-auto p-2 space-y-1">
                                         {vaultTab === 'received' ? (
-                                            sharedWithMe.length === 0 ? (
+                                            dedupedSharedWithMe.length === 0 ? (
                                                 <div className="py-8 text-center">
                                                     <FiInbox className="text-zinc-700 mx-auto mb-2" size={20} />
                                                     <p className="text-xs text-zinc-600">No received documents yet.</p>
                                                     <p className="text-[10px] text-zinc-700 mt-1">Documents shared with you will appear here.</p>
                                                 </div>
-                                            ) : sharedWithMe.map((doc) => {
+                                            ) : dedupedSharedWithMe.map((doc) => {
                                                 const isSealed = doc.signature_type === 'SEALED_DOCUMENT' || doc.document_type === 'SEALED_DOCUMENT';
                                                 const isSelected = expandedSig === doc.document_id;
                                                 return (
