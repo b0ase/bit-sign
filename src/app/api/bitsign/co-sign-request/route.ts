@@ -200,6 +200,7 @@ export async function GET(request: NextRequest) {
             .from('co_sign_requests')
             .select('*')
             .or(orFilter)
+            .neq('recipient_dismissed', true)
             .order('created_at', { ascending: false });
 
         if (error) throw error;

@@ -163,6 +163,7 @@ function AccountPageInner() {
     const [coSignModal, setCoSignModal] = useState<{ documentId: string; documentName: string; requestType?: 'co-sign' | 'witness' } | null>(null);
     const [copiedTxid, setCopiedTxid] = useState<string | null>(null);
     const [fullscreenPreview, setFullscreenPreview] = useState<string | null>(null);
+    const [deleteConfirmModal, setDeleteConfirmModal] = useState<{ id: string; name: string; isSealed: boolean } | null>(null);
     const [e2eAutoSetupStatus, setE2eAutoSetupStatus] = useState<'idle' | 'running' | 'done' | 'failed'>('idle');
 
     // Self-attestation form state
@@ -1272,7 +1273,6 @@ function AccountPageInner() {
     };
 
     const deleteSignature = async (sigId: string) => {
-        if (!confirm('Delete this item permanently?')) return;
         try {
             const res = await fetch(`/api/bitsign/signatures/${sigId}/delete`, { method: 'DELETE' });
             if (!res.ok) {
@@ -1284,10 +1284,45 @@ function AccountPageInner() {
                 setExpandedSig(null);
                 setPreviewData(null);
             }
+            addToast('Item deleted', 'info');
         } catch (error) {
             console.error('Delete failed:', error);
-            alert('Failed to delete. Please try again.');
+            addToast('Failed to delete. Please try again.', 'warning');
         }
+    };
+
+    const confirmDelete = (sigId: string, sig?: Signature) => {
+        const isSealed = sig?.signature_type === 'SEALED_DOCUMENT';
+        const name = sig?.metadata?.originalFileName || sig?.metadata?.fileName || sig?.metadata?.type || sig?.signature_type || 'item';
+        if (isSealed) {
+            setDeleteConfirmModal({ id: sigId, name, isSealed: true });
+        } else {
+            setDeleteConfirmModal({ id: sigId, name, isSealed: false });
+        }
+    };
+
+    const dismissCoSignRequest = async (reqId: string, type: 'sent' | 'received') => {
+        try {
+            const res = await fetch(`/api/bitsign/co-sign-request/dismiss`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestId: reqId }),
+            });
+            if (!res.ok) throw new Error('Dismiss failed');
+            if (type === 'sent') {
+                setSentCoSignRequests(prev => prev.filter(r => r.id !== reqId));
+            } else {
+                setCoSignRequests(prev => prev.filter(r => r.id !== reqId));
+            }
+            addToast('Request dismissed', 'info');
+        } catch {
+            addToast('Failed to dismiss', 'warning');
+        }
+    };
+
+    const dismissSharedDoc = (docId: string) => {
+        setSharedWithMe(prev => prev.filter(d => d.id !== docId));
+        addToast('Dismissed from inbox', 'info');
     };
 
     const downloadSignature = async (sigId: string, sig?: Signature) => {
@@ -1701,15 +1736,14 @@ function AccountPageInner() {
                         <></>
 
                     ) : (
-                        <div className="space-y-2">
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                             {/* Co-sign and witness requests (pending) */}
                             {coSignRequests.filter(r => r.status === 'pending').map((req) => {
                                 const isWitReq = req.request_type === 'witness';
                                 return (
-                                    <button
+                                    <div
                                         key={`cosign-${req.id}`}
-                                        onClick={() => openCoSign({ id: req.id, document_id: req.document_id, document_type: 'vault_item', grantor_handle: req.sender_handle, wrapped_key: '', ephemeral_public_key: '', created_at: req.created_at, signature_type: 'SEALED_DOCUMENT', metadata: { originalFileName: req.document_name } })}
-                                        className={`w-full text-left border rounded-md bg-black p-4 flex items-center gap-4 hover:bg-zinc-950 transition-colors cursor-pointer ${isWitReq ? 'border-blue-900/40 hover:border-blue-800/60' : 'border-amber-900/40 hover:border-amber-800/60'}`}
+                                        className={`w-full text-left border rounded-md bg-black p-4 flex items-center gap-4 hover:bg-zinc-950 transition-colors ${isWitReq ? 'border-blue-900/40 hover:border-blue-800/60' : 'border-amber-900/40 hover:border-amber-800/60'}`}
                                     >
                                         <div className={`shrink-0 ${isWitReq ? 'text-blue-400' : 'text-amber-500'}`}>
                                             {isWitReq ? <FiEye size={18} /> : <FiEdit3 size={18} />}
@@ -1730,10 +1764,20 @@ function AccountPageInner() {
                                                 <p className="text-xs text-zinc-500 mt-1 truncate">&ldquo;{req.message}&rdquo;</p>
                                             )}
                                         </div>
-                                        <span className={`px-3 py-1.5 text-xs rounded flex items-center gap-1.5 shrink-0 ${isWitReq ? 'bg-blue-600/20 text-blue-400' : 'bg-amber-600/20 text-amber-400'}`}>
+                                        <button
+                                            onClick={() => openCoSign({ id: req.id, document_id: req.document_id, document_type: 'vault_item', grantor_handle: req.sender_handle, wrapped_key: '', ephemeral_public_key: '', created_at: req.created_at, signature_type: 'SEALED_DOCUMENT', metadata: { originalFileName: req.document_name } })}
+                                            className={`px-3 py-1.5 text-xs rounded flex items-center gap-1.5 shrink-0 cursor-pointer ${isWitReq ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30' : 'bg-amber-600/20 text-amber-400 hover:bg-amber-600/30'}`}
+                                        >
                                             {isWitReq ? <><FiEye size={12} /> Witness</> : <><FiEdit3 size={12} /> Co-Sign</>}
-                                        </span>
-                                    </button>
+                                        </button>
+                                        <button
+                                            onClick={() => dismissCoSignRequest(req.id, 'received')}
+                                            className="p-1 text-zinc-700 hover:text-red-400 transition-colors shrink-0"
+                                            title="Dismiss"
+                                        >
+                                            <FiX size={14} />
+                                        </button>
+                                    </div>
                                 );
                             })}
 
@@ -1861,9 +1905,13 @@ function AccountPageInner() {
                                                 <FiEye size={12} /> View
                                             </button>
                                         )}
-                                        <span className="px-2 py-1 bg-blue-950/30 text-blue-400 text-xs rounded shrink-0">
-                                            Shared
-                                        </span>
+                                        <button
+                                            onClick={() => dismissSharedDoc(doc.id)}
+                                            className="p-1 text-zinc-700 hover:text-red-400 transition-colors shrink-0"
+                                            title="Dismiss"
+                                        >
+                                            <FiX size={14} />
+                                        </button>
                                     </div>
                                 );
                             })}
@@ -1878,9 +1926,10 @@ function AccountPageInner() {
                         <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
                             <h3 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
                                 <FiSend size={14} /> Sent Requests
+                                <span className="text-zinc-600 text-xs">{sentCoSignRequests.length}</span>
                             </h3>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                             {sentCoSignRequests.map((req) => (
                                 <div key={req.id} className={`border rounded-md bg-black p-4 flex items-center gap-4 ${req.status === 'signed' ? 'border-green-900/40' : 'border-zinc-900'}`}>
                                     <div className="shrink-0">
@@ -1933,6 +1982,13 @@ function AccountPageInner() {
                                                 <FiEye size={10} /> View
                                             </button>
                                         )}
+                                        <button
+                                            onClick={() => dismissCoSignRequest(req.id, 'sent')}
+                                            className="p-1 text-zinc-700 hover:text-red-400 transition-colors"
+                                            title="Dismiss"
+                                        >
+                                            <FiX size={14} />
+                                        </button>
                                     </div>
                                 </div>
                             ))}
@@ -2163,6 +2219,15 @@ function AccountPageInner() {
                                 {selectedDocBlobUrl && selectedDocumentId ? (
                                     /* Signing mode: show draggable signature explorer with thumbnails */
                                     <div className="flex-1 overflow-y-auto p-3">
+                                        <div className="flex items-center justify-between mb-3 pb-2 border-b border-zinc-800">
+                                            <span className="text-xs font-medium text-zinc-400">Signing workspace</span>
+                                            <button
+                                                onClick={closeDocumentCanvas}
+                                                className="px-2 py-1 text-[10px] border border-zinc-700 bg-zinc-900 text-zinc-400 rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1"
+                                            >
+                                                <FiX size={10} /> Close workspace
+                                            </button>
+                                        </div>
                                         <SignatureExplorer
                                             signatures={signaturesOnly}
                                             media={mediaItems}
@@ -2374,15 +2439,13 @@ function AccountPageInner() {
                                                         ) : isOnChain ? (
                                                             <FiCheck size={11} className="text-green-600" title="On-chain" />
                                                         ) : null}
-                                                        {!isSealed && (
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); deleteSignature(sig.id); }}
-                                                                className="p-0.5 text-zinc-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                                                                title="Delete"
-                                                            >
-                                                                <FiX size={11} />
-                                                            </button>
-                                                        )}
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); confirmDelete(sig.id, sig); }}
+                                                            className="p-0.5 text-zinc-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                                                            title="Delete"
+                                                        >
+                                                            <FiX size={11} />
+                                                        </button>
                                                     </div>
                                                 </button>
                                             );
@@ -2492,11 +2555,10 @@ function AccountPageInner() {
                                                         {isOnChain && (
                                                             <a href={`https://whatsonchain.com/tx/${sig.txid}`} target="_blank" className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiExternalLink size={11} /> Chain</a>
                                                         )}
-                                                        {isSealed ? (
+                                                        {isSealed && (
                                                             <button onClick={() => unsealDocument(sig.id)} className="px-2.5 py-1 border border-amber-900/30 bg-black text-amber-700 text-xs rounded hover:text-amber-400 hover:border-amber-800 transition-all flex items-center gap-1.5 ml-auto"><FiLock size={11} /> Unseal</button>
-                                                        ) : (
-                                                            <button onClick={() => deleteSignature(sig.id)} className="px-2.5 py-1 border border-red-900/30 bg-black text-red-900 text-xs rounded hover:text-red-400 hover:border-red-800 transition-all flex items-center gap-1.5 ml-auto"><FiX size={11} /> Delete</button>
                                                         )}
+                                                        <button onClick={() => confirmDelete(sig.id, sig)} className={`px-2.5 py-1 border border-red-900/30 bg-black text-red-900 text-xs rounded hover:text-red-400 hover:border-red-800 transition-all flex items-center gap-1.5 ${!isSealed ? 'ml-auto' : ''}`}><FiX size={11} /> Delete</button>
                                                         <button onClick={() => { setExpandedSig(null); setPreviewData(null); }} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiX size={11} /> Close</button>
                                                     </div>
                                                 </div>
@@ -2722,6 +2784,54 @@ function AccountPageInner() {
                                 >
                                     {peerAttestRespondSubmitting ? <FiLoader className="animate-spin" size={14} /> : <FiShield size={14} />}
                                     {peerAttestRespondSubmitting ? 'Signing...' : 'Sign & Attest'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Delete confirmation modal */}
+                {deleteConfirmModal && (
+                    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setDeleteConfirmModal(null)}>
+                        <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-6 max-w-sm w-full space-y-4" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${deleteConfirmModal.isSealed ? 'bg-red-950 border border-red-900/40' : 'bg-zinc-900 border border-zinc-800'}`}>
+                                    <FiX size={18} className={deleteConfirmModal.isSealed ? 'text-red-400' : 'text-zinc-400'} />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-semibold text-white">Delete {deleteConfirmModal.isSealed ? 'sealed document' : 'item'}?</h3>
+                                    <p className="text-xs text-zinc-500 truncate max-w-[200px]">{deleteConfirmModal.name}</p>
+                                </div>
+                            </div>
+                            {deleteConfirmModal.isSealed && (
+                                <div className="bg-red-950/30 border border-red-900/30 rounded-lg p-3 space-y-1">
+                                    <p className="text-xs text-red-400 font-medium flex items-center gap-1.5"><FiAlertCircle size={12} /> This is a sealed document</p>
+                                    <p className="text-[11px] text-red-400/70 leading-relaxed">
+                                        This document has been sealed and may be recorded on-chain. Deleting it removes your local copy permanently. The blockchain record (if any) will remain.
+                                    </p>
+                                </div>
+                            )}
+                            <p className="text-xs text-zinc-400">
+                                {deleteConfirmModal.isSealed
+                                    ? 'This cannot be undone. The item will be moved to trash and permanently deleted after 30 days.'
+                                    : 'This item will be moved to trash and permanently deleted after 30 days.'}
+                            </p>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setDeleteConfirmModal(null)}
+                                    className="flex-1 px-4 py-2.5 border border-zinc-800 text-zinc-400 text-sm rounded-lg hover:text-white hover:border-zinc-600 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        const id = deleteConfirmModal.id;
+                                        setDeleteConfirmModal(null);
+                                        await deleteSignature(id);
+                                    }}
+                                    className="flex-1 px-4 py-2.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-500 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <FiX size={14} /> Delete
                                 </button>
                             </div>
                         </div>
