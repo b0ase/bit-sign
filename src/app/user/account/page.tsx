@@ -1865,9 +1865,23 @@ function AccountPageInner() {
                                         </span>
                                         {req.status === 'signed' && req.response_document_id && (
                                             <button
-                                                onClick={() => {
+                                                onClick={async () => {
                                                     setVaultTab('returned');
-                                                    addToast('Check the Signed & Returned tab to view', 'info');
+                                                    setExpandedSig(req.response_document_id!);
+                                                    setPreviewLoading(true);
+                                                    setPreviewData(null);
+                                                    try {
+                                                        const res = await fetch(`/api/bitsign/signatures/${req.response_document_id}/preview`);
+                                                        if (!res.ok) throw new Error('Failed to load');
+                                                        const blob = await res.blob();
+                                                        const url = URL.createObjectURL(blob);
+                                                        setPreviewData({ url, type: blob.type?.startsWith('image/') ? 'image' : (blob.type || 'image/png') });
+                                                    } catch {
+                                                        addToast('Failed to load co-signed document preview', 'warning');
+                                                    } finally {
+                                                        setPreviewLoading(false);
+                                                    }
+                                                    setTimeout(() => vaultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
                                                 }}
                                                 className="px-2 py-1 text-xs rounded bg-green-900/30 text-green-400 border border-green-900/40 hover:bg-green-900/50 transition-all flex items-center gap-1"
                                             >
@@ -2224,12 +2238,13 @@ function AccountPageInner() {
                                                             // Response doc belongs to co-signer — preview via API (access grant allows it)
                                                             setExpandedSig(req.response_document_id);
                                                             setPreviewLoading(true);
+                                                            setPreviewData(null);
                                                             try {
                                                                 const res = await fetch(`/api/bitsign/signatures/${req.response_document_id}/preview`);
                                                                 if (!res.ok) throw new Error('Failed to load');
                                                                 const blob = await res.blob();
                                                                 const url = URL.createObjectURL(blob);
-                                                                setPreviewData({ url, type: blob.type || 'image/png' });
+                                                                setPreviewData({ url, type: blob.type?.startsWith('image/') ? 'image' : (blob.type || 'image/png') });
                                                             } catch {
                                                                 addToast('Failed to load co-signed document preview', 'warning');
                                                             } finally {
@@ -2251,7 +2266,7 @@ function AccountPageInner() {
                                                         </span>
                                                     </div>
                                                     <div className="shrink-0 flex items-center gap-1">
-                                                        <span className="px-1 py-0.5 bg-green-950/30 text-green-400 text-[9px] rounded">Co-Signed</span>
+                                                        <span className="px-1 py-0.5 bg-green-950/30 text-green-400 text-[9px] rounded">{req.request_type === 'witness' ? 'Witnessed' : 'Co-Signed'}</span>
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
