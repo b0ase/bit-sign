@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { documentId, recipientHandle, recipientEmail, message } = await request.json();
+        const { documentId, recipientHandle, recipientEmail, message, requestType } = await request.json();
 
         if (!documentId) {
             return NextResponse.json({ error: 'Missing documentId' }, { status: 400 });
@@ -94,6 +94,7 @@ export async function POST(request: NextRequest) {
                 recipient_email: finalEmail,
                 claim_token: claimToken,
                 message: message || null,
+                request_type: requestType === 'witness' ? 'witness' : 'co-sign',
                 status: 'pending',
             })
             .select()
