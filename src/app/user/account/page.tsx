@@ -1772,10 +1772,18 @@ function AccountPageInner() {
                             {dedupedSharedWithMe.map((doc) => {
                                 const isSealed = doc.signature_type === 'SEALED_DOCUMENT' || doc.document_type === 'SEALED_DOCUMENT';
                                 const isWitnessRequest = doc.signature_type === 'WITNESS_REQUEST' || doc.document_type === 'WITNESS_REQUEST';
+                                // Is this a returned co-signed doc? (I'm the original sender, this is the response)
+                                const isReturnedDoc = sentCoSignRequests.some(r => r.response_document_id === doc.document_id && r.status === 'signed');
+                                // Does this doc have a pending co-sign request for me?
+                                const hasPendingRequest = coSignRequests.some(r => r.document_id === doc.document_id && r.status === 'pending');
+                                // Determine document name
+                                const docName = doc.metadata?.originalFileName || doc.metadata?.fileName || (doc.metadata?.type !== 'Sealed Document' ? doc.metadata?.type : null) || doc.document_type;
                                 return (
-                                    <div key={doc.id} className={`border rounded-md bg-black p-4 flex items-center gap-4 ${isWitnessRequest ? 'border-blue-900/40' : isSealed ? 'border-amber-900/40' : 'border-zinc-900'}`}>
+                                    <div key={doc.id} className={`border rounded-md bg-black p-4 flex items-center gap-4 ${isReturnedDoc ? 'border-green-900/40' : isWitnessRequest ? 'border-blue-900/40' : isSealed ? 'border-amber-900/40' : 'border-zinc-900'}`}>
                                         <div className="text-zinc-500 shrink-0">
-                                            {isWitnessRequest ? (
+                                            {isReturnedDoc ? (
+                                                <FiCheck size={18} className="text-green-400" />
+                                            ) : isWitnessRequest ? (
                                                 <FiEye size={18} className="text-blue-400" />
                                             ) : isSealed ? (
                                                 <FiShield size={18} className="text-amber-500" />
@@ -1786,24 +1794,51 @@ function AccountPageInner() {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2">
                                                 <span className="text-sm font-medium text-white truncate">
-                                                    {doc.metadata?.originalFileName || doc.metadata?.fileName || doc.metadata?.type || doc.document_type}
+                                                    {docName}
                                                 </span>
-                                                {isWitnessRequest && (
+                                                {isReturnedDoc ? (
+                                                    <span className="px-1.5 py-0.5 bg-green-950 text-green-400 text-[10px] rounded shrink-0">
+                                                        Returned
+                                                    </span>
+                                                ) : isWitnessRequest ? (
                                                     <span className="px-1.5 py-0.5 bg-blue-950 text-blue-400 text-[10px] rounded shrink-0">
                                                         Witness
                                                     </span>
-                                                )}
-                                                {isSealed && !isWitnessRequest && (
+                                                ) : isSealed && hasPendingRequest ? (
                                                     <span className="px-1.5 py-0.5 bg-amber-950 text-amber-400 text-[10px] rounded shrink-0">
                                                         Sign
                                                     </span>
-                                                )}
+                                                ) : null}
                                             </div>
                                             <span className="text-xs text-zinc-600">
                                                 From ${doc.grantor_handle} &middot; {new Date(doc.created_at).toLocaleDateString()}
                                             </span>
                                         </div>
-                                        {(isSealed || isWitnessRequest) ? (
+                                        {isReturnedDoc ? (
+                                            <button
+                                                onClick={async () => {
+                                                    setVaultTab('returned');
+                                                    setExpandedSig(doc.document_id);
+                                                    setPreviewLoading(true);
+                                                    setPreviewData(null);
+                                                    try {
+                                                        const res = await fetch(`/api/bitsign/signatures/${doc.document_id}/preview`);
+                                                        if (!res.ok) throw new Error('Failed to load');
+                                                        const blob = await res.blob();
+                                                        const url = URL.createObjectURL(blob);
+                                                        setPreviewData({ url, type: blob.type?.startsWith('image/') ? 'image' : (blob.type || 'image/png') });
+                                                    } catch {
+                                                        addToast('Failed to load document preview', 'warning');
+                                                    } finally {
+                                                        setPreviewLoading(false);
+                                                    }
+                                                    setTimeout(() => vaultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+                                                }}
+                                                className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-green-600/20 text-green-400 hover:bg-green-600/30"
+                                            >
+                                                <FiEye size={12} /> View
+                                            </button>
+                                        ) : (isSealed || isWitnessRequest) && hasPendingRequest ? (
                                             <button
                                                 onClick={() => openCoSign(doc)}
                                                 className={`px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 ${

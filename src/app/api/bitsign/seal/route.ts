@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const originalFileName = originalDoc.metadata?.fileName || originalDoc.metadata?.type || 'Document';
+    const originalFileName = originalDoc.metadata?.fileName || originalDoc.metadata?.originalFileName || originalDoc.metadata?.type || 'Document';
 
     // Hash the composite image data
     const compositeHash = await hashData(compositeData);
