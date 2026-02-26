@@ -61,26 +61,47 @@ export default function DocumentCanvas({
     const [showSignatureModal, setShowSignatureModal] = useState(false);
     const [effectivePages, setEffectivePages] = useState(pageCount);
 
+    // Fixed pixel targets — signatures are always this size on screen
+    const SIG_HEIGHT_PX = 60;
+    const SIG_WIDTH_PX = 150;
+    const TEXT_HEIGHT_PX = 40;
+    const DATE_HEIGHT_PX = 28;
+
+    // Ref storing the rendered image height for pct conversion
+    const renderedHeightRef = useRef<number>(0);
+    const renderedWidthRef = useRef<number>(0);
+
+    // Convert fixed pixels to percentage of the rendered image
+    const pxToHeightPct = (px: number) => {
+        if (renderedHeightRef.current <= 0) return 6; // safe fallback
+        return (px / renderedHeightRef.current) * 100;
+    };
+    const pxToWidthPct = (px: number) => {
+        if (renderedWidthRef.current <= 0) return 20;
+        return (px / renderedWidthRef.current) * 100;
+    };
+
     // Keep a ref to latest elements so async callbacks don't use stale closures
     const elementsRef = useRef(elements);
     elementsRef.current = elements;
 
-    // Auto-clamp: when effectivePages changes (image loaded, multi-page detected),
-    // shrink any oversized signature elements immediately
+    // Auto-clamp: when image dimensions are known, fix any oversized elements
     useEffect(() => {
-        if (effectivePages <= 1) return;
-        const maxSigH = 8 / effectivePages;
+        if (renderedHeightRef.current <= 0) return;
+        const maxH = pxToHeightPct(SIG_HEIGHT_PX) * 1.5; // allow some tolerance
         const oversized = elementsRef.current.filter(
-            el => el.type === 'signature' && el.heightPct > maxSigH * 1.5
+            el => el.type === 'signature' && el.heightPct > maxH
         );
         if (oversized.length > 0) {
+            const targetH = pxToHeightPct(SIG_HEIGHT_PX);
+            const targetW = pxToWidthPct(SIG_WIDTH_PX);
             onElementsChange(elementsRef.current.map(el =>
-                el.type === 'signature' && el.heightPct > maxSigH * 1.5
-                    ? { ...el, heightPct: maxSigH }
+                el.type === 'signature' && el.heightPct > maxH
+                    ? { ...el, heightPct: targetH, widthPct: Math.min(el.widthPct, targetW) }
                     : el
             ));
         }
-    }, [effectivePages]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [effectivePages, docLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Drag/resize state
     const dragRef = useRef<{
@@ -125,9 +146,9 @@ export default function DocumentCanvas({
         const xPct = ((e.clientX - rect.left) / rect.width) * 100;
         const yPct = ((e.clientY - rect.top) / rect.height) * 100;
 
-        // Size signature relative to a single page — always a small box
-        const sigWidthPct = 20;
-        const sigHeightPct = Math.min(8, 8 / effectivePages);
+        // Fixed pixel size — always the same visual size regardless of document
+        const sigWidthPct = pxToWidthPct(SIG_WIDTH_PX);
+        const sigHeightPct = pxToHeightPct(SIG_HEIGHT_PX);
 
         const newElement: PlacedElement = {
             id: genId(),
@@ -153,7 +174,7 @@ export default function DocumentCanvas({
 
         onElementsChange([...elements, newElement]);
         setSelectedId(newElement.id);
-    }, [elements, onElementsChange, effectivePages]);
+    }, [elements, onElementsChange, docLoaded]);
 
     const fetchSignatureSvg = async (sigId: string): Promise<string | null> => {
         try {
@@ -177,16 +198,17 @@ export default function DocumentCanvas({
         const svgB64 = btoa(unescape(encodeURIComponent(signatureData.svg)));
         const previewUrl = `data:image/svg+xml;base64,${svgB64}`;
 
-        // Size signature relative to a single page — always a small box
-        const drawnHeightPct = Math.min(6, 6 / effectivePages);
+        // Fixed pixel size — same visual size regardless of document
+        const drawnHeightPct = pxToHeightPct(SIG_HEIGHT_PX);
+        const drawnWidthPct = pxToWidthPct(SIG_WIDTH_PX);
 
         const elementId = genId();
         const newElement: PlacedElement = {
             id: elementId,
             type: 'signature',
             xPct: 20,
-            yPct: 2 / effectivePages,
-            widthPct: 20,
+            yPct: pxToHeightPct(20),
+            widthPct: drawnWidthPct,
             heightPct: drawnHeightPct,
             signatureSvg: signatureData.svg,
             signaturePreviewUrl: previewUrl,
@@ -203,7 +225,7 @@ export default function DocumentCanvas({
                 ));
             }
         }
-    }, [elements, onElementsChange, onSaveSignature, effectivePages]);
+    }, [elements, onElementsChange, onSaveSignature, docLoaded]);
 
     // Add text element
     const addTextElement = useCallback(() => {
@@ -211,9 +233,9 @@ export default function DocumentCanvas({
             id: genId(),
             type: 'text',
             xPct: 30,
-            yPct: 2 / effectivePages,
+            yPct: pxToHeightPct(20),
             widthPct: 40,
-            heightPct: Math.min(5, 4 / effectivePages),
+            heightPct: pxToHeightPct(TEXT_HEIGHT_PX),
             text: 'Type here...',
             fontSize: 16,
             fontFamily: 'sans-serif',
@@ -221,7 +243,7 @@ export default function DocumentCanvas({
         onElementsChange([...elements, newElement]);
         setSelectedId(newElement.id);
         setEditingTextId(newElement.id);
-    }, [elements, onElementsChange, effectivePages]);
+    }, [elements, onElementsChange, docLoaded]);
 
     // Add date element
     const addDateElement = useCallback(() => {
@@ -231,16 +253,16 @@ export default function DocumentCanvas({
             id: genId(),
             type: 'text',
             xPct: 55,
-            yPct: 2 / effectivePages,
+            yPct: pxToHeightPct(20),
             widthPct: 20,
-            heightPct: Math.min(3, 3 / effectivePages),
+            heightPct: pxToHeightPct(DATE_HEIGHT_PX),
             text: dateStr,
             fontSize: 14,
             fontFamily: 'sans-serif',
         };
         onElementsChange([...elements, newElement]);
         setSelectedId(newElement.id);
-    }, [elements, onElementsChange, effectivePages]);
+    }, [elements, onElementsChange, docLoaded]);
 
     // Delete selected element
     const deleteElement = useCallback((id: string) => {
@@ -289,11 +311,10 @@ export default function DocumentCanvas({
             );
             onElementsChange(updated);
         } else {
-            // Free resize: width follows horizontal drag, height follows vertical drag
-            // This works correctly regardless of page count since both axes are independent
-            const maxH = Math.min(30, 50 / effectivePages);
-            const newW = Math.max(5, Math.min(80, s.widthPct + dx));
-            const newH = Math.max(2, Math.min(maxH, s.heightPct + dy));
+            // Free resize — cap at 200px equivalent so user can't make it huge
+            const maxH = pxToHeightPct(200);
+            const newW = Math.max(5, Math.min(60, s.widthPct + dx));
+            const newH = Math.max(1, Math.min(maxH, s.heightPct + dy));
             const updated = elements.map(el =>
                 el.id === dragRef.current!.elementId
                     ? { ...el, widthPct: newW, heightPct: newH }
@@ -301,7 +322,7 @@ export default function DocumentCanvas({
             );
             onElementsChange(updated);
         }
-    }, [elements, onElementsChange, effectivePages]);
+    }, [elements, onElementsChange, docLoaded]);
 
     const handlePointerUp = useCallback(() => {
         dragRef.current = null;
@@ -571,18 +592,23 @@ export default function DocumentCanvas({
                             alt="Document"
                             className="w-full h-auto rounded-md shadow-2xl"
                             onLoad={(e) => {
-                                setDocLoaded(true);
-                                // Detect effective page count from aspect ratio
                                 const img = e.currentTarget;
+                                // Store rendered dimensions for fixed-pixel → percentage conversion
+                                const containerW = containerRef.current?.getBoundingClientRect().width || 768;
+                                const renderedH = containerW * (img.naturalHeight / img.naturalWidth);
+                                renderedWidthRef.current = containerW;
+                                renderedHeightRef.current = renderedH;
+
+                                // Detect effective page count from aspect ratio
                                 const ratio = img.naturalHeight / img.naturalWidth;
-                                // A4/Letter page ratio ~1.41. If image is taller, it's multi-page stitched.
                                 const estimated = Math.max(1, Math.round(ratio / 1.41));
                                 const detected = Math.max(pageCount, estimated);
                                 setEffectivePages(detected);
-                                // Report back to parent so it can use correct page count for sizing
                                 if (detected !== pageCount && onEffectivePagesDetected) {
                                     onEffectivePagesDetected(detected);
                                 }
+
+                                setDocLoaded(true);
                             }}
                             onError={() => { setDocError(true); setDocLoaded(true); }}
                             draggable={false}
