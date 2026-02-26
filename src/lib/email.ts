@@ -500,7 +500,7 @@ async function sendSesEmail({
   html: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    await ses.send(
+    const result = await ses.send(
       new SendEmailCommand({
         Source: `bit-sign <${from}>`,
         Destination: { ToAddresses: [to] },
@@ -510,10 +510,21 @@ async function sendSesEmail({
         },
       })
     );
+    console.log('[email] SES send OK:', { to, messageId: result.MessageId });
     return { success: true };
   } catch (err: any) {
-    console.error('[email] SES send failed:', err);
-    return { success: false, error: err.message || 'Failed to send email' };
+    const code = err.name || err.Code || err.$metadata?.httpStatusCode || 'unknown';
+    const region = process.env.AWS_SES_REGION || 'eu-north-1';
+    console.error('[email] SES send failed:', {
+      code,
+      message: err.message,
+      from,
+      to,
+      region,
+      hasAccessKey: !!process.env.AWS_SES_ACCESS_KEY_ID,
+      hasSecretKey: !!process.env.AWS_SES_SECRET_ACCESS_KEY,
+    });
+    return { success: false, error: `${code}: ${err.message}` };
   }
 }
 

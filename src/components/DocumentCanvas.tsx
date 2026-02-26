@@ -427,7 +427,11 @@ export default function DocumentCanvas({
             ctx.font = `${Math.round(stampFontSize * 0.85)}px monospace`;
             ctx.fillText(line3, boxX + stampPad * 1.5, boxY + stampPad + stampFontSize * 1.4 * lineIdx);
 
-            const compositeBase64 = canvas.toDataURL('image/png');
+            // Use JPEG for multi-page docs to stay under Vercel's 4.5MB body limit
+            const useJpeg = pageCount > 1 || canvas.width * canvas.height > 4_000_000;
+            const mimeType = useJpeg ? 'image/jpeg' : 'image/png';
+            const quality = useJpeg ? 0.82 : undefined;
+            const compositeBase64 = canvas.toDataURL(mimeType, quality);
             onSeal(compositeBase64, elements);
         } catch (error) {
             console.error('Compositing failed:', error);

@@ -85,11 +85,11 @@ export async function POST(request: NextRequest) {
 
         if (!emailResult.success) {
             console.error('[invite] Email send failed:', emailResult.error);
-            // Invite is created even if email fails — return warning
+            // Invite is created even if email fails — return warning with detail
             return NextResponse.json({
                 success: true,
                 inviteId: invite.id,
-                warning: 'Invite created but email delivery failed',
+                warning: `Invite created but email delivery failed: ${emailResult.error}`,
             });
         }
 

@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
           originalFileName,
           placement,
           elements: elements || undefined,
-          mimeType: 'image/png',
+          mimeType: compositeData.startsWith('data:image/jpeg') ? 'image/jpeg' : 'image/png',
           walletAddress,
           walletSignature,
           paymentTxid,

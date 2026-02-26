@@ -149,8 +149,13 @@ export default function ShareModal({ documentId, documentType, itemType, itemLab
                 throw new Error(data.error || 'Failed to send invite');
             }
 
-            setSuccessMessage(`Invitation sent to ${email}`);
-            setSuccess(true);
+            if (data.warning) {
+                // Invite created but email failed — show warning
+                setError(`Email delivery failed. ${data.warning}`);
+            } else {
+                setSuccessMessage(`Invitation sent to ${email}`);
+                setSuccess(true);
+            }
         } catch (err: any) {
             console.error('Email invite failed:', err);
             setError(err?.message || 'Failed to send invite. Please try again.');
