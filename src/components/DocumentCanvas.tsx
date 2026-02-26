@@ -65,6 +65,23 @@ export default function DocumentCanvas({
     const elementsRef = useRef(elements);
     elementsRef.current = elements;
 
+    // Auto-clamp: when effectivePages changes (image loaded, multi-page detected),
+    // shrink any oversized signature elements immediately
+    useEffect(() => {
+        if (effectivePages <= 1) return;
+        const maxSigH = 8 / effectivePages;
+        const oversized = elementsRef.current.filter(
+            el => el.type === 'signature' && el.heightPct > maxSigH * 1.5
+        );
+        if (oversized.length > 0) {
+            onElementsChange(elementsRef.current.map(el =>
+                el.type === 'signature' && el.heightPct > maxSigH * 1.5
+                    ? { ...el, heightPct: maxSigH }
+                    : el
+            ));
+        }
+    }, [effectivePages]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // Drag/resize state
     const dragRef = useRef<{
         elementId: string;
@@ -108,9 +125,9 @@ export default function DocumentCanvas({
         const xPct = ((e.clientX - rect.left) / rect.width) * 100;
         const yPct = ((e.clientY - rect.top) / rect.height) * 100;
 
-        // Size signature relative to a single page, not the entire document
-        const sigWidthPct = 25;
-        const sigHeightPct = Math.min(15, 12 / effectivePages);
+        // Size signature relative to a single page — always a small box
+        const sigWidthPct = 20;
+        const sigHeightPct = Math.min(8, 8 / effectivePages);
 
         const newElement: PlacedElement = {
             id: genId(),
@@ -160,8 +177,8 @@ export default function DocumentCanvas({
         const svgB64 = btoa(unescape(encodeURIComponent(signatureData.svg)));
         const previewUrl = `data:image/svg+xml;base64,${svgB64}`;
 
-        // Size signature relative to a single page
-        const drawnHeightPct = Math.min(10, 8 / effectivePages);
+        // Size signature relative to a single page — always a small box
+        const drawnHeightPct = Math.min(6, 6 / effectivePages);
 
         const elementId = genId();
         const newElement: PlacedElement = {
@@ -169,7 +186,7 @@ export default function DocumentCanvas({
             type: 'signature',
             xPct: 20,
             yPct: 2 / effectivePages,
-            widthPct: 25,
+            widthPct: 20,
             heightPct: drawnHeightPct,
             signatureSvg: signatureData.svg,
             signaturePreviewUrl: previewUrl,
@@ -196,7 +213,7 @@ export default function DocumentCanvas({
             xPct: 30,
             yPct: 2 / effectivePages,
             widthPct: 40,
-            heightPct: Math.min(8, 6 / effectivePages),
+            heightPct: Math.min(5, 4 / effectivePages),
             text: 'Type here...',
             fontSize: 16,
             fontFamily: 'sans-serif',
@@ -216,7 +233,7 @@ export default function DocumentCanvas({
             xPct: 55,
             yPct: 2 / effectivePages,
             widthPct: 20,
-            heightPct: Math.min(5, 4 / effectivePages),
+            heightPct: Math.min(3, 3 / effectivePages),
             text: dateStr,
             fontSize: 14,
             fontFamily: 'sans-serif',
@@ -274,7 +291,7 @@ export default function DocumentCanvas({
         } else {
             // Free resize: width follows horizontal drag, height follows vertical drag
             // This works correctly regardless of page count since both axes are independent
-            const maxH = Math.min(80, 100 / effectivePages);
+            const maxH = Math.min(30, 50 / effectivePages);
             const newW = Math.max(5, Math.min(80, s.widthPct + dx));
             const newH = Math.max(2, Math.min(maxH, s.heightPct + dy));
             const updated = elements.map(el =>

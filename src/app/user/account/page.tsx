@@ -2084,13 +2084,13 @@ function AccountPageInner() {
                                                         }
                                                     } catch {}
                                                 }
-                                                const sigHeightPct = Math.min(15, 12 / docPageCount);
+                                                const sigHeightPct = Math.min(8, 8 / docPageCount);
                                                 const newEl: PlacedElement = {
                                                     id: `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
                                                     type: 'signature',
                                                     xPct: 25,
                                                     yPct: 2 / docPageCount,
-                                                    widthPct: 25,
+                                                    widthPct: 20,
                                                     heightPct: sigHeightPct,
                                                     signatureId: sig.id,
                                                     signaturePreviewUrl: previewUrl || undefined,
