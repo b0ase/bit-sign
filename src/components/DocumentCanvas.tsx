@@ -150,32 +150,38 @@ export default function DocumentCanvas({
 
     // Handle drawn signature from SovereignSignature modal
     const handleDrawnSignature = useCallback(async (signatureData: { svg: string; json: string }) => {
+        // Close modal immediately to prevent duplicate saves
+        setShowSignatureModal(false);
+
         const svgB64 = btoa(unescape(encodeURIComponent(signatureData.svg)));
         const previewUrl = `data:image/svg+xml;base64,${svgB64}`;
-
-        // Save to vault if callback provided
-        let savedId: string | null = null;
-        if (onSaveSignature) {
-            savedId = await onSaveSignature(signatureData);
-        }
 
         // Size signature relative to a single page
         const drawnHeightPct = Math.min(10, 8 / pageCount);
 
+        const elementId = genId();
         const newElement: PlacedElement = {
-            id: genId(),
+            id: elementId,
             type: 'signature',
             xPct: 20,
             yPct: 2 / pageCount,
-            widthPct: 30,
+            widthPct: 25,
             heightPct: drawnHeightPct,
-            signatureId: savedId || undefined,
             signatureSvg: signatureData.svg,
             signaturePreviewUrl: previewUrl,
         };
         onElementsChange([...elements, newElement]);
-        setSelectedId(newElement.id);
-        setShowSignatureModal(false);
+        setSelectedId(elementId);
+
+        // Save to vault in background, update element with saved ID
+        if (onSaveSignature) {
+            const savedId = await onSaveSignature(signatureData);
+            if (savedId) {
+                onElementsChange(elementsRef.current.map(el =>
+                    el.id === elementId ? { ...el, signatureId: savedId } : el
+                ));
+            }
+        }
     }, [elements, onElementsChange, onSaveSignature, pageCount]);
 
     // Add text element
