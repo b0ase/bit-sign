@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { bufferToBase64 } from '@/lib/attestation';
 import SovereignSignature from '@/components/SovereignSignature';
@@ -195,6 +195,7 @@ function AccountPageInner() {
     const [selectedDocBlobUrl, setSelectedDocBlobUrl] = useState<string | null>(null);
     const [placedElements, setPlacedElements] = useState<PlacedElement[]>([]);
     const [docPageCount, setDocPageCount] = useState(1);
+    const vaultRef = useRef<HTMLDivElement>(null);
 
     // Split vault items into categories
     const signaturesOnly = useMemo(() =>
@@ -757,6 +758,8 @@ function AccountPageInner() {
             setSelectedDocBlobUrl(blobUrl);
             setPlacedElements([]);
             setDocPageCount(numPages);
+            // Scroll vault into view so user sees the canvas
+            setTimeout(() => vaultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
         } catch (error) {
             console.error('Failed to open shared document for co-signing:', error);
             alert('Failed to load shared document.');
@@ -1633,7 +1636,11 @@ function AccountPageInner() {
                         <div className="space-y-2">
                             {/* Co-sign requests (pending) */}
                             {coSignRequests.filter(r => r.status === 'pending').map((req) => (
-                                <div key={`cosign-${req.id}`} className="border border-amber-900/40 rounded-md bg-black p-4 flex items-center gap-4">
+                                <button
+                                    key={`cosign-${req.id}`}
+                                    onClick={() => openCoSign({ id: req.id, document_id: req.document_id, document_type: 'vault_item', grantor_handle: req.sender_handle, wrapped_key: '', ephemeral_public_key: '', created_at: req.created_at, signature_type: 'SEALED_DOCUMENT', metadata: { originalFileName: req.document_name } })}
+                                    className="w-full text-left border border-amber-900/40 rounded-md bg-black p-4 flex items-center gap-4 hover:bg-zinc-950 hover:border-amber-800/60 transition-colors cursor-pointer"
+                                >
                                     <div className="text-amber-500 shrink-0">
                                         <FiEdit3 size={18} />
                                     </div>
@@ -1653,13 +1660,10 @@ function AccountPageInner() {
                                             <p className="text-xs text-zinc-500 mt-1 truncate">&ldquo;{req.message}&rdquo;</p>
                                         )}
                                     </div>
-                                    <button
-                                        onClick={() => openCoSign({ id: req.id, document_id: req.document_id, document_type: 'vault_item', grantor_handle: req.sender_handle, wrapped_key: '', ephemeral_public_key: '', created_at: req.created_at, signature_type: 'SEALED_DOCUMENT', metadata: { originalFileName: req.document_name } })}
-                                        className="px-3 py-1.5 bg-amber-600/20 text-amber-400 text-xs rounded flex items-center gap-1.5 hover:bg-amber-600/30 transition-colors shrink-0"
-                                    >
+                                    <span className="px-3 py-1.5 bg-amber-600/20 text-amber-400 text-xs rounded flex items-center gap-1.5 shrink-0">
                                         <FiEdit3 size={12} /> Co-Sign
-                                    </button>
-                                </div>
+                                    </span>
+                                </button>
                             ))}
 
                             {/* Peer attestation requests */}
@@ -1984,7 +1988,7 @@ function AccountPageInner() {
                 )}
 
                 {/* ===== UNIFIED VAULT ===== */}
-                <div className="space-y-3">
+                <div ref={vaultRef} className="space-y-3">
                     {/* Tabs */}
                     <div className="flex items-center gap-1 border-b border-zinc-900">
                         {[
