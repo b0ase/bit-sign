@@ -669,6 +669,47 @@ function AccountPageInner() {
         }
     };
 
+    // Preview a shared document in the viewer (read-only)
+    const previewSharedDoc = async (doc: SharedDocument) => {
+        setExpandedSig(doc.document_id);
+        setPreviewLoading(true);
+        setPreviewData(null);
+        setPreviewRotation(0);
+
+        try {
+            const previewUrl = `/api/bitsign/signatures/${doc.document_id}/preview`;
+            const res = await fetch(previewUrl);
+            if (!res.ok) {
+                setPreviewData({ url: '', type: 'error' });
+                return;
+            }
+            const contentType = res.headers.get('content-type') || '';
+
+            if (contentType.includes('svg')) {
+                const blob = await res.blob();
+                setPreviewData({ url: URL.createObjectURL(blob), type: 'svg' });
+            } else if (contentType.startsWith('image/')) {
+                const blob = await res.blob();
+                setPreviewData({ url: URL.createObjectURL(blob), type: 'image' });
+            } else if (contentType.includes('pdf')) {
+                const blob = await res.blob();
+                setPreviewData({ url: URL.createObjectURL(blob), type: 'pdf' });
+            } else if (contentType.startsWith('video/')) {
+                const blob = await res.blob();
+                setPreviewData({ url: URL.createObjectURL(blob), type: 'video' });
+            } else {
+                // Try as image for sealed documents (base64 image data)
+                const blob = await res.blob();
+                setPreviewData({ url: URL.createObjectURL(blob), type: 'image' });
+            }
+        } catch (error) {
+            console.error('Shared doc preview failed:', error);
+            setPreviewData({ url: '', type: 'error' });
+        } finally {
+            setPreviewLoading(false);
+        }
+    };
+
     // Co-sign handler for shared documents
     const openCoSign = async (doc: SharedDocument) => {
         try {
@@ -1681,7 +1722,7 @@ function AccountPageInner() {
                                                 From ${doc.grantor_handle} &middot; {new Date(doc.created_at).toLocaleDateString()}
                                             </span>
                                         </div>
-                                        {(isSealed || isWitnessRequest) && (
+                                        {(isSealed || isWitnessRequest) ? (
                                             <button
                                                 onClick={() => openCoSign(doc)}
                                                 className={`px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 ${
@@ -1696,9 +1737,16 @@ function AccountPageInner() {
                                                     <><FiEdit3 size={12} /> Co-Sign</>
                                                 )}
                                             </button>
+                                        ) : (
+                                            <button
+                                                onClick={() => { previewSharedDoc(doc); setVaultTab('received'); }}
+                                                className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                                            >
+                                                <FiEye size={12} /> View
+                                            </button>
                                         )}
                                         <span className="px-2 py-1 bg-blue-950/30 text-blue-400 text-xs rounded shrink-0">
-                                            E2E Encrypted
+                                            Shared
                                         </span>
                                     </div>
                                 );
@@ -1935,6 +1983,7 @@ function AccountPageInner() {
                     <div className="flex items-center gap-1 border-b border-zinc-900">
                         {[
                             { key: 'all', label: 'All', count: signatures.length },
+                            { key: 'received', label: 'Received', count: sharedWithMe.length },
                             { key: 'documents', label: 'Unsealed', count: documents.length },
                             { key: 'sealed', label: 'Sealed', count: sealedItems.length },
                             { key: 'sent', label: 'Sent', count: sentItems.length },
@@ -1948,15 +1997,17 @@ function AccountPageInner() {
                                 className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
                                     vaultTab === tab.key
                                         ? 'border-white text-white'
+                                        : tab.key === 'received' && tab.count > 0
+                                        ? 'border-transparent text-blue-400 hover:text-blue-300'
                                         : 'border-transparent text-zinc-500 hover:text-zinc-300'
                                 }`}
                             >
-                                {tab.label} <span className="text-zinc-600 ml-1">{tab.count}</span>
+                                {tab.label} <span className={tab.key === 'received' && tab.count > 0 ? 'text-blue-400 ml-1' : 'text-zinc-600 ml-1'}>{tab.count}</span>
                             </button>
                         ))}
                     </div>
 
-                    {signatures.length === 0 ? (
+                    {signatures.length === 0 && sharedWithMe.length === 0 ? (
                         <div className="py-16 flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-md text-center">
                             <FiEdit3 className="text-zinc-700 text-2xl mb-3" />
                             <p className="text-sm text-zinc-400 font-medium">No vault items yet</p>
@@ -2007,7 +2058,54 @@ function AccountPageInner() {
                                 ) : (
                                     /* Browse mode: show compact item list */
                                     <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                                        {vaultTab === 'returned' ? (
+                                        {vaultTab === 'received' ? (
+                                            sharedWithMe.length === 0 ? (
+                                                <div className="py-8 text-center">
+                                                    <FiInbox className="text-zinc-700 mx-auto mb-2" size={20} />
+                                                    <p className="text-xs text-zinc-600">No received documents yet.</p>
+                                                    <p className="text-[10px] text-zinc-700 mt-1">Documents shared with you will appear here.</p>
+                                                </div>
+                                            ) : sharedWithMe.map((doc) => {
+                                                const isSealed = doc.signature_type === 'SEALED_DOCUMENT' || doc.document_type === 'SEALED_DOCUMENT';
+                                                const isSelected = expandedSig === doc.document_id;
+                                                return (
+                                                    <button
+                                                        key={doc.id}
+                                                        onClick={() => previewSharedDoc(doc)}
+                                                        className={`w-full text-left p-2.5 rounded transition-colors flex items-center gap-2.5 ${
+                                                            isSelected ? 'bg-zinc-800 border border-zinc-700' : 'hover:bg-zinc-900 border border-transparent'
+                                                        }`}
+                                                    >
+                                                        <div className="shrink-0">
+                                                            {isSealed ? <FiShield size={14} className="text-amber-500" /> : <FiShare2 size={14} className="text-blue-400" />}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <span className="block text-xs font-medium text-white truncate">
+                                                                {doc.metadata?.originalFileName || doc.metadata?.fileName || doc.metadata?.type || doc.signature_type || 'Shared Document'}
+                                                            </span>
+                                                            <span className="block text-[10px] text-zinc-600">
+                                                                From ${doc.grantor_handle} &middot; {new Date(doc.created_at).toLocaleDateString()}
+                                                            </span>
+                                                        </div>
+                                                        <div className="shrink-0 flex items-center gap-1">
+                                                            {isSealed && <span className="px-1 py-0.5 bg-amber-950 text-amber-400 text-[9px] rounded">Sealed</span>}
+                                                            <span className="px-1 py-0.5 bg-blue-950/30 text-blue-400 text-[9px] rounded">Shared</span>
+                                                            {isSealed && (
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        openCoSign(doc);
+                                                                    }}
+                                                                    className="px-1.5 py-0.5 bg-amber-600/20 text-amber-400 text-[9px] rounded hover:bg-amber-600/30 transition-colors flex items-center gap-0.5"
+                                                                >
+                                                                    <FiEdit3 size={9} /> Co-Sign
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })
+                                        ) : vaultTab === 'returned' ? (
                                             signedReturnedItems.length === 0 ? (
                                                 <div className="py-8 text-center">
                                                     <FiCheck className="text-zinc-700 mx-auto mb-2" size={20} />
