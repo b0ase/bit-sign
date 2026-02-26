@@ -31,9 +31,28 @@ export async function GET(request: NextRequest) {
                     .eq('id', req.document_id)
                     .maybeSingle();
 
+                // Resolve real name — walk up seal chain if needed
+                let docName = sig?.metadata?.originalFileName || sig?.metadata?.fileName || null;
+                if (!docName || docName === 'Sealed Document') {
+                    let walkDocId = sig?.metadata?.originalDocumentId;
+                    let depth = 0;
+                    while (walkDocId && depth < 5) {
+                        const { data: parentDoc } = await supabaseAdmin
+                            .from('bit_sign_signatures')
+                            .select('metadata')
+                            .eq('id', walkDocId)
+                            .maybeSingle();
+                        if (!parentDoc) break;
+                        const name = parentDoc.metadata?.fileName || parentDoc.metadata?.originalFileName;
+                        if (name && name !== 'Sealed Document') { docName = name; break; }
+                        walkDocId = parentDoc.metadata?.originalDocumentId;
+                        depth++;
+                    }
+                }
+
                 return {
                     ...req,
-                    document_name: sig?.metadata?.originalFileName || sig?.metadata?.fileName || 'Sealed Document',
+                    document_name: docName || 'Document',
                     document_txid: sig?.txid,
                 };
             })

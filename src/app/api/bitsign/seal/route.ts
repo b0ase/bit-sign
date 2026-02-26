@@ -60,7 +60,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const originalFileName = originalDoc.metadata?.fileName || originalDoc.metadata?.originalFileName || originalDoc.metadata?.type || 'Document';
+    // Resolve the real document name — walk up the seal chain if needed
+    let originalFileName = originalDoc.metadata?.fileName || originalDoc.metadata?.originalFileName || null;
+    if (!originalFileName || originalFileName === 'Sealed Document') {
+      // This doc is itself a sealed doc — look up its original
+      let walkDocId = originalDoc.metadata?.originalDocumentId;
+      let depth = 0;
+      while (walkDocId && depth < 5) {
+        const { data: parentDoc } = await supabaseAdmin
+          .from('bit_sign_signatures')
+          .select('metadata')
+          .eq('id', walkDocId)
+          .maybeSingle();
+        if (!parentDoc) break;
+        const name = parentDoc.metadata?.fileName || parentDoc.metadata?.originalFileName;
+        if (name && name !== 'Sealed Document') {
+          originalFileName = name;
+          break;
+        }
+        walkDocId = parentDoc.metadata?.originalDocumentId;
+        depth++;
+      }
+    }
+    if (!originalFileName || originalFileName === 'Sealed Document') {
+      originalFileName = 'Document';
+    }
 
     // Hash the composite image data
     const compositeHash = await hashData(compositeData);

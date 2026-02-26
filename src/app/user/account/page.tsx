@@ -298,6 +298,26 @@ function AccountPageInner() {
         return signatures;
     }, [vaultTab, signatures, documents, sealedItems, sentItems, signaturesOnly, mediaItems]);
 
+    // Resolve the real document name — walk up the seal chain client-side
+    const resolveDocName = (sig: Signature): string => {
+        const name = sig.metadata?.originalFileName || sig.metadata?.fileName;
+        if (name && name !== 'Sealed Document') return name;
+        // Try to walk up the chain via local signatures
+        if (sig.signature_type === 'SEALED_DOCUMENT' && sig.metadata?.originalDocumentId) {
+            let walkId = sig.metadata.originalDocumentId;
+            let depth = 0;
+            while (walkId && depth < 5) {
+                const parent = signatures.find(s => s.id === walkId);
+                if (!parent) break;
+                const parentName = parent.metadata?.originalFileName || parent.metadata?.fileName;
+                if (parentName && parentName !== 'Sealed Document') return parentName;
+                walkId = parent.metadata?.originalDocumentId;
+                depth++;
+            }
+        }
+        return sig.metadata?.type !== 'Sealed Document' ? (sig.metadata?.type || sig.signature_type) : sig.signature_type;
+    };
+
     const getStrengthLabel = (score: number) => {
         const strandTypes = strands.map(s => s.strand_subtype ? `${s.strand_type}/${s.strand_subtype}` : s.strand_type);
         const hasKyc = strandTypes.includes('kyc/veriff');
@@ -694,7 +714,7 @@ function AccountPageInner() {
         if (!handle || !selectedDocumentId) return;
         // Grab original doc metadata before closing canvas
         const originalDoc = signatures.find(s => s.id === selectedDocumentId);
-        const originalFileName = originalDoc?.metadata?.fileName;
+        const originalFileName = originalDoc ? resolveDocName(originalDoc) : 'Document';
         setIsProcessing(true);
         closeDocumentCanvas();
         try {
@@ -1884,7 +1904,8 @@ function AccountPageInner() {
                                 // Does this doc have a pending co-sign request for me?
                                 const hasPendingRequest = coSignRequests.some(r => r.document_id === doc.document_id && r.status === 'pending');
                                 // Determine document name
-                                const docName = doc.metadata?.originalFileName || doc.metadata?.fileName || (doc.metadata?.type !== 'Sealed Document' ? doc.metadata?.type : null) || doc.document_type;
+                                const rawName = doc.metadata?.originalFileName || doc.metadata?.fileName;
+                                const docName = (rawName && rawName !== 'Sealed Document') ? rawName : (doc.metadata?.type !== 'Sealed Document' ? doc.metadata?.type : null) || doc.signature_type || 'Document';
                                 return (
                                     <div key={doc.id} className={`border rounded-md bg-black p-4 flex items-center gap-4 ${isReturnedDoc ? 'border-green-900/40' : isWitnessRequest ? 'border-blue-900/40' : isSealed ? 'border-amber-900/40' : 'border-zinc-900'}`}>
                                         <div className="text-zinc-500 shrink-0">
@@ -2551,11 +2572,7 @@ function AccountPageInner() {
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <span className="block text-xs font-medium text-white truncate">
-                                                            {sig.metadata?.originalFileName || sig.metadata?.fileName || (
-                                                                sig.signature_type === 'SEALED_DOCUMENT' && sig.metadata?.originalDocumentId
-                                                                    ? (signatures.find(s => s.id === sig.metadata.originalDocumentId)?.metadata?.fileName || 'Sealed Document')
-                                                                    : (sig.metadata?.type || sig.signature_type)
-                                                            )}
+                                                            {resolveDocName(sig)}
                                                         </span>
                                                         <span className="block text-[10px] text-zinc-600">
                                                             {new Date(sig.created_at).toLocaleDateString()}
@@ -2643,12 +2660,12 @@ function AccountPageInner() {
                                                     {isSealed && (
                                                         <div className="flex items-center gap-2 flex-wrap pb-2 mb-2 border-b border-zinc-800">
                                                             <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Send:</span>
-                                                            <button onClick={() => setCoSignModal({ documentId: sig.id, documentName: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-white text-black text-xs font-medium rounded hover:bg-zinc-200 transition-all flex items-center gap-1.5"><FiEdit3 size={11} /> Co-Sign</button>
-                                                            <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-amber-600 text-black text-xs font-medium rounded hover:bg-amber-500 transition-all flex items-center gap-1.5"><FiMail size={11} /> Email</button>
-                                                            <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT_HC', itemLabel: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-green-600 text-black text-xs font-medium rounded hover:bg-green-500 transition-all flex items-center gap-1.5"><FiUsers size={11} /> Seal &amp; Send</button>
-                                                            <button onClick={() => setCoSignModal({ documentId: sig.id, documentName: sig.metadata?.originalFileName || 'Sealed Document', requestType: 'witness' })} className="px-2.5 py-1 bg-blue-600 text-black text-xs font-medium rounded hover:bg-blue-500 transition-all flex items-center gap-1.5"><FiEye size={11} /> Witness</button>
+                                                            <button onClick={() => setCoSignModal({ documentId: sig.id, documentName: resolveDocName(sig) })} className="px-2.5 py-1 bg-white text-black text-xs font-medium rounded hover:bg-zinc-200 transition-all flex items-center gap-1.5"><FiEdit3 size={11} /> Co-Sign</button>
+                                                            <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT', itemLabel: resolveDocName(sig) })} className="px-2.5 py-1 bg-amber-600 text-black text-xs font-medium rounded hover:bg-amber-500 transition-all flex items-center gap-1.5"><FiMail size={11} /> Email</button>
+                                                            <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT_HC', itemLabel: resolveDocName(sig) })} className="px-2.5 py-1 bg-green-600 text-black text-xs font-medium rounded hover:bg-green-500 transition-all flex items-center gap-1.5"><FiUsers size={11} /> Seal &amp; Send</button>
+                                                            <button onClick={() => setCoSignModal({ documentId: sig.id, documentName: resolveDocName(sig), requestType: 'witness' })} className="px-2.5 py-1 bg-blue-600 text-black text-xs font-medium rounded hover:bg-blue-500 transition-all flex items-center gap-1.5"><FiEye size={11} /> Witness</button>
                                                             {!ipThreads.some(t => t.metadata?.documentId === sig.id) && (
-                                                                <button onClick={() => setIpThreadModal({ documentId: sig.id, documentName: sig.metadata?.originalFileName || 'Sealed Document' })} className="px-2.5 py-1 bg-amber-700 text-white text-xs font-medium rounded hover:bg-amber-600 transition-all flex items-center gap-1.5"><FiBookOpen size={11} /> IP Thread</button>
+                                                                <button onClick={() => setIpThreadModal({ documentId: sig.id, documentName: resolveDocName(sig) })} className="px-2.5 py-1 bg-amber-700 text-white text-xs font-medium rounded hover:bg-amber-600 transition-all flex items-center gap-1.5"><FiBookOpen size={11} /> IP Thread</button>
                                                             )}
                                                             {!sig.metadata?.sent && (
                                                                 <button onClick={() => markAsSent(sig.id)} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiSend size={11} /> Mark as Sent</button>

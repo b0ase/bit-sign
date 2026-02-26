@@ -110,7 +110,25 @@ export async function POST(request: NextRequest) {
                 .eq('id', coSignReq.document_id)
                 .maybeSingle();
 
-            const documentName = originalDoc?.metadata?.originalFileName || originalDoc?.metadata?.fileName || 'Sealed Document';
+            // Resolve real name — walk up seal chain if needed
+            let documentName = originalDoc?.metadata?.originalFileName || originalDoc?.metadata?.fileName || null;
+            if (!documentName || documentName === 'Sealed Document') {
+                let walkDocId = originalDoc?.metadata?.originalDocumentId;
+                let depth = 0;
+                while (walkDocId && depth < 5) {
+                    const { data: parentDoc } = await supabaseAdmin
+                        .from('bit_sign_signatures')
+                        .select('metadata')
+                        .eq('id', walkDocId)
+                        .maybeSingle();
+                    if (!parentDoc) break;
+                    const name = parentDoc.metadata?.fileName || parentDoc.metadata?.originalFileName;
+                    if (name && name !== 'Sealed Document') { documentName = name; break; }
+                    walkDocId = parentDoc.metadata?.originalDocumentId;
+                    depth++;
+                }
+            }
+            if (!documentName || documentName === 'Sealed Document') documentName = 'Document';
             const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bit-sign.online';
 
             const emailResult = await sendCoSignNotification({

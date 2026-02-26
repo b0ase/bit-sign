@@ -81,7 +81,25 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Cannot request co-sign from yourself' }, { status: 400 });
         }
 
-        const documentName = doc.metadata?.originalFileName || doc.metadata?.fileName || 'Sealed Document';
+        // Resolve real name — walk up seal chain if needed
+        let documentName = doc.metadata?.originalFileName || doc.metadata?.fileName || null;
+        if (!documentName || documentName === 'Sealed Document') {
+            let walkDocId = doc.metadata?.originalDocumentId;
+            let depth = 0;
+            while (walkDocId && depth < 5) {
+                const { data: parentDoc } = await supabaseAdmin
+                    .from('bit_sign_signatures')
+                    .select('metadata')
+                    .eq('id', walkDocId)
+                    .maybeSingle();
+                if (!parentDoc) break;
+                const name = parentDoc.metadata?.fileName || parentDoc.metadata?.originalFileName;
+                if (name && name !== 'Sealed Document') { documentName = name; break; }
+                walkDocId = parentDoc.metadata?.originalDocumentId;
+                depth++;
+            }
+        }
+        if (!documentName || documentName === 'Sealed Document') documentName = 'Document';
         const claimToken = crypto.randomUUID();
 
         // Create the co-sign request
@@ -214,9 +232,28 @@ export async function GET(request: NextRequest) {
                     .eq('id', req.document_id)
                     .maybeSingle();
 
+                // Resolve real name — walk up seal chain if needed
+                let docName = sig?.metadata?.originalFileName || sig?.metadata?.fileName || null;
+                if (!docName || docName === 'Sealed Document') {
+                    let walkDocId = sig?.metadata?.originalDocumentId;
+                    let depth = 0;
+                    while (walkDocId && depth < 5) {
+                        const { data: parentDoc } = await supabaseAdmin
+                            .from('bit_sign_signatures')
+                            .select('metadata')
+                            .eq('id', walkDocId)
+                            .maybeSingle();
+                        if (!parentDoc) break;
+                        const name = parentDoc.metadata?.fileName || parentDoc.metadata?.originalFileName;
+                        if (name && name !== 'Sealed Document') { docName = name; break; }
+                        walkDocId = parentDoc.metadata?.originalDocumentId;
+                        depth++;
+                    }
+                }
+
                 return {
                     ...req,
-                    document_name: sig?.metadata?.originalFileName || sig?.metadata?.fileName || 'Sealed Document',
+                    document_name: docName || 'Document',
                     document_txid: sig?.txid,
                     document_created_at: sig?.created_at,
                 };
