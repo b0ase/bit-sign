@@ -4,6 +4,7 @@ import { resolveUserHandle } from '@/lib/auth';
 
 /**
  * GET — Return all active access grants for the current user.
+ * Also auto-claims any pending co-sign requests matched by email.
  * Joins with document metadata for display.
  */
 export async function GET(request: NextRequest) {
@@ -11,6 +12,59 @@ export async function GET(request: NextRequest) {
         const handle = await resolveUserHandle(request);
         if (!handle) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        // Look up user's known emails for email-based matching
+        const { data: userIdentity } = await supabaseAdmin
+            .from('bit_sign_identities')
+            .select('google_email, microsoft_email')
+            .eq('user_handle', handle)
+            .maybeSingle();
+
+        const userEmails = [
+            userIdentity?.google_email,
+            userIdentity?.microsoft_email,
+        ].filter(Boolean) as string[];
+
+        // Auto-backfill: find pending co-sign requests sent to our email but missing access grants
+        if (userEmails.length > 0) {
+            const { data: emailRequests } = await supabaseAdmin
+                .from('co_sign_requests')
+                .select('id, document_id, sender_handle, recipient_handle')
+                .in('recipient_email', userEmails)
+                .eq('status', 'pending');
+
+            for (const req of emailRequests || []) {
+                // Update recipient_handle if not set
+                if (!req.recipient_handle || req.recipient_handle !== handle) {
+                    await supabaseAdmin
+                        .from('co_sign_requests')
+                        .update({ recipient_handle: handle })
+                        .eq('id', req.id);
+                }
+
+                // Create access grant if missing
+                const { data: existingGrant } = await supabaseAdmin
+                    .from('document_access_grants')
+                    .select('id')
+                    .eq('document_id', req.document_id)
+                    .eq('grantee_handle', handle)
+                    .is('revoked_at', null)
+                    .maybeSingle();
+
+                if (!existingGrant) {
+                    await supabaseAdmin
+                        .from('document_access_grants')
+                        .insert({
+                            document_id: req.document_id,
+                            document_type: 'vault_item',
+                            grantor_handle: req.sender_handle,
+                            grantee_handle: handle,
+                            wrapped_key: 'co-sign-request',
+                            encryption_version: 0,
+                        });
+                }
+            }
         }
 
         // Fetch all non-revoked grants for this user

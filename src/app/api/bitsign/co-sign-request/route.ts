@@ -55,8 +55,29 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Only sealed documents can be co-signed' }, { status: 400 });
         }
 
-        const cleanHandle = recipientHandle?.replace(/^\$/, '') || null;
-        if (cleanHandle === handle) {
+        let cleanHandle = recipientHandle?.replace(/^\$/, '') || null;
+        let finalEmail = recipientEmail || null;
+
+        // Detect if an email was entered in the handle field
+        if (cleanHandle && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanHandle)) {
+            finalEmail = finalEmail || cleanHandle;
+            cleanHandle = null; // Not a handle — it's an email
+        }
+
+        // If we have an email but no handle, try to resolve the handle from known identities
+        let resolvedHandle = cleanHandle;
+        if (!resolvedHandle && finalEmail) {
+            const { data: identityByEmail } = await supabaseAdmin
+                .from('bit_sign_identities')
+                .select('user_handle')
+                .or(`google_email.eq.${finalEmail},microsoft_email.eq.${finalEmail}`)
+                .maybeSingle();
+            if (identityByEmail) {
+                resolvedHandle = identityByEmail.user_handle;
+            }
+        }
+
+        if (resolvedHandle === handle || cleanHandle === handle) {
             return NextResponse.json({ error: 'Cannot request co-sign from yourself' }, { status: 400 });
         }
 
@@ -69,8 +90,8 @@ export async function POST(request: NextRequest) {
             .insert({
                 document_id: documentId,
                 sender_handle: handle,
-                recipient_handle: cleanHandle,
-                recipient_email: recipientEmail || null,
+                recipient_handle: resolvedHandle,
+                recipient_email: finalEmail,
                 claim_token: claimToken,
                 message: message || null,
                 status: 'pending',
@@ -80,66 +101,57 @@ export async function POST(request: NextRequest) {
 
         if (insertError) throw insertError;
 
-        // If sharing by handle, also create an access grant so recipient can view
-        if (cleanHandle) {
+        // Create an access grant so recipient can view
+        const granteeHandle = resolvedHandle;
+        if (granteeHandle) {
             // Check if grant already exists
             const { data: existingGrant } = await supabaseAdmin
                 .from('document_access_grants')
                 .select('id')
                 .eq('document_id', documentId)
-                .eq('grantee_handle', cleanHandle)
+                .eq('grantee_handle', granteeHandle)
                 .is('revoked_at', null)
                 .maybeSingle();
 
             if (!existingGrant) {
-                // Create a basic access grant (no E2E wrapping — co-sign flow uses direct access)
                 await supabaseAdmin
                     .from('document_access_grants')
                     .insert({
                         document_id: documentId,
                         document_type: 'vault_item',
                         grantor_handle: handle,
-                        grantee_handle: cleanHandle,
+                        grantee_handle: granteeHandle,
                         wrapped_key: 'co-sign-request',
                         encryption_version: 0,
                     });
             }
         }
 
-        // Send email notification if recipient has an email or recipientEmail provided
+        // Send email notification
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bit-sign.online';
         let emailSent = false;
 
-        if (recipientEmail) {
+        // Determine best email to send to
+        let notifyEmail = finalEmail;
+        if (!notifyEmail && resolvedHandle) {
+            const { data: recipientIdentity } = await supabaseAdmin
+                .from('bit_sign_identities')
+                .select('google_email, microsoft_email')
+                .eq('user_handle', resolvedHandle)
+                .maybeSingle();
+            notifyEmail = recipientIdentity?.google_email || recipientIdentity?.microsoft_email || null;
+        }
+
+        if (notifyEmail) {
             const claimUrl = `${appUrl}/user/account`;
             const emailResult = await sendCoSignRequestEmail({
-                recipientEmail,
+                recipientEmail: notifyEmail,
                 senderHandle: handle,
                 documentName,
                 claimUrl,
                 message: message || undefined,
             });
             emailSent = emailResult.success;
-        } else if (cleanHandle) {
-            // Try to find recipient's email from identity
-            const { data: recipientIdentity } = await supabaseAdmin
-                .from('bit_sign_identities')
-                .select('google_email, microsoft_email')
-                .eq('user_handle', cleanHandle)
-                .maybeSingle();
-
-            const email = recipientIdentity?.google_email || recipientIdentity?.microsoft_email;
-            if (email) {
-                const claimUrl = `${appUrl}/user/account`;
-                const emailResult = await sendCoSignRequestEmail({
-                    recipientEmail: email,
-                    senderHandle: handle,
-                    documentName,
-                    claimUrl,
-                    message: message || undefined,
-                });
-                emailSent = emailResult.success;
-            }
         }
 
         return NextResponse.json({
@@ -164,10 +176,29 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        // Look up user's known emails to also match email-based requests
+        const { data: userIdentity } = await supabaseAdmin
+            .from('bit_sign_identities')
+            .select('google_email, microsoft_email')
+            .eq('user_handle', handle)
+            .maybeSingle();
+
+        const userEmails = [
+            userIdentity?.google_email,
+            userIdentity?.microsoft_email,
+        ].filter(Boolean) as string[];
+
+        // Match by handle OR by email
+        let orFilter = `recipient_handle.eq.${handle}`;
+        if (userEmails.length > 0) {
+            const emailFilters = userEmails.map(e => `recipient_email.eq.${e}`).join(',');
+            orFilter += `,${emailFilters}`;
+        }
+
         const { data: requests, error } = await supabaseAdmin
             .from('co_sign_requests')
             .select('*')
-            .eq('recipient_handle', handle)
+            .or(orFilter)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
