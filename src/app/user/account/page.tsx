@@ -2363,7 +2363,23 @@ function AccountPageInner() {
                                         documentUrl={selectedDocBlobUrl}
                                         documentId={selectedDocumentId}
                                         signerHandle={handle || undefined}
+                                        signerName={strands.find(s => s.strand_type === 'self_attestation')?.label?.replace('Self-attested: ', '') || identity?.linkedin_name || undefined}
+                                        signerEmail={identity?.google_email || identity?.microsoft_email || undefined}
                                         originalFileName={signatures.find(s => s.id === selectedDocumentId)?.metadata?.fileName || signatures.find(s => s.id === selectedDocumentId)?.metadata?.originalFileName}
+                                        existingSealCount={(() => {
+                                            // Count how many times this document has been sealed in the chain
+                                            let count = 0;
+                                            const doc = signatures.find(s => s.id === selectedDocumentId);
+                                            if (doc?.signature_type === 'SEALED_DOCUMENT') count++;
+                                            // Check if the original was also sealed
+                                            if (doc?.metadata?.originalDocumentId) {
+                                                const orig = signatures.find(s => s.id === doc.metadata.originalDocumentId);
+                                                if (orig?.signature_type === 'SEALED_DOCUMENT') count++;
+                                            }
+                                            // Also count if this is a shared doc being co-signed (it's already sealed once)
+                                            if (sharedWithMe.some(s => s.document_id === selectedDocumentId)) count = Math.max(count, 1);
+                                            return count;
+                                        })()}
                                         elements={placedElements}
                                         onElementsChange={setPlacedElements}
                                         onSeal={handleSeal}
@@ -2696,12 +2712,13 @@ function AccountPageInner() {
                                 </button>
                             </div>
                         </div>
-                        <div className="flex-1 overflow-auto p-4" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex-1 overflow-auto p-4">
                             <img
                                 src={fullscreenPreview}
                                 alt="Document full view"
-                                className="w-full max-w-4xl mx-auto"
+                                className="w-full max-w-4xl mx-auto cursor-default"
                                 style={{ imageRendering: 'auto' }}
+                                onClick={(e) => e.stopPropagation()}
                             />
                         </div>
                     </div>

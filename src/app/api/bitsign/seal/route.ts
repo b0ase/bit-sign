@@ -3,6 +3,7 @@ import { resolveUserHandle } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { inscribeBitSignData, hashData } from '@/lib/bsv-inscription';
 import { createStrand } from '@/lib/identity-strands';
+import sharp from 'sharp';
 
 // Allow large payloads for multi-page document composites
 export const maxDuration = 30;
@@ -83,8 +84,53 @@ export async function POST(request: NextRequest) {
       txid = `pending-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     }
 
-    // Strip data URL prefix to get raw base64 for storage
-    const base64Payload = compositeData.replace(/^data:image\/\w+;base64,/, '');
+    // Burn the TXID onto the seal stamp in the image
+    let finalBase64 = compositeData.replace(/^data:image\/\w+;base64,/, '');
+    const isJpeg = compositeData.startsWith('data:image/jpeg');
+
+    try {
+      const imgBuffer = Buffer.from(finalBase64, 'base64');
+      const metadata = await sharp(imgBuffer).metadata();
+      const imgW = metadata.width || 800;
+      const imgH = metadata.height || 600;
+
+      // Calculate stamp position and font size to match client-side rendering
+      const stampFontSize = Math.max(12, Math.round(imgW * 0.014));
+      const txidText = txid.startsWith('pending-') ? `REF: ${txid}` : `TXID: ${txid}`;
+      // Truncate very long TXIDs for display
+      const displayTxid = txidText.length > 50 ? txidText.slice(0, 47) + '...' : txidText;
+
+      // The "TXID: pending..." line is the 2nd-to-last line in the stamp.
+      // We need to find where the stamp is and overlay the real TXID.
+      // The stamp is at bottom-right. We estimate its position based on the font metrics.
+      // Build an SVG overlay that places the TXID text at the correct position.
+      const stampPad = Math.round(imgW * 0.02);
+      // We need to find the placeholder text location. Since we know the stamp structure,
+      // the TXID line is at a known offset from the bottom.
+      // Approach: overlay a filled rect + text at the TXID line position.
+      // The TXID line is 2nd from bottom in the stamp. Line height = stampFontSize * 1.4
+      const lineHeight = Math.round(stampFontSize * 1.4);
+      // TXID line is 1 line up from bottom text ("bit-sign.online") + stampPad
+      const txidLineBottomOffset = stampPad + lineHeight + Math.round(stampFontSize * 0.85 * 1.4);
+
+      const svgOverlay = Buffer.from(`<svg width="${imgW}" height="${imgH}" xmlns="http://www.w3.org/2000/svg">
+        <style>
+          .txid { font: ${stampFontSize}px monospace; fill: #22c55e; }
+        </style>
+        <rect x="${imgW - Math.round(imgW * 0.45)}" y="${imgH - txidLineBottomOffset - lineHeight}" width="${Math.round(imgW * 0.43)}" height="${lineHeight}" fill="rgba(0,0,0,0.9)" />
+        <text x="${imgW - Math.round(imgW * 0.44)}" y="${imgH - txidLineBottomOffset - 2}" class="txid">${displayTxid.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</text>
+      </svg>`);
+
+      let pipeline = sharp(imgBuffer).composite([{ input: svgOverlay, top: 0, left: 0 }]);
+      if (isJpeg) pipeline = pipeline.jpeg({ quality: 85 });
+      else pipeline = pipeline.png();
+      const result = await pipeline.toBuffer();
+
+      finalBase64 = result.toString('base64');
+    } catch (burnErr) {
+      console.warn('[seal] TXID burn failed (non-fatal, using original image):', burnErr);
+      // Fall through with original image
+    }
 
     // Store sealed document as new vault item
     const { data: sealed, error: sealError } = await supabaseAdmin
@@ -93,7 +139,7 @@ export async function POST(request: NextRequest) {
         user_handle: handle,
         signature_type: 'SEALED_DOCUMENT',
         payload_hash: compositeHash,
-        encrypted_payload: base64Payload,
+        encrypted_payload: finalBase64,
         iv: null,
         txid,
         metadata: {
@@ -102,7 +148,7 @@ export async function POST(request: NextRequest) {
           originalFileName,
           placement,
           elements: elements || undefined,
-          mimeType: compositeData.startsWith('data:image/jpeg') ? 'image/jpeg' : 'image/png',
+          mimeType: isJpeg ? 'image/jpeg' : 'image/png',
           walletAddress,
           walletSignature,
           paymentTxid,

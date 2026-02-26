@@ -25,7 +25,10 @@ interface DocumentCanvasProps {
     documentUrl: string;
     documentId: string;
     signerHandle?: string;
+    signerName?: string;
+    signerEmail?: string;
     originalFileName?: string;
+    existingSealCount?: number;
     elements: PlacedElement[];
     onElementsChange: (elements: PlacedElement[]) => void;
     onSeal: (compositeBase64: string, elements: PlacedElement[]) => void;
@@ -40,7 +43,10 @@ export default function DocumentCanvas({
     documentUrl,
     documentId,
     signerHandle,
+    signerName,
+    signerEmail,
     originalFileName,
+    existingSealCount = 0,
     elements,
     onElementsChange,
     onSeal,
@@ -428,52 +434,57 @@ export default function DocumentCanvas({
                 }
             }
 
-            // Draw seal stamp at bottom-right
+            // Draw seal stamp — stacked upward from bottom-right so multiple seals don't overlap
             const stampPad = Math.round(canvas.width * 0.02);
             const stampFontSize = Math.max(12, Math.round(canvas.width * 0.014));
+            const smallFont = Math.round(stampFontSize * 0.85);
             const now = new Date();
             const dateStr = now.toISOString().slice(0, 10);
             const timeStr = now.toTimeString().slice(0, 5);
-            const line1 = `SEALED by $${signerHandle || 'unknown'}`;
-            const line2 = `${dateStr} ${timeStr} UTC`;
-            const docNameLine = originalFileName ? `"${originalFileName}"` : null;
-            const line3 = 'BIT-SIGN PROTOCOL';
 
+            // Build stamp lines
+            const stampLines: { text: string; color: string; bold?: boolean }[] = [];
+            stampLines.push({ text: `SEALED by $${signerHandle || 'unknown'}`, color: '#f59e0b', bold: true });
+            if (signerName) {
+                stampLines.push({ text: signerName, color: '#e4e4e7' });
+            }
+            if (signerEmail) {
+                stampLines.push({ text: signerEmail, color: '#a1a1aa' });
+            }
+            stampLines.push({ text: `${dateStr} ${timeStr} UTC`, color: '#d4d4d8' });
+            // TXID placeholder — the API will burn the real TXID over this line
+            stampLines.push({ text: 'TXID: pending...', color: '#71717a' });
+            stampLines.push({ text: 'bit-sign.online', color: '#52525b' });
+
+            // Measure widths
             ctx.font = `bold ${stampFontSize}px monospace`;
-            const stampLines = [line1, line2, ...(docNameLine ? [docNameLine] : []), line3];
-            const maxLineWidth = Math.max(...stampLines.map(l => ctx.measureText(l).width));
+            const maxLineWidth = Math.max(...stampLines.map(l => {
+                ctx.font = `${l.bold ? 'bold ' : ''}${stampFontSize}px monospace`;
+                return ctx.measureText(l.text).width;
+            }));
             const boxW = maxLineWidth + stampPad * 3;
-            const boxH = stampFontSize * stampLines.length * 1.4 + stampPad * 2;
+            const lineHeight = stampFontSize * 1.4;
+            const boxH = lineHeight * stampLines.length + stampPad * 2;
+
+            // Position: bottom-right, offset upward by existingSealCount
             const boxX = canvas.width - boxW - stampPad * 2;
-            const boxY = canvas.height - boxH - stampPad * 2;
+            const sealSpacing = boxH + stampPad;
+            const boxY = canvas.height - boxH - stampPad * 2 - (existingSealCount * sealSpacing);
 
             // Stamp background
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
             ctx.fillRect(boxX, boxY, boxW, boxH);
             ctx.strokeStyle = 'rgba(245, 158, 11, 0.8)';
             ctx.lineWidth = 2;
             ctx.strokeRect(boxX, boxY, boxW, boxH);
 
             // Stamp text
-            let lineIdx = 0;
-            ctx.fillStyle = '#f59e0b';
             ctx.textBaseline = 'top';
-            ctx.font = `bold ${stampFontSize}px monospace`;
-            ctx.fillText(line1, boxX + stampPad * 1.5, boxY + stampPad + stampFontSize * 1.4 * lineIdx);
-            lineIdx++;
-            ctx.fillStyle = '#d4d4d8';
-            ctx.font = `${stampFontSize}px monospace`;
-            ctx.fillText(line2, boxX + stampPad * 1.5, boxY + stampPad + stampFontSize * 1.4 * lineIdx);
-            lineIdx++;
-            if (docNameLine) {
-                ctx.fillStyle = '#a1a1aa';
-                ctx.font = `${stampFontSize}px monospace`;
-                ctx.fillText(docNameLine, boxX + stampPad * 1.5, boxY + stampPad + stampFontSize * 1.4 * lineIdx);
-                lineIdx++;
-            }
-            ctx.fillStyle = '#71717a';
-            ctx.font = `${Math.round(stampFontSize * 0.85)}px monospace`;
-            ctx.fillText(line3, boxX + stampPad * 1.5, boxY + stampPad + stampFontSize * 1.4 * lineIdx);
+            stampLines.forEach((line, idx) => {
+                ctx.fillStyle = line.color;
+                ctx.font = `${line.bold ? 'bold ' : ''}${idx === stampLines.length - 1 ? smallFont : stampFontSize}px monospace`;
+                ctx.fillText(line.text, boxX + stampPad * 1.5, boxY + stampPad + lineHeight * idx);
+            });
 
             // Use JPEG for multi-page docs to stay under Vercel's 4.5MB body limit
             const useJpeg = effectivePages > 1 || canvas.width * canvas.height > 4_000_000;
@@ -487,7 +498,7 @@ export default function DocumentCanvas({
         } finally {
             setCompositing(false);
         }
-    }, [documentUrl, elements, onSeal, signerHandle, originalFileName]);
+    }, [documentUrl, elements, onSeal, signerHandle, signerName, signerEmail, originalFileName, existingSealCount]);
 
     // Cleanup blob URL on unmount
     useEffect(() => {
