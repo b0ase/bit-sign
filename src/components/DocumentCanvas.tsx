@@ -26,7 +26,7 @@ interface DocumentCanvasProps {
     documentId: string;
     signerHandle?: string;
     signerName?: string;
-    signerEmail?: string;
+    signerIdentities?: string[];
     originalFileName?: string;
     existingSealCount?: number;
     elements: PlacedElement[];
@@ -44,7 +44,7 @@ export default function DocumentCanvas({
     documentId,
     signerHandle,
     signerName,
-    signerEmail,
+    signerIdentities = [],
     originalFileName,
     existingSealCount = 0,
     elements,
@@ -448,8 +448,9 @@ export default function DocumentCanvas({
             if (signerName) {
                 stampLines.push({ text: signerName, color: '#e4e4e7' });
             }
-            if (signerEmail) {
-                stampLines.push({ text: signerEmail, color: '#a1a1aa' });
+            // Add all connected identities (email, LinkedIn, Twitter, GitHub)
+            for (const id of signerIdentities) {
+                stampLines.push({ text: id, color: '#a1a1aa' });
             }
             stampLines.push({ text: `${dateStr} ${timeStr} UTC`, color: '#d4d4d8' });
             // TXID placeholder — the API will burn the real TXID over this line
@@ -498,7 +499,7 @@ export default function DocumentCanvas({
         } finally {
             setCompositing(false);
         }
-    }, [documentUrl, elements, onSeal, signerHandle, signerName, signerEmail, originalFileName, existingSealCount]);
+    }, [documentUrl, elements, onSeal, signerHandle, signerName, signerIdentities, originalFileName, existingSealCount]);
 
     // Cleanup blob URL on unmount
     useEffect(() => {

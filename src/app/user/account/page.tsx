@@ -2364,7 +2364,13 @@ function AccountPageInner() {
                                         documentId={selectedDocumentId}
                                         signerHandle={handle || undefined}
                                         signerName={strands.find(s => s.strand_type === 'self_attestation')?.label?.replace('Self-attested: ', '') || identity?.linkedin_name || undefined}
-                                        signerEmail={identity?.google_email || identity?.microsoft_email || undefined}
+                                        signerIdentities={[
+                                            identity?.google_email && `✉ ${identity.google_email}`,
+                                            identity?.microsoft_email && identity.microsoft_email !== identity?.google_email && `✉ ${identity.microsoft_email}`,
+                                            identity?.linkedin_name && `LinkedIn: ${identity.linkedin_name}`,
+                                            identity?.twitter_handle && `𝕏 @${identity.twitter_handle}`,
+                                            identity?.github_handle && `GitHub: ${identity.github_handle}`,
+                                        ].filter(Boolean) as string[]}
                                         originalFileName={signatures.find(s => s.id === selectedDocumentId)?.metadata?.fileName || signatures.find(s => s.id === selectedDocumentId)?.metadata?.originalFileName}
                                         existingSealCount={(() => {
                                             // Count how many times this document has been sealed in the chain
