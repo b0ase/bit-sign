@@ -162,6 +162,7 @@ function AccountPageInner() {
     const [sentCoSignRequests, setSentCoSignRequests] = useState<CoSignRequest[]>([]);
     const [coSignModal, setCoSignModal] = useState<{ documentId: string; documentName: string; requestType?: 'co-sign' | 'witness' } | null>(null);
     const [copiedTxid, setCopiedTxid] = useState<string | null>(null);
+    const [fullscreenPreview, setFullscreenPreview] = useState<string | null>(null);
     const [e2eAutoSetupStatus, setE2eAutoSetupStatus] = useState<'idle' | 'running' | 'done' | 'failed'>('idle');
 
     // Self-attestation form state
@@ -197,6 +198,15 @@ function AccountPageInner() {
     const [placedElements, setPlacedElements] = useState<PlacedElement[]>([]);
     const [docPageCount, setDocPageCount] = useState(1);
     const vaultRef = useRef<HTMLDivElement>(null);
+
+    // Close fullscreen preview on Esc
+    useEffect(() => {
+        const handleKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && fullscreenPreview) setFullscreenPreview(null);
+        };
+        window.addEventListener('keydown', handleKey);
+        return () => window.removeEventListener('keydown', handleKey);
+    }, [fullscreenPreview]);
 
     // Split vault items into categories
     const signaturesOnly = useMemo(() =>
@@ -2447,7 +2457,11 @@ function AccountPageInner() {
                                                 </div>
                                             ) : previewData?.type === 'image' ? (
                                                 <div className="space-y-2">
-                                                    <div className="bg-white rounded-md overflow-hidden flex items-center justify-center">
+                                                    <div
+                                                        className="bg-white rounded-md overflow-hidden flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-zinc-600 transition-all"
+                                                        onClick={() => setFullscreenPreview(previewData.url)}
+                                                        title="Click to view full size"
+                                                    >
                                                         <img
                                                             src={previewData.url}
                                                             alt="Photo"
@@ -2653,6 +2667,42 @@ function AccountPageInner() {
                                     {peerAttestRespondSubmitting ? 'Signing...' : 'Sign & Attest'}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Fullscreen document preview modal */}
+                {fullscreenPreview && (
+                    <div
+                        className="fixed inset-0 z-[95] bg-black/95 backdrop-blur-sm flex flex-col"
+                        onClick={() => setFullscreenPreview(null)}
+                    >
+                        <div className="flex items-center justify-between px-4 py-3 shrink-0">
+                            <span className="text-xs text-zinc-500">Click anywhere or press Esc to close</span>
+                            <div className="flex items-center gap-2">
+                                <a
+                                    href={fullscreenPreview}
+                                    download="document.png"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-300 text-xs rounded hover:text-white hover:border-zinc-500 transition-all flex items-center gap-1.5"
+                                >
+                                    <FiDownload size={12} /> Download
+                                </a>
+                                <button
+                                    onClick={() => setFullscreenPreview(null)}
+                                    className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-300 text-xs rounded hover:text-white hover:border-zinc-500 transition-all flex items-center gap-1.5"
+                                >
+                                    <FiX size={12} /> Close
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-auto p-4" onClick={(e) => e.stopPropagation()}>
+                            <img
+                                src={fullscreenPreview}
+                                alt="Document full view"
+                                className="w-full max-w-4xl mx-auto"
+                                style={{ imageRendering: 'auto' }}
+                            />
                         </div>
                     </div>
                 )}
