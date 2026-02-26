@@ -1,16 +1,26 @@
-export async function pdfToImage(pdfData: ArrayBuffer): Promise<Blob> {
+export interface PdfImageResult {
+    blob: Blob;
+    numPages: number;
+}
+
+export async function pdfToImage(pdfData: ArrayBuffer): Promise<PdfImageResult> {
     const pdfjsLib = await import('pdfjs-dist');
     pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
     const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
-    const scale = 2 * (window.devicePixelRatio || 1);
+    const numPages = pdf.numPages;
+
+    // Cap scale: use 2x for 1-3 pages, reduce for larger docs to keep file size sane
+    const dpr = window.devicePixelRatio || 1;
+    const baseScale = Math.min(2, dpr);
+    const scale = numPages > 5 ? Math.min(1.5, baseScale) : baseScale;
 
     // Render every page and measure total height
     const pageCanvases: HTMLCanvasElement[] = [];
     let totalHeight = 0;
     let maxWidth = 0;
 
-    for (let i = 1; i <= pdf.numPages; i++) {
+    for (let i = 1; i <= numPages; i++) {
         const page = await pdf.getPage(i);
         const viewport = page.getViewport({ scale });
 
@@ -37,10 +47,17 @@ export async function pdfToImage(pdfData: ArrayBuffer): Promise<Blob> {
         yOffset += pc.height;
     }
 
-    return new Promise<Blob>((resolve, reject) => {
+    // Use JPEG for large docs to reduce payload size
+    const mimeType = numPages > 3 ? 'image/jpeg' : 'image/png';
+    const quality = numPages > 3 ? 0.85 : undefined;
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob(
             (blob) => (blob ? resolve(blob) : reject(new Error('Canvas toBlob failed'))),
-            'image/png'
+            mimeType,
+            quality
         );
     });
+
+    return { blob, numPages };
 }

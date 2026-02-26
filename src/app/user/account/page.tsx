@@ -13,7 +13,7 @@ import ShareModal from '@/components/ShareModal';
 import SignatureExplorer from '@/components/SignatureExplorer';
 import DocumentCanvas from '@/components/DocumentCanvas';
 import type { PlacedElement } from '@/components/DocumentCanvas';
-import { pdfToImage } from '@/lib/pdf-to-image';
+import { pdfToImage, type PdfImageResult } from '@/lib/pdf-to-image';
 import {
     FiLock,
     FiFileText,
@@ -194,6 +194,7 @@ function AccountPageInner() {
     const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
     const [selectedDocBlobUrl, setSelectedDocBlobUrl] = useState<string | null>(null);
     const [placedElements, setPlacedElements] = useState<PlacedElement[]>([]);
+    const [docPageCount, setDocPageCount] = useState(1);
 
     // Split vault items into categories
     const signaturesOnly = useMemo(() =>
@@ -544,10 +545,13 @@ function AccountPageInner() {
             const contentType = res.headers.get('content-type') || '';
 
             let blob: Blob;
+            let numPages = 1;
             if (contentType === 'application/pdf') {
                 const arrayBuffer = await res.arrayBuffer();
                 try {
-                    blob = await pdfToImage(arrayBuffer);
+                    const result = await pdfToImage(arrayBuffer);
+                    blob = result.blob;
+                    numPages = result.numPages;
                 } catch (pdfErr) {
                     console.error('PDF to image conversion failed:', pdfErr);
                     // Fall back to showing raw PDF blob
@@ -568,6 +572,7 @@ function AccountPageInner() {
             setSelectedDocumentId(sigId);
             setSelectedDocBlobUrl(blobUrl);
             setPlacedElements([]);
+            setDocPageCount(numPages);
             addToast('Document opened. Add signatures, text, or dates then seal.', 'info');
         } catch (error) {
             console.error('Failed to open document for signing:', error);
@@ -582,6 +587,7 @@ function AccountPageInner() {
         setSelectedDocumentId(null);
         setSelectedDocBlobUrl(null);
         setPlacedElements([]);
+        setDocPageCount(1);
     };
 
     // Multi-element seal handler
@@ -600,8 +606,13 @@ function AccountPageInner() {
                     message: `I seal this document with my registered signature as $${handle}`,
                 })
             });
+            if (!verifyRes.ok) {
+                const text = await verifyRes.text();
+                let msg = 'Wallet verification failed';
+                try { msg = JSON.parse(text).error || msg; } catch {}
+                throw new Error(msg);
+            }
             const verifyData = await verifyRes.json();
-            if (!verifyRes.ok) throw new Error(verifyData.error || 'Wallet verification failed');
 
             const sealRes = await fetch('/api/bitsign/seal', {
                 method: 'POST',
@@ -615,8 +626,14 @@ function AccountPageInner() {
                     paymentTxid: verifyData.paymentTxid,
                 })
             });
+            if (!sealRes.ok) {
+                const text = await sealRes.text();
+                let msg = 'Seal failed';
+                try { msg = JSON.parse(text).error || msg; } catch {}
+                if (sealRes.status === 413) msg = 'Document too large to seal. Try a smaller file.';
+                throw new Error(msg);
+            }
             const sealData = await sealRes.json();
-            if (!sealRes.ok) throw new Error(sealData.error || 'Seal failed');
 
             setSignatures(prev => [{
                 id: sealData.id,
@@ -648,10 +665,13 @@ function AccountPageInner() {
             const contentType = res.headers.get('content-type') || '';
 
             let blob: Blob;
+            let numPages = 1;
             if (contentType === 'application/pdf') {
                 const arrayBuffer = await res.arrayBuffer();
                 try {
-                    blob = await pdfToImage(arrayBuffer);
+                    const result = await pdfToImage(arrayBuffer);
+                    blob = result.blob;
+                    numPages = result.numPages;
                 } catch (pdfErr) {
                     console.error('PDF to image conversion failed:', pdfErr);
                     blob = new Blob([arrayBuffer], { type: 'application/pdf' });
@@ -670,6 +690,7 @@ function AccountPageInner() {
             setSelectedDocumentId(doc.document_id);
             setSelectedDocBlobUrl(blobUrl);
             setPlacedElements([]);
+            setDocPageCount(numPages);
         } catch (error) {
             console.error('Failed to open shared document for co-signing:', error);
             alert('Failed to load shared document.');
@@ -2084,6 +2105,7 @@ function AccountPageInner() {
                                             setShareModal({ documentId: selectedDocumentId!, documentType: 'vault_item', itemType: 'DOCUMENT', itemLabel: fileName });
                                         }}
                                         onSaveSignature={saveSignatureFromCanvas}
+                                        pageCount={docPageCount}
                                     />
                                 ) : expandedSig ? (
                                     <div className="flex flex-col h-full">

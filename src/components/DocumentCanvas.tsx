@@ -32,6 +32,7 @@ interface DocumentCanvasProps {
     onClose: () => void;
     onEmailRecipients?: () => void;
     onSaveSignature?: (signatureData: { svg: string; json: string }) => Promise<string | null>;
+    pageCount?: number;
 }
 
 export default function DocumentCanvas({
@@ -45,6 +46,7 @@ export default function DocumentCanvas({
     onClose,
     onEmailRecipients,
     onSaveSignature,
+    pageCount = 1,
 }: DocumentCanvasProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [docLoaded, setDocLoaded] = useState(false);
@@ -102,13 +104,17 @@ export default function DocumentCanvas({
         const xPct = ((e.clientX - rect.left) / rect.width) * 100;
         const yPct = ((e.clientY - rect.top) / rect.height) * 100;
 
+        // Size signature relative to a single page, not the entire document
+        const sigWidthPct = 25;
+        const sigHeightPct = Math.min(15, 12 / pageCount);
+
         const newElement: PlacedElement = {
             id: genId(),
             type: 'signature',
-            xPct: Math.max(0, Math.min(80, xPct - 15)),
-            yPct: Math.max(0, Math.min(85, yPct - 7.5)),
-            widthPct: 30,
-            heightPct: 15,
+            xPct: Math.max(0, Math.min(100 - sigWidthPct, xPct - sigWidthPct / 2)),
+            yPct: Math.max(0, Math.min(100 - sigHeightPct, yPct - sigHeightPct / 2)),
+            widthPct: sigWidthPct,
+            heightPct: sigHeightPct,
             signatureId: data.signatureId,
             signaturePreviewUrl: data.previewUrl || undefined,
         };
@@ -126,7 +132,7 @@ export default function DocumentCanvas({
 
         onElementsChange([...elements, newElement]);
         setSelectedId(newElement.id);
-    }, [elements, onElementsChange]);
+    }, [elements, onElementsChange, pageCount]);
 
     const fetchSignatureSvg = async (sigId: string): Promise<string | null> => {
         try {
@@ -153,13 +159,16 @@ export default function DocumentCanvas({
             savedId = await onSaveSignature(signatureData);
         }
 
+        // Size signature relative to a single page
+        const drawnHeightPct = Math.min(10, 8 / pageCount);
+
         const newElement: PlacedElement = {
             id: genId(),
             type: 'signature',
             xPct: 20,
-            yPct: 40,
-            widthPct: 35,
-            heightPct: 10,
+            yPct: 2 / pageCount,
+            widthPct: 30,
+            heightPct: drawnHeightPct,
             signatureId: savedId || undefined,
             signatureSvg: signatureData.svg,
             signaturePreviewUrl: previewUrl,
@@ -167,7 +176,7 @@ export default function DocumentCanvas({
         onElementsChange([...elements, newElement]);
         setSelectedId(newElement.id);
         setShowSignatureModal(false);
-    }, [elements, onElementsChange, onSaveSignature]);
+    }, [elements, onElementsChange, onSaveSignature, pageCount]);
 
     // Add text element
     const addTextElement = useCallback(() => {
@@ -175,9 +184,9 @@ export default function DocumentCanvas({
             id: genId(),
             type: 'text',
             xPct: 30,
-            yPct: 50,
+            yPct: 2 / pageCount,
             widthPct: 40,
-            heightPct: 8,
+            heightPct: Math.min(8, 6 / pageCount),
             text: 'Type here...',
             fontSize: 16,
             fontFamily: 'sans-serif',
@@ -185,7 +194,7 @@ export default function DocumentCanvas({
         onElementsChange([...elements, newElement]);
         setSelectedId(newElement.id);
         setEditingTextId(newElement.id);
-    }, [elements, onElementsChange]);
+    }, [elements, onElementsChange, pageCount]);
 
     // Add date element
     const addDateElement = useCallback(() => {
@@ -195,16 +204,16 @@ export default function DocumentCanvas({
             id: genId(),
             type: 'text',
             xPct: 55,
-            yPct: 50,
+            yPct: 2 / pageCount,
             widthPct: 20,
-            heightPct: 5,
+            heightPct: Math.min(5, 4 / pageCount),
             text: dateStr,
             fontSize: 14,
             fontFamily: 'sans-serif',
         };
         onElementsChange([...elements, newElement]);
         setSelectedId(newElement.id);
-    }, [elements, onElementsChange]);
+    }, [elements, onElementsChange, pageCount]);
 
     // Delete selected element
     const deleteElement = useCallback((id: string) => {
@@ -253,11 +262,11 @@ export default function DocumentCanvas({
             );
             onElementsChange(updated);
         } else {
-            const aspect = s.widthPct / (s.heightPct || 1);
-            const newW = Math.max(8, Math.min(80, s.widthPct + dx));
-            const newH = s.type === 'text'
-                ? Math.max(4, Math.min(50, s.heightPct + dy))
-                : Math.max(4, Math.min(50, newW / aspect));
+            // Free resize: width follows horizontal drag, height follows vertical drag
+            // This works correctly regardless of page count since both axes are independent
+            const maxH = Math.min(80, 100 / pageCount);
+            const newW = Math.max(5, Math.min(80, s.widthPct + dx));
+            const newH = Math.max(2, Math.min(maxH, s.heightPct + dy));
             const updated = elements.map(el =>
                 el.id === dragRef.current!.elementId
                     ? { ...el, widthPct: newW, heightPct: newH }
@@ -265,7 +274,7 @@ export default function DocumentCanvas({
             );
             onElementsChange(updated);
         }
-    }, [elements, onElementsChange]);
+    }, [elements, onElementsChange, pageCount]);
 
     const handlePointerUp = useCallback(() => {
         dragRef.current = null;

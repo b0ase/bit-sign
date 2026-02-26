@@ -4,6 +4,10 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { inscribeBitSignData, hashData } from '@/lib/bsv-inscription';
 import { createStrand } from '@/lib/identity-strands';
 
+// Allow large payloads for multi-page document composites
+export const maxDuration = 30;
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/bitsign/seal
  * Stores a sealed (signature-placed) document composite and inscribes it on-chain.
