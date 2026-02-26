@@ -546,21 +546,33 @@ function AccountPageInner() {
 
             let blob: Blob;
             let numPages = 1;
-            if (contentType === 'application/pdf') {
+            if (contentType.includes('pdf') || contentType === 'application/octet-stream') {
                 const arrayBuffer = await res.arrayBuffer();
-                try {
-                    const result = await pdfToImage(arrayBuffer);
-                    blob = result.blob;
-                    numPages = result.numPages;
-                } catch (pdfErr) {
-                    console.error('PDF to image conversion failed:', pdfErr);
-                    // Fall back to showing raw PDF blob
-                    blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+                // Check PDF magic bytes for octet-stream
+                const header = new Uint8Array(arrayBuffer.slice(0, 5));
+                const isPdf = contentType.includes('pdf') ||
+                    (header[0] === 0x25 && header[1] === 0x50 && header[2] === 0x44 && header[3] === 0x46); // %PDF
+                if (isPdf) {
+                    try {
+                        const result = await pdfToImage(arrayBuffer);
+                        blob = result.blob;
+                        numPages = result.numPages;
+                    } catch (pdfErr) {
+                        console.error('PDF to image conversion failed:', pdfErr);
+                        blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+                    }
+                } else {
+                    blob = new Blob([arrayBuffer], { type: contentType });
                 }
             } else if (contentType.startsWith('image/')) {
                 blob = await res.blob();
+            } else if (contentType.includes('json')) {
+                // Encrypted document — not yet supported in signing canvas
+                alert('This document is encrypted. Encrypted documents cannot yet be opened in the signing workspace.');
+                return;
             } else {
-                alert('Only image documents (PNG, JPEG) and PDFs can be opened in the signing workspace.');
+                console.warn('Unsupported content type for canvas:', contentType);
+                alert(`This file type (${contentType}) cannot be opened in the signing workspace. Supported: PDF, PNG, JPEG.`);
                 return;
             }
 
@@ -666,20 +678,27 @@ function AccountPageInner() {
 
             let blob: Blob;
             let numPages = 1;
-            if (contentType === 'application/pdf') {
+            if (contentType.includes('pdf') || contentType === 'application/octet-stream') {
                 const arrayBuffer = await res.arrayBuffer();
-                try {
-                    const result = await pdfToImage(arrayBuffer);
-                    blob = result.blob;
-                    numPages = result.numPages;
-                } catch (pdfErr) {
-                    console.error('PDF to image conversion failed:', pdfErr);
-                    blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+                const header = new Uint8Array(arrayBuffer.slice(0, 5));
+                const isPdf = contentType.includes('pdf') ||
+                    (header[0] === 0x25 && header[1] === 0x50 && header[2] === 0x44 && header[3] === 0x46);
+                if (isPdf) {
+                    try {
+                        const result = await pdfToImage(arrayBuffer);
+                        blob = result.blob;
+                        numPages = result.numPages;
+                    } catch (pdfErr) {
+                        console.error('PDF to image conversion failed:', pdfErr);
+                        blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+                    }
+                } else {
+                    blob = new Blob([arrayBuffer], { type: contentType });
                 }
             } else if (contentType.startsWith('image/')) {
                 blob = await res.blob();
             } else {
-                alert('Only image documents (PNG, JPEG) and PDFs can be co-signed in the workspace.');
+                alert(`This file type (${contentType}) cannot be co-signed in the workspace. Supported: PDF, PNG, JPEG.`);
                 return;
             }
 
