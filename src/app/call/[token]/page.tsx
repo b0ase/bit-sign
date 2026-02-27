@@ -45,46 +45,61 @@ export default function CallPage() {
     const joinCall = () => {
         if (!loaded || !containerRef.current || !token) return;
 
-        const api = new window.JitsiMeetExternalAPI('meet.jit.si', {
-            roomName: `BitSign-${token}`,
-            parentNode: containerRef.current,
-            userInfo: { displayName: handle || 'Guest' },
-            width: '100%',
-            height: '100%',
-            configOverwrite: {
-                startWithAudioMuted: false,
-                startWithVideoOn: true,
-                disableDeepLinking: true,
-                prejoinConfig: { enabled: true },
-                subject: 'Bit-Sign Live Signing',
-            },
-            interfaceConfigOverwrite: {
-                TOOLBAR_BUTTONS: ['microphone', 'camera', 'hangup', 'fullscreen', 'chat', 'tileview', 'raisehand'],
-                SHOW_JITSI_WATERMARK: false,
-                SHOW_BRAND_WATERMARK: false,
-                SHOW_WATERMARK_FOR_GUESTS: false,
-                DEFAULT_BACKGROUND: '#050505',
-                TOOLBAR_ALWAYS_VISIBLE: true,
-            },
-        });
+        const initJitsi = () => {
+            if (!containerRef.current) return;
 
-        apiRef.current = api;
-        setJoined(true);
+            const api = new window.JitsiMeetExternalAPI('meet.jit.si', {
+                roomName: `BitSign-${token}`,
+                parentNode: containerRef.current,
+                userInfo: { displayName: handle || 'Guest' },
+                width: '100%',
+                height: '100%',
+                configOverwrite: {
+                    startWithAudioMuted: false,
+                    startWithVideoOn: true,
+                    disableDeepLinking: true,
+                    prejoinConfig: { enabled: true },
+                    subject: 'Bit-Sign Live Signing',
+                },
+                interfaceConfigOverwrite: {
+                    TOOLBAR_BUTTONS: ['microphone', 'camera', 'hangup', 'fullscreen', 'chat', 'tileview', 'raisehand', 'settings'],
+                    SHOW_JITSI_WATERMARK: false,
+                    SHOW_BRAND_WATERMARK: false,
+                    SHOW_WATERMARK_FOR_GUESTS: false,
+                    DEFAULT_BACKGROUND: '#050505',
+                    TOOLBAR_ALWAYS_VISIBLE: true,
+                },
+            });
 
-        // Ensure the Jitsi iframe has camera/mic permissions
-        const iframe = containerRef.current?.querySelector('iframe');
-        if (iframe) {
-            iframe.setAttribute('allow', 'camera *; microphone *; display-capture *; autoplay *');
-        }
+            apiRef.current = api;
+            setJoined(true);
 
-        api.addListener('readyToClose', () => {
-            setJoined(false);
-            setEnded(true);
-            if (apiRef.current) {
-                apiRef.current.dispose();
-                apiRef.current = null;
-            }
-        });
+            try {
+                const iframe = api.getIFrame();
+                if (iframe) {
+                    iframe.allow = 'camera; microphone; display-capture; autoplay; clipboard-write';
+                }
+            } catch { /* getIFrame may not be available */ }
+
+            api.addListener('readyToClose', () => {
+                setJoined(false);
+                setEnded(true);
+                if (apiRef.current) {
+                    apiRef.current.dispose();
+                    apiRef.current = null;
+                }
+            });
+        };
+
+        // Prompt browser for camera/mic permission on THIS origin first
+        navigator.mediaDevices.getUserMedia({ audio: true, video: true })
+            .then(stream => {
+                stream.getTracks().forEach(t => t.stop());
+                initJitsi();
+            })
+            .catch(() => {
+                initJitsi();
+            });
     };
 
     if (ended) {

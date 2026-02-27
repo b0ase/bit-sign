@@ -53,52 +53,75 @@ export default function VideoCall({ roomToken, displayName, onClose, documentNam
     useEffect(() => {
         if (!loaded || !containerRef.current || apiRef.current) return;
 
-        const api = new window.JitsiMeetExternalAPI('meet.jit.si', {
-            roomName,
-            parentNode: containerRef.current,
-            userInfo: { displayName },
-            configOverwrite: {
-                startWithAudioMuted: false,
-                startWithVideoOn: true,
-                disableDeepLinking: true,
-                prejoinConfig: { enabled: true },
-                disableThirdPartyRequests: true,
-                hideConferenceSubject: false,
-                subject: documentName ? `Signing: ${documentName}` : 'Bit-Sign Live Signing',
-            },
-            interfaceConfigOverwrite: {
-                TOOLBAR_BUTTONS: ['microphone', 'camera', 'hangup', 'fullscreen', 'tileview', 'chat', 'settings'],
-                SHOW_JITSI_WATERMARK: false,
-                SHOW_BRAND_WATERMARK: false,
-                SHOW_WATERMARK_FOR_GUESTS: false,
-                DEFAULT_BACKGROUND: '#050505',
-                DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
-                FILM_STRIP_MAX_HEIGHT: 120,
-                TOOLBAR_ALWAYS_VISIBLE: true,
-            },
-        });
+        // Request camera/mic permissions from parent page FIRST,
+        // then initialize Jitsi so the iframe inherits the grant.
+        const initJitsi = () => {
+            if (!containerRef.current) return;
 
-        apiRef.current = api;
+            // Create iframe manually with permissions, then let Jitsi use it
+            const api = new window.JitsiMeetExternalAPI('meet.jit.si', {
+                roomName,
+                parentNode: containerRef.current,
+                userInfo: { displayName },
+                configOverwrite: {
+                    startWithAudioMuted: false,
+                    startWithVideoOn: true,
+                    disableDeepLinking: true,
+                    prejoinConfig: { enabled: true },
+                    disableThirdPartyRequests: true,
+                    hideConferenceSubject: false,
+                    subject: documentName ? `Signing: ${documentName}` : 'Bit-Sign Live Signing',
+                },
+                interfaceConfigOverwrite: {
+                    TOOLBAR_BUTTONS: ['microphone', 'camera', 'hangup', 'fullscreen', 'tileview', 'chat', 'settings'],
+                    SHOW_JITSI_WATERMARK: false,
+                    SHOW_BRAND_WATERMARK: false,
+                    SHOW_WATERMARK_FOR_GUESTS: false,
+                    DEFAULT_BACKGROUND: '#050505',
+                    DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
+                    FILM_STRIP_MAX_HEIGHT: 120,
+                    TOOLBAR_ALWAYS_VISIBLE: true,
+                },
+            });
 
-        // Ensure the Jitsi iframe has camera/mic permissions
-        const iframe = containerRef.current?.querySelector('iframe');
-        if (iframe) {
-            iframe.setAttribute('allow', 'camera *; microphone *; display-capture *; autoplay *');
-        }
+            apiRef.current = api;
 
-        api.addListener('participantJoined', () => {
-            setParticipants((prev: number) => prev + 1);
-        });
-        api.addListener('participantLeft', () => {
-            setParticipants((prev: number) => Math.max(0, prev - 1));
-        });
-        api.addListener('readyToClose', () => {
-            handleClose();
-        });
+            // Set permissions on the iframe Jitsi created
+            try {
+                const iframe = api.getIFrame();
+                if (iframe) {
+                    iframe.allow = 'camera; microphone; display-capture; autoplay; clipboard-write';
+                }
+            } catch { /* getIFrame may not be available */ }
+
+            api.addListener('participantJoined', () => {
+                setParticipants((prev: number) => prev + 1);
+            });
+            api.addListener('participantLeft', () => {
+                setParticipants((prev: number) => Math.max(0, prev - 1));
+            });
+            api.addListener('readyToClose', () => {
+                handleClose();
+            });
+        };
+
+        // Prompt browser for camera/mic permission on THIS origin first
+        navigator.mediaDevices.getUserMedia({ audio: true, video: true })
+            .then(stream => {
+                // Got permission — stop the stream immediately (Jitsi will request its own)
+                stream.getTracks().forEach(t => t.stop());
+                initJitsi();
+            })
+            .catch(() => {
+                // Permission denied or no devices — still try Jitsi (it has its own error UI)
+                initJitsi();
+            });
 
         return () => {
-            api.dispose();
-            apiRef.current = null;
+            if (apiRef.current) {
+                apiRef.current.dispose();
+                apiRef.current = null;
+            }
         };
     }, [loaded, roomName, displayName, documentName, handleClose]);
 
