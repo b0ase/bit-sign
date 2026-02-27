@@ -92,6 +92,49 @@ export async function POST(request: NextRequest) {
 
         if (insertError) throw insertError;
 
+        // Pre-create access grant if recipient already has an account
+        // This makes the doc appear in their inbox immediately via polling
+        try {
+            // Find handle by email (Google or Microsoft linked email)
+            const { data: recipientIdentity } = await supabaseAdmin
+                .from('bit_sign_identities')
+                .select('user_handle')
+                .or(`google_email.eq.${recipientEmail},microsoft_email.eq.${recipientEmail}`)
+                .limit(1)
+                .maybeSingle();
+
+            const recipientHandle = recipientIdentity?.user_handle;
+
+            if (recipientHandle && recipientHandle !== handle) {
+                // Check for existing grant to avoid duplicates
+                const { data: existingGrants } = await supabaseAdmin
+                    .from('document_access_grants')
+                    .select('id')
+                    .eq('document_id', finalDocumentId)
+                    .eq('grantee_handle', recipientHandle)
+                    .is('revoked_at', null)
+                    .limit(1);
+
+                if (!existingGrants?.length) {
+                    await supabaseAdmin
+                        .from('document_access_grants')
+                        .insert({
+                            document_id: finalDocumentId,
+                            document_type: 'vault_item',
+                            grantor_handle: handle,
+                            grantee_handle: recipientHandle,
+                            wrapped_key: 'email-invite',
+                            ephemeral_public_key: '',
+                            encryption_version: 0,
+                        });
+                    console.log(`[invite] Pre-created access grant for ${recipientHandle} (email: ${recipientEmail})`);
+                }
+            }
+        } catch (grantErr) {
+            // Non-fatal — recipient can still claim via email link
+            console.warn('[invite] Pre-grant failed (non-fatal):', grantErr);
+        }
+
         // Build claim URL and send email
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bit-sign.online';
         const claimUrl = `${appUrl}/claim/${claimToken}`;

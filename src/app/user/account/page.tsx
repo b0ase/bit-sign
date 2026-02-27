@@ -2090,10 +2090,6 @@ function AccountPageInner() {
                                                     <span className="px-1.5 py-0.5 bg-green-950 text-green-400 text-[10px] rounded shrink-0">
                                                         Returned
                                                     </span>
-                                                ) : isSealed ? (
-                                                    <span className="px-1.5 py-0.5 bg-amber-950 text-amber-400 text-[10px] rounded shrink-0">
-                                                        Sealed
-                                                    </span>
                                                 ) : (
                                                     <span className="px-1.5 py-0.5 bg-green-950 text-green-400 text-[10px] rounded shrink-0">
                                                         Sign
@@ -2129,37 +2125,6 @@ function AccountPageInner() {
                                                         setTimeout(() => vaultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
                                                     }}
                                                     className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-green-600/20 text-green-400 hover:bg-green-600/30"
-                                                >
-                                                    <FiEye size={12} /> View
-                                                </button>
-                                                <button
-                                                    onClick={() => downloadSignature(doc.document_id)}
-                                                    className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-                                                >
-                                                    <FiDownload size={12} /> Download
-                                                </button>
-                                            </>
-                                        ) : isSealed ? (
-                                            <>
-                                                <button
-                                                    onClick={async () => {
-                                                        setExpandedSig(doc.document_id);
-                                                        setPreviewLoading(true);
-                                                        setPreviewData(null);
-                                                        try {
-                                                            const res = await fetch(`/api/bitsign/signatures/${doc.document_id}/preview`);
-                                                            if (!res.ok) throw new Error('Failed to load');
-                                                            const blob = await res.blob();
-                                                            const url = URL.createObjectURL(blob);
-                                                            setPreviewData({ url, type: blob.type?.startsWith('image/') ? 'image' : (blob.type || 'image/png') });
-                                                        } catch {
-                                                            addToast('Failed to load document preview', 'warning');
-                                                        } finally {
-                                                            setPreviewLoading(false);
-                                                        }
-                                                        setTimeout(() => vaultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-                                                    }}
-                                                    className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-amber-600/20 text-amber-400 hover:bg-amber-600/30"
                                                 >
                                                     <FiEye size={12} /> View
                                                 </button>

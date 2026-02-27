@@ -65,6 +65,38 @@ export async function GET(request: NextRequest) {
                         });
                 }
             }
+
+            // Auto-backfill: find pending email invites sent to our email but missing access grants
+            const { data: emailInvites } = await supabaseAdmin
+                .from('vault_share_invites')
+                .select('id, document_id, sender_handle')
+                .in('recipient_email', userEmails)
+                .eq('status', 'pending');
+
+            for (const inv of emailInvites || []) {
+                if (inv.sender_handle === handle) continue; // Skip own invites
+
+                const { data: existingGrants } = await supabaseAdmin
+                    .from('document_access_grants')
+                    .select('id')
+                    .eq('document_id', inv.document_id)
+                    .eq('grantee_handle', handle)
+                    .is('revoked_at', null)
+                    .limit(1);
+
+                if (!existingGrants?.length) {
+                    await supabaseAdmin
+                        .from('document_access_grants')
+                        .insert({
+                            document_id: inv.document_id,
+                            document_type: 'vault_item',
+                            grantor_handle: inv.sender_handle,
+                            grantee_handle: handle,
+                            wrapped_key: 'email-invite',
+                            encryption_version: 0,
+                        });
+                }
+            }
         }
 
         // Fetch all non-revoked grants for this user
