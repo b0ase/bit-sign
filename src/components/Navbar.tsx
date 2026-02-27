@@ -34,6 +34,7 @@ export default function Navbar() {
 
                     <div className="hidden md:flex items-center gap-6">
                         {handle && <Link href="/user/documents" className="text-sm text-neutral-400 hover:text-white transition-colors">Documents</Link>}
+                        {handle && <Link href="/user/bit-trust" className="text-sm text-neutral-400 hover:text-white transition-colors">Bit Trust</Link>}
                         <Link href="/docs" className="text-sm text-neutral-400 hover:text-white transition-colors">Docs</Link>
                         <Link href="/pricing" className="text-sm text-neutral-400 hover:text-white transition-colors">Pricing</Link>
                     </div>

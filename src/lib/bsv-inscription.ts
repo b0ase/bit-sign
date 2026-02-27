@@ -43,6 +43,7 @@ export interface BitSignInscriptionData {
   // For ip_thread (documentHash is shared with document_signature above)
   threadTitle?: string;
   threadSequence?: number;
+  documentType?: string;
 }
 
 export interface BitSignInscriptionResult {
@@ -169,6 +170,7 @@ function generateBitSignJson(data: BitSignInscriptionData): string {
       root: data.rootTxid,
       type: 'ip_thread',
       documentHash: data.documentHash,
+      documentType: data.documentType || 'DOCUMENT',
       title: data.threadTitle,
       sequence: data.threadSequence || 1,
       handle: data.userHandle,
