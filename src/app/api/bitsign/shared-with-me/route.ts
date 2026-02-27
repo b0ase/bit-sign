@@ -110,11 +110,21 @@ export async function GET(request: NextRequest) {
                         }
                     }
 
+                    // Look up any invite message for this document
+                    const { data: invite } = await supabaseAdmin
+                        .from('vault_share_invites')
+                        .select('message')
+                        .eq('document_id', grant.document_id)
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+
                     return {
                         ...grant,
                         signature_type: sig?.signature_type,
                         metadata: resolvedMeta,
                         document_created_at: sig?.created_at,
+                        invite_message: invite?.message || null,
                     };
                 }
                 return grant;

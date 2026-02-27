@@ -115,6 +115,7 @@ interface SharedDocument {
     created_at: string;
     signature_type?: string;
     metadata?: any;
+    invite_message?: string;
 }
 
 interface CoSignRequest {
@@ -936,6 +937,7 @@ function AccountPageInner() {
             setPreviewData({ url: '', type: 'error' });
         } finally {
             setPreviewLoading(false);
+            setTimeout(() => vaultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
         }
     };
 
@@ -1555,11 +1557,16 @@ function AccountPageInner() {
                 const ext = sig?.metadata?.mimeType?.split('/')[1] || 'bin';
                 filename = `document-${sigId.slice(0, 8)}.${ext}`;
             }
+            addToast('Downloading...', 'download');
+            const res = await fetch(`/api/bitsign/signatures/${sigId}/preview`);
+            if (!res.ok) throw new Error('Download failed');
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = `/api/bitsign/signatures/${sigId}/preview`;
+            a.href = url;
             a.download = filename;
             a.click();
-            addToast('Downloading...', 'download');
+            URL.revokeObjectURL(url);
         } catch (error) {
             console.error('Download failed:', error);
             alert('Failed to download. Please try again.');
@@ -1975,10 +1982,10 @@ function AccountPageInner() {
                                                 </span>
                                             </div>
                                             <span className="text-xs text-zinc-600">
-                                                From ${req.sender_handle} &middot; {new Date(req.created_at).toLocaleDateString()}
+                                                From ${req.sender_handle} &middot; {new Date(req.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
                                             </span>
                                             {req.message && (
-                                                <p className="text-xs text-zinc-500 mt-1 truncate">&ldquo;{req.message}&rdquo;</p>
+                                                <p className="text-xs text-zinc-400 mt-1 italic">&ldquo;{req.message}&rdquo;</p>
                                             )}
                                         </div>
                                         {req.claim_token && (
@@ -1992,16 +1999,16 @@ function AccountPageInner() {
                                         )}
                                         <button
                                             onClick={() => openCoSign({ id: req.id, document_id: req.document_id, document_type: 'vault_item', grantor_handle: req.sender_handle, wrapped_key: '', ephemeral_public_key: '', created_at: req.created_at, signature_type: 'SEALED_DOCUMENT', metadata: { originalFileName: req.document_name } })}
-                                            className={`px-3 py-1.5 text-xs rounded flex items-center gap-1.5 shrink-0 cursor-pointer ${isWitReq ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30' : 'bg-amber-600/20 text-amber-400 hover:bg-amber-600/30'}`}
+                                            className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 shrink-0 cursor-pointer bg-green-600/20 text-green-400 hover:bg-green-600/30 border border-green-900/40"
                                         >
-                                            {isWitReq ? <><FiEye size={12} /> Witness</> : <><FiEdit3 size={12} /> Co-Sign</>}
+                                            <FiEdit3 size={12} /> Sign
                                         </button>
                                         <button
                                             onClick={() => dismissCoSignRequest(req.id, 'received')}
-                                            className="p-1 text-zinc-700 hover:text-red-400 transition-colors shrink-0"
-                                            title="Dismiss"
+                                            className="px-2 py-1.5 text-xs rounded bg-red-950/40 text-red-400 border border-red-900/40 hover:bg-red-900/40 transition-colors shrink-0 flex items-center gap-1"
+                                            title="Remove"
                                         >
-                                            <FiX size={14} />
+                                            <FiX size={12} /> Remove
                                         </button>
                                     </div>
                                 );
@@ -2023,7 +2030,7 @@ function AccountPageInner() {
                                             </span>
                                         </div>
                                         <span className="text-xs text-zinc-600">
-                                            From ${req.requester_handle} &middot; {new Date(req.created_at).toLocaleDateString()}
+                                            From ${req.requester_handle} &middot; {new Date(req.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
                                         </span>
                                         {req.message && (
                                             <p className="text-xs text-zinc-500 mt-1 truncate">&ldquo;{req.message}&rdquo;</p>
@@ -2044,13 +2051,11 @@ function AccountPageInner() {
                                 const isWitnessRequest = doc.signature_type === 'WITNESS_REQUEST' || doc.document_type === 'WITNESS_REQUEST';
                                 // Is this a returned co-signed doc? (I'm the original sender, this is the response)
                                 const isReturnedDoc = sentCoSignRequests.some(r => r.response_document_id === doc.document_id && r.status === 'signed');
-                                // Does this doc have a pending co-sign request for me?
-                                const hasPendingRequest = coSignRequests.some(r => r.document_id === doc.document_id && r.status === 'pending');
                                 // Determine document name
                                 const rawName = doc.metadata?.originalFileName || doc.metadata?.fileName;
                                 const docName = (rawName && rawName !== 'Sealed Document') ? rawName : (doc.metadata?.type !== 'Sealed Document' ? doc.metadata?.type : null) || doc.signature_type || 'Document';
                                 return (
-                                    <div key={doc.id} className={`border rounded-md bg-black p-4 flex items-center gap-4 ${isReturnedDoc ? 'border-green-900/40' : isWitnessRequest ? 'border-blue-900/40' : isSealed ? 'border-amber-900/40' : 'border-zinc-900'}`}>
+                                    <div key={doc.id} className={`border rounded-md bg-black p-4 flex items-center gap-4 ${isReturnedDoc ? 'border-green-900/40' : 'border-zinc-900'}`}>
                                         <div className="text-zinc-500 shrink-0">
                                             {isReturnedDoc ? (
                                                 <FiCheck size={18} className="text-green-400" />
@@ -2071,19 +2076,18 @@ function AccountPageInner() {
                                                     <span className="px-1.5 py-0.5 bg-green-950 text-green-400 text-[10px] rounded shrink-0">
                                                         Returned
                                                     </span>
-                                                ) : isWitnessRequest ? (
-                                                    <span className="px-1.5 py-0.5 bg-blue-950 text-blue-400 text-[10px] rounded shrink-0">
-                                                        Witness
-                                                    </span>
-                                                ) : (isSealed && hasPendingRequest) || !isSealed ? (
-                                                    <span className="px-1.5 py-0.5 bg-amber-950 text-amber-400 text-[10px] rounded shrink-0">
+                                                ) : (
+                                                    <span className="px-1.5 py-0.5 bg-green-950 text-green-400 text-[10px] rounded shrink-0">
                                                         Sign
                                                     </span>
-                                                ) : null}
+                                                )}
                                             </div>
                                             <span className="text-xs text-zinc-600">
-                                                From ${doc.grantor_handle} &middot; {new Date(doc.created_at).toLocaleDateString()}
+                                                From ${doc.grantor_handle} &middot; {new Date(doc.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
                                             </span>
+                                            {doc.invite_message && (
+                                                <p className="text-xs text-zinc-400 mt-1 italic">&ldquo;{doc.invite_message}&rdquo;</p>
+                                            )}
                                         </div>
                                         {isReturnedDoc ? (
                                             <button
@@ -2109,42 +2113,20 @@ function AccountPageInner() {
                                             >
                                                 <FiEye size={12} /> View
                                             </button>
-                                        ) : (isSealed || isWitnessRequest) && hasPendingRequest ? (
-                                            <button
-                                                onClick={() => openCoSign(doc)}
-                                                className={`px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 ${
-                                                    isWitnessRequest
-                                                        ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30'
-                                                        : 'bg-amber-600/20 text-amber-400 hover:bg-amber-600/30'
-                                                }`}
-                                            >
-                                                {isWitnessRequest ? (
-                                                    <><FiEye size={12} /> Witness</>
-                                                ) : (
-                                                    <><FiEdit3 size={12} /> Co-Sign</>
-                                                )}
-                                            </button>
-                                        ) : !isSealed ? (
-                                            <button
-                                                onClick={() => openCoSign(doc)}
-                                                className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-amber-600/20 text-amber-400 hover:bg-amber-600/30"
-                                            >
-                                                <FiEdit3 size={12} /> Sign &amp; Seal
-                                            </button>
                                         ) : (
                                             <button
-                                                onClick={() => { previewSharedDoc(doc); setVaultTab('received'); }}
-                                                className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                                                onClick={() => openCoSign(doc)}
+                                                className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-green-600 text-white hover:bg-green-500 font-medium border border-green-500"
                                             >
-                                                <FiEye size={12} /> View
+                                                <FiEdit3 size={12} /> Sign
                                             </button>
                                         )}
                                         <button
                                             onClick={() => dismissSharedDoc(doc.id)}
-                                            className="p-1 text-zinc-700 hover:text-red-400 transition-colors shrink-0"
-                                            title="Dismiss"
+                                            className="px-2 py-1.5 text-xs rounded bg-red-950/40 text-red-400 border border-red-900/40 hover:bg-red-900/40 transition-colors shrink-0 flex items-center gap-1"
+                                            title="Remove"
                                         >
-                                            <FiX size={14} />
+                                            <FiX size={12} /> Remove
                                         </button>
                                     </div>
                                 );
@@ -2180,7 +2162,7 @@ function AccountPageInner() {
                                             </span>
                                         </div>
                                         <span className="text-xs text-zinc-600">
-                                            To {req.recipient_handle ? `$${req.recipient_handle}` : req.recipient_email || 'unknown'} &middot; {new Date(req.created_at).toLocaleDateString()}
+                                            To {req.recipient_handle ? `$${req.recipient_handle}` : req.recipient_email || 'unknown'} &middot; {new Date(req.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
                                         </span>
                                     </div>
                                     <div className="shrink-0 flex items-center gap-2">
@@ -2646,14 +2628,23 @@ function AccountPageInner() {
                                                     <div className="shrink-0 flex items-center gap-1">
                                                         <span className="px-1 py-0.5 bg-green-950/30 text-green-400 text-[9px] rounded">{req.request_type === 'witness' ? 'Witnessed' : 'Co-Signed'}</span>
                                                         <button
-                                                            onClick={(e) => {
+                                                            onClick={async (e) => {
                                                                 e.stopPropagation();
                                                                 if (req.response_document_id) {
-                                                                    const a = document.createElement('a');
-                                                                    a.href = `/api/bitsign/signatures/${req.response_document_id}/preview`;
-                                                                    a.download = `cosigned-${req.document_name}`;
-                                                                    a.click();
-                                                                    addToast('Downloading co-signed document...', 'download');
+                                                                    try {
+                                                                        addToast('Downloading co-signed document...', 'download');
+                                                                        const res = await fetch(`/api/bitsign/signatures/${req.response_document_id}/preview`);
+                                                                        if (!res.ok) throw new Error('Download failed');
+                                                                        const blob = await res.blob();
+                                                                        const url = URL.createObjectURL(blob);
+                                                                        const a = document.createElement('a');
+                                                                        a.href = url;
+                                                                        a.download = `cosigned-${req.document_name}`;
+                                                                        a.click();
+                                                                        URL.revokeObjectURL(url);
+                                                                    } catch {
+                                                                        addToast('Download failed — try viewing instead', 'warning');
+                                                                    }
                                                                 }
                                                             }}
                                                             className="px-1.5 py-0.5 border border-zinc-700 bg-zinc-900 text-zinc-400 text-[9px] rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1"
