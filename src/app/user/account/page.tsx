@@ -2075,7 +2075,7 @@ function AccountPageInner() {
                                                     <span className="px-1.5 py-0.5 bg-blue-950 text-blue-400 text-[10px] rounded shrink-0">
                                                         Witness
                                                     </span>
-                                                ) : isSealed && hasPendingRequest ? (
+                                                ) : (isSealed && hasPendingRequest) || !isSealed ? (
                                                     <span className="px-1.5 py-0.5 bg-amber-950 text-amber-400 text-[10px] rounded shrink-0">
                                                         Sign
                                                     </span>
@@ -2123,6 +2123,13 @@ function AccountPageInner() {
                                                 ) : (
                                                     <><FiEdit3 size={12} /> Co-Sign</>
                                                 )}
+                                            </button>
+                                        ) : !isSealed ? (
+                                            <button
+                                                onClick={() => openCoSign(doc)}
+                                                className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-amber-600/20 text-amber-400 hover:bg-amber-600/30"
+                                            >
+                                                <FiEdit3 size={12} /> Sign &amp; Seal
                                             </button>
                                         ) : (
                                             <button
