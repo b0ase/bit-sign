@@ -12,6 +12,7 @@ import { ToastProvider, useToast } from '@/components/Toast';
 import ShareModal from '@/components/ShareModal';
 import SignatureExplorer from '@/components/SignatureExplorer';
 import DocumentCanvas from '@/components/DocumentCanvas';
+import VideoCall from '@/components/VideoCall';
 import type { PlacedElement } from '@/components/DocumentCanvas';
 import { pdfToImage, type PdfImageResult } from '@/lib/pdf-to-image';
 import {
@@ -51,6 +52,7 @@ import {
     FiUserCheck,
     FiRotateCcw,
     FiTrash2,
+    FiVideo,
 } from 'react-icons/fi';
 
 interface Signature {
@@ -126,6 +128,7 @@ interface CoSignRequest {
     signed_at?: string;
     document_name: string;
     document_txid?: string;
+    claim_token?: string;
 }
 
 export default function AccountPage() {
@@ -168,6 +171,7 @@ function AccountPageInner() {
     const [deleteConfirmModal, setDeleteConfirmModal] = useState<{ id: string; name: string; isSealed: boolean } | null>(null);
     const [trashItems, setTrashItems] = useState<Signature[]>([]);
     const [e2eAutoSetupStatus, setE2eAutoSetupStatus] = useState<'idle' | 'running' | 'done' | 'failed'>('idle');
+    const [videoCallToken, setVideoCallToken] = useState<{ token: string; documentName: string } | null>(null);
 
     // Self-attestation form state
     const [selfAttestOpen, setSelfAttestOpen] = useState(false);
@@ -1847,6 +1851,15 @@ function AccountPageInner() {
                                                 <p className="text-xs text-zinc-500 mt-1 truncate">&ldquo;{req.message}&rdquo;</p>
                                             )}
                                         </div>
+                                        {req.claim_token && (
+                                            <button
+                                                onClick={() => setVideoCallToken({ token: req.claim_token!, documentName: req.document_name })}
+                                                className="px-2 py-1.5 text-xs rounded bg-blue-600/20 text-blue-400 border border-blue-900/40 hover:bg-blue-600/30 transition-all flex items-center gap-1 shrink-0 cursor-pointer"
+                                                title="Join live signing call"
+                                            >
+                                                <FiVideo size={11} />
+                                            </button>
+                                        )}
                                         <button
                                             onClick={() => openCoSign({ id: req.id, document_id: req.document_id, document_type: 'vault_item', grantor_handle: req.sender_handle, wrapped_key: '', ephemeral_public_key: '', created_at: req.created_at, signature_type: 'SEALED_DOCUMENT', metadata: { originalFileName: req.document_name } })}
                                             className={`px-3 py-1.5 text-xs rounded flex items-center gap-1.5 shrink-0 cursor-pointer ${isWitReq ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30' : 'bg-amber-600/20 text-amber-400 hover:bg-amber-600/30'}`}
@@ -2041,6 +2054,15 @@ function AccountPageInner() {
                                         }`}>
                                             {req.status === 'signed' ? (req.request_type === 'witness' ? 'Witnessed' : 'Co-Signed') : 'Pending'}
                                         </span>
+                                        {req.status === 'pending' && req.claim_token && (
+                                            <button
+                                                onClick={() => setVideoCallToken({ token: req.claim_token!, documentName: req.document_name })}
+                                                className="px-2 py-1 text-xs rounded bg-blue-600/20 text-blue-400 border border-blue-900/40 hover:bg-blue-600/30 transition-all flex items-center gap-1 cursor-pointer"
+                                                title="Start live video signing call"
+                                            >
+                                                <FiVideo size={10} /> Video Call
+                                            </button>
+                                        )}
                                         {req.status === 'signed' && req.response_document_id && (
                                             <button
                                                 onClick={async () => {
@@ -3040,6 +3062,16 @@ function AccountPageInner() {
                             </div>
                         </div>
                     </div>
+                )}
+
+                {/* Video Call floating panel */}
+                {videoCallToken && handle && (
+                    <VideoCall
+                        roomToken={videoCallToken.token}
+                        displayName={handle}
+                        documentName={videoCallToken.documentName}
+                        onClose={() => setVideoCallToken(null)}
+                    />
                 )}
             </div>
         </div>
