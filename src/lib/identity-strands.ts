@@ -7,8 +7,6 @@
  */
 
 import { supabaseAdmin } from '@/lib/supabase';
-import { inscribeBitSignData } from '@/lib/bsv-inscription';
-import type { BitSignInscriptionData } from '@/lib/bsv-inscription';
 
 // ---------- Strand point values ----------
 // Identity levels are gated by strand types, not just score:
@@ -116,23 +114,9 @@ interface CreateStrandParams {
 }
 
 export async function createStrand(params: CreateStrandParams): Promise<{ id: string; strand_txid?: string }> {
-  // Attempt on-chain inscription (fail gracefully)
-  let strandTxid: string | undefined;
-  try {
-    const inscriptionData: BitSignInscriptionData = {
-      type: 'identity_strand',
-      userHandle: params.userHandle,
-      rootTxid: params.rootTxid,
-      strandType: params.strandType,
-      strandSubtype: params.strandSubtype,
-      strandLabel: params.label,
-    };
-    const result = await inscribeBitSignData(inscriptionData);
-    strandTxid = result.txid;
-    console.log(`[strand] On-chain inscription: ${strandTxid}`);
-  } catch (err) {
-    console.warn('[strand] On-chain inscription failed (non-fatal):', err);
-  }
+  // On-chain inscription happens at the route level via HandCash wallet.pay()
+  // Strands are indexed locally; txid is populated when the caller inscribes.
+  const strandTxid: string | undefined = undefined;
 
   // Primary write: bit_sign_strands
   const { data: strand, error } = await supabaseAdmin

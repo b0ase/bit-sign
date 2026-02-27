@@ -1,13 +1,13 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { resolveUserHandle } from '@/lib/auth';
 import { getStrandsForIdentity } from '@/lib/identity-strands';
 
-export async function GET(request: Request) {
-    const { searchParams } = new URL(request.url);
-    const handle = searchParams.get('handle');
+export async function GET(request: NextRequest) {
+    const handle = await resolveUserHandle(request);
 
     if (!handle) {
-        return NextResponse.json({ error: 'Handle required' }, { status: 400 });
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     try {
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
         if (identityError) throw identityError;
 
         // 2. Fetch Signature Chain (exclude large encrypted_payload from list)
-        const showTrash = searchParams.get('trash') === 'true';
+        const showTrash = request.nextUrl.searchParams.get('trash') === 'true';
         let sigQuery = supabaseAdmin
             .from('bit_sign_signatures')
             .select('id, user_handle, signature_type, payload_hash, iv, txid, metadata, created_at, wallet_signed, wallet_signature, wallet_address, deleted_at')

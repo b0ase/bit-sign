@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveUserHandle } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { inscribeBitSignData, hashData } from '@/lib/bsv-inscription';
+import { hashData } from '@/lib/bsv-inscription';
+import { getUserAccount } from '@/lib/handcash';
 import { createStrand } from '@/lib/identity-strands';
 
 const TRUST_TYPES = ['SEALED_DOCUMENT', 'DOCUMENT', 'PDF', 'IMAGE', 'PHOTO', 'VIDEO', 'BIT_TRUST'];
@@ -115,22 +116,41 @@ export async function POST(request: NextRequest) {
 
         const sequence = (count || 0) + 1;
 
-        // Inscribe on-chain as IP thread
+        // Inscribe on-chain via user's HandCash wallet
         let inscriptionTxid: string | undefined;
-        try {
-            const result = await inscribeBitSignData({
-                type: 'ip_thread',
-                rootTxid: identity.token_id,
-                documentHash,
-                documentType,
-                threadTitle: title.trim(),
-                threadSequence: sequence,
-                userHandle: handle,
-            });
-            inscriptionTxid = result.txid;
-            console.log(`[ip-thread] On-chain inscription: ${inscriptionTxid}`);
-        } catch (err) {
-            console.warn('[ip-thread] On-chain inscription failed (non-fatal):', err);
+        const authToken = request.cookies.get('handcash_auth_token')?.value;
+        const userAccount = authToken ? getUserAccount(authToken) : null;
+
+        if (userAccount) {
+            try {
+                const inscriptionData = {
+                    protocol: 'b0ase-bitsign',
+                    version: '1.0',
+                    type: 'ip_thread',
+                    rootTxid: identity.token_id,
+                    documentHash,
+                    documentType,
+                    threadTitle: title.trim(),
+                    threadSequence: sequence,
+                    userHandle: handle,
+                    registeredAt: new Date().toISOString(),
+                };
+
+                const paymentResult = await userAccount.wallet.pay({
+                    description: `BitSign: Register IP thread "${title.trim()}"`,
+                    appAction: 'ip-thread',
+                    payments: [
+                        { destination: handle, currencyCode: 'BSV', sendAmount: 0.00001 },
+                    ],
+                    attachment: { format: 'json', value: inscriptionData },
+                });
+                inscriptionTxid = paymentResult.transactionId;
+                console.log(`[ip-thread] On-chain inscription via HandCash: ${inscriptionTxid}`);
+            } catch (err: any) {
+                console.warn('[ip-thread] HandCash inscription failed (non-fatal):', err?.message || err);
+            }
+        } else {
+            console.warn('[ip-thread] No HandCash auth — skipping on-chain inscription');
         }
 
         // Create the ip_thread strand

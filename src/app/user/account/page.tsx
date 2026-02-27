@@ -807,11 +807,11 @@ function AccountPageInner() {
     // Multi-element seal handler
     const handleSeal = async (compositeBase64: string, elements: PlacedElement[]) => {
         if (!handle || !selectedDocumentId) return;
-        // Grab original doc metadata before closing canvas
-        const originalDoc = signatures.find(s => s.id === selectedDocumentId);
+        // Capture doc ID before any state changes
+        const docId = selectedDocumentId;
+        const originalDoc = signatures.find(s => s.id === docId);
         const originalFileName = originalDoc ? resolveDocName(originalDoc) : 'Document';
         setIsProcessing(true);
-        closeDocumentCanvas();
         try {
             const verifyRes = await fetch('/api/bitsign/handcash-verify', {
                 method: 'POST',
@@ -832,7 +832,7 @@ function AccountPageInner() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    originalDocumentId: selectedDocumentId,
+                    originalDocumentId: docId,
                     compositeData: compositeBase64,
                     elements,
                     walletSignature: verifyData.signature,
@@ -854,21 +854,24 @@ function AccountPageInner() {
                 signature_type: 'SEALED_DOCUMENT',
                 txid: sealData.txid,
                 created_at: new Date().toISOString(),
-                metadata: { type: 'Sealed Document', mimeType: 'image/png', originalDocumentId: selectedDocumentId, originalFileName },
+                metadata: { type: 'Sealed Document', mimeType: 'image/png', originalDocumentId: docId, originalFileName },
                 wallet_signed: true,
                 wallet_address: verifyData.walletAddress,
             }, ...prev]);
 
             // If this was a co-sign or witness request, return the signed document to sender
-            const matchingRequest = coSignRequests.find(r => r.document_id === selectedDocumentId && r.status === 'pending');
+            // Close canvas now that seal succeeded — safe to clear state
+            closeDocumentCanvas();
+
+            const matchingRequest = coSignRequests.find(r => r.document_id === docId && r.status === 'pending');
             if (matchingRequest) {
-                const returned = await handleCoSignResponse(sealData.id, selectedDocumentId!);
+                const returned = await handleCoSignResponse(sealData.id, docId);
                 if (!returned) {
                     addToast(`Document sealed but could not auto-return to sender. Use "Return to Sender" in the Received tab.`, 'warning');
                 }
             } else {
                 // Check if this was a received doc (email invite / direct share) — auto-return to sender
-                const sharedDoc = sharedWithMe.find(d => d.document_id === selectedDocumentId);
+                const sharedDoc = sharedWithMe.find(d => d.document_id === docId);
                 if (sharedDoc?.grantor_handle) {
                     try {
                         const returnRes = await fetch('/api/bitsign/return-to-sender', {
@@ -2087,6 +2090,10 @@ function AccountPageInner() {
                                                     <span className="px-1.5 py-0.5 bg-green-950 text-green-400 text-[10px] rounded shrink-0">
                                                         Returned
                                                     </span>
+                                                ) : isSealed ? (
+                                                    <span className="px-1.5 py-0.5 bg-amber-950 text-amber-400 text-[10px] rounded shrink-0">
+                                                        Sealed
+                                                    </span>
                                                 ) : (
                                                     <span className="px-1.5 py-0.5 bg-green-950 text-green-400 text-[10px] rounded shrink-0">
                                                         Sign
@@ -2101,29 +2108,68 @@ function AccountPageInner() {
                                             )}
                                         </div>
                                         {isReturnedDoc ? (
-                                            <button
-                                                onClick={async () => {
-                                                    setVaultTab('returned');
-                                                    setExpandedSig(doc.document_id);
-                                                    setPreviewLoading(true);
-                                                    setPreviewData(null);
-                                                    try {
-                                                        const res = await fetch(`/api/bitsign/signatures/${doc.document_id}/preview`);
-                                                        if (!res.ok) throw new Error('Failed to load');
-                                                        const blob = await res.blob();
-                                                        const url = URL.createObjectURL(blob);
-                                                        setPreviewData({ url, type: blob.type?.startsWith('image/') ? 'image' : (blob.type || 'image/png') });
-                                                    } catch {
-                                                        addToast('Failed to load document preview', 'warning');
-                                                    } finally {
-                                                        setPreviewLoading(false);
-                                                    }
-                                                    setTimeout(() => vaultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-                                                }}
-                                                className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-green-600/20 text-green-400 hover:bg-green-600/30"
-                                            >
-                                                <FiEye size={12} /> View
-                                            </button>
+                                            <>
+                                                <button
+                                                    onClick={async () => {
+                                                        setVaultTab('returned');
+                                                        setExpandedSig(doc.document_id);
+                                                        setPreviewLoading(true);
+                                                        setPreviewData(null);
+                                                        try {
+                                                            const res = await fetch(`/api/bitsign/signatures/${doc.document_id}/preview`);
+                                                            if (!res.ok) throw new Error('Failed to load');
+                                                            const blob = await res.blob();
+                                                            const url = URL.createObjectURL(blob);
+                                                            setPreviewData({ url, type: blob.type?.startsWith('image/') ? 'image' : (blob.type || 'image/png') });
+                                                        } catch {
+                                                            addToast('Failed to load document preview', 'warning');
+                                                        } finally {
+                                                            setPreviewLoading(false);
+                                                        }
+                                                        setTimeout(() => vaultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+                                                    }}
+                                                    className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-green-600/20 text-green-400 hover:bg-green-600/30"
+                                                >
+                                                    <FiEye size={12} /> View
+                                                </button>
+                                                <button
+                                                    onClick={() => downloadSignature(doc.document_id)}
+                                                    className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                                                >
+                                                    <FiDownload size={12} /> Download
+                                                </button>
+                                            </>
+                                        ) : isSealed ? (
+                                            <>
+                                                <button
+                                                    onClick={async () => {
+                                                        setExpandedSig(doc.document_id);
+                                                        setPreviewLoading(true);
+                                                        setPreviewData(null);
+                                                        try {
+                                                            const res = await fetch(`/api/bitsign/signatures/${doc.document_id}/preview`);
+                                                            if (!res.ok) throw new Error('Failed to load');
+                                                            const blob = await res.blob();
+                                                            const url = URL.createObjectURL(blob);
+                                                            setPreviewData({ url, type: blob.type?.startsWith('image/') ? 'image' : (blob.type || 'image/png') });
+                                                        } catch {
+                                                            addToast('Failed to load document preview', 'warning');
+                                                        } finally {
+                                                            setPreviewLoading(false);
+                                                        }
+                                                        setTimeout(() => vaultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+                                                    }}
+                                                    className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-amber-600/20 text-amber-400 hover:bg-amber-600/30"
+                                                >
+                                                    <FiEye size={12} /> View
+                                                </button>
+                                                <button
+                                                    onClick={() => downloadSignature(doc.document_id)}
+                                                    className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                                                >
+                                                    <FiDownload size={12} /> Download
+                                                </button>
+                                            </>
                                         ) : (
                                             <button
                                                 onClick={() => openCoSign(doc)}
@@ -2344,7 +2390,7 @@ function AccountPageInner() {
                                             <p className="text-sm text-white truncate">{thread.label?.replace('IP: ', '') || 'Untitled'}</p>
                                             <div className="flex items-center gap-2 mt-0.5">
                                                 <span className="text-xs text-zinc-600">#{thread.metadata?.sequence || '?'}</span>
-                                                <span className="text-xs text-zinc-600">{new Date(thread.created_at).toLocaleDateString()}</span>
+                                                <span className="text-xs text-zinc-600">{new Date(thread.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
                                                 {thread.strand_txid && (
                                                     <button
                                                         onClick={() => copyTxid(thread.strand_txid!)}
@@ -2537,7 +2583,7 @@ function AccountPageInner() {
                                                                     {doc.metadata?.originalFileName || doc.metadata?.fileName || doc.metadata?.type || doc.signature_type || 'Shared Document'}
                                                                 </span>
                                                                 <span className="block text-[10px] text-zinc-600">
-                                                                    From ${doc.grantor_handle} &middot; {new Date(doc.created_at).toLocaleDateString()}
+                                                                    From ${doc.grantor_handle} &middot; {new Date(doc.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
                                                                 </span>
                                                             </div>
                                                             <div className="shrink-0 flex items-center gap-1">
@@ -2633,7 +2679,7 @@ function AccountPageInner() {
                                                             {req.document_name}
                                                         </span>
                                                         <span className="block text-[10px] text-zinc-600">
-                                                            Signed by ${req.recipient_handle || req.recipient_email || 'unknown'} &middot; {req.signed_at ? new Date(req.signed_at).toLocaleDateString() : ''}
+                                                            Signed by ${req.recipient_handle || req.recipient_email || 'unknown'} &middot; {req.signed_at ? new Date(req.signed_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}
                                                         </span>
                                                     </div>
                                                     <div className="shrink-0 flex items-center gap-1">
@@ -2761,7 +2807,7 @@ function AccountPageInner() {
                                                             {resolveDocName(sig)}
                                                         </span>
                                                         <span className="block text-[10px] text-zinc-600">
-                                                            {new Date(sig.created_at).toLocaleDateString()}
+                                                            {new Date(sig.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
                                                         </span>
                                                     </div>
                                                     <div className="shrink-0 flex items-center gap-1">

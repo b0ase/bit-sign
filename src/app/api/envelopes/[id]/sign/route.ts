@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { inscribeBitSignData, hashData } from '@/lib/bsv-inscription';
+import { getUserAccount } from '@/lib/handcash';
 import { createStrand } from '@/lib/identity-strands';
 
 /**
@@ -96,26 +96,38 @@ export async function POST(
       }
     }
 
-    // Inscribe this individual signature on-chain
+    // Inscribe individual signature on-chain via signer's HandCash wallet
     let individualInscriptionTxid = null;
-    try {
-      const individualResult = await inscribeBitSignData({
-        type: 'document_signature',
-        envelopeId: id,
-        envelopeTitle: envelope.title,
-        documentHash: envelope.document_hash,
-        signerName: `${signer_name || signer.name} (${signer.role}, #${signer.order})`,
-        walletAddress: wallet_verification?.walletAddress || undefined,
-        walletType: wallet_verification?.walletType || undefined,
-        signedAt: new Date().toISOString(),
-      });
-      individualInscriptionTxid = individualResult.txid;
-      signatureRecord.inscription_txid = individualResult.txid;
-      console.log(`[envelopes] Individual inscription for ${signer.name} on ${id}: ${individualResult.txid}`);
-    } catch (inscribeError) {
-      console.error('[envelopes] Individual inscription failed:', inscribeError);
-      signatureRecord.inscription_failed = true;
-      signatureRecord.inscription_error = String(inscribeError);
+    const authToken = request.cookies.get('handcash_auth_token')?.value;
+    const userAccount = authToken ? getUserAccount(authToken) : null;
+
+    if (userAccount) {
+      try {
+        const inscriptionData = {
+          protocol: 'b0ase-bitsign',
+          version: '1.0',
+          type: 'document_signature',
+          envelopeId: id,
+          envelopeTitle: envelope.title,
+          documentHash: envelope.document_hash,
+          signerName: `${signer_name || signer.name} (${signer.role}, #${signer.order})`,
+          signedAt: new Date().toISOString(),
+        };
+
+        const paymentResult = await userAccount.wallet.pay({
+          description: `BitSign: Sign envelope "${envelope.title}"`,
+          appAction: 'envelope-sign',
+          payments: [
+            { destination: signer.handle?.replace(/^\$/, '') || envelope.sender_handle, currencyCode: 'BSV', sendAmount: 0.00001 },
+          ],
+          attachment: { format: 'json', value: inscriptionData },
+        });
+        individualInscriptionTxid = paymentResult.transactionId;
+        signatureRecord.inscription_txid = paymentResult.transactionId;
+        console.log(`[envelopes] Individual inscription for ${signer.name} on ${id}: ${paymentResult.transactionId}`);
+      } catch (inscribeError: any) {
+        console.warn('[envelopes] Individual inscription failed:', inscribeError?.message || inscribeError);
+      }
     }
 
     signers[signerIndex] = {
@@ -135,28 +147,33 @@ export async function POST(
     let inscribedAt = null;
     let inscriptionFailed = false;
 
-    if (allSigned) {
+    if (allSigned && userAccount) {
       try {
-        const walletVerifiedSigners = signers
-          .filter((s: any) => s.signature_data?.wallet_verified)
-          .map((s: any) => `${s.name}:${s.signature_data.wallet_address}`);
-
-        const result = await inscribeBitSignData({
-          type: 'envelope_signing',
+        const summaryData = {
+          protocol: 'b0ase-bitsign',
+          version: '1.0',
+          type: 'envelope_complete',
           envelopeId: id,
           envelopeTitle: envelope.title,
           documentHash: envelope.document_hash,
-          signerName: signers.map((s: any) => s.name).join(', '),
-          walletAddress: walletVerifiedSigners.length > 0 ? walletVerifiedSigners.join(', ') : undefined,
-          walletType: walletVerifiedSigners.length > 0 ? 'handcash' : undefined,
-          signedAt: new Date().toISOString(),
+          signers: signers.map((s: any) => s.name).join(', '),
+          completedAt: new Date().toISOString(),
+        };
+
+        const paymentResult = await userAccount.wallet.pay({
+          description: `BitSign: Envelope "${envelope.title}" fully signed`,
+          appAction: 'envelope-complete',
+          payments: [
+            { destination: signer.handle?.replace(/^\$/, '') || envelope.sender_handle, currencyCode: 'BSV', sendAmount: 0.00001 },
+          ],
+          attachment: { format: 'json', value: summaryData },
         });
 
-        inscriptionTxid = result.txid;
+        inscriptionTxid = paymentResult.transactionId;
         inscribedAt = new Date().toISOString();
-        console.log(`[envelopes] Inscribed envelope ${id}: ${result.txid}`);
-      } catch (inscribeError) {
-        console.error('[envelopes] Summary inscription failed (signature still recorded):', inscribeError);
+        console.log(`[envelopes] Inscribed envelope ${id}: ${paymentResult.transactionId}`);
+      } catch (inscribeError: any) {
+        console.warn('[envelopes] Summary inscription failed (signature still recorded):', inscribeError?.message || inscribeError);
         inscriptionFailed = true;
       }
     }
