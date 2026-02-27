@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveUserHandle } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { inscribeBitSignData, hashData } from '@/lib/bsv-inscription';
+import { hashData } from '@/lib/bsv-inscription';
+import { getUserAccount } from '@/lib/handcash';
 import { createStrand } from '@/lib/identity-strands';
 import sharp from 'sharp';
 
@@ -89,22 +90,43 @@ export async function POST(request: NextRequest) {
     // Hash the composite image data
     const compositeHash = await hashData(compositeData);
 
-    // Inscribe on-chain
+    // Inscribe on-chain via user's HandCash wallet
     let txid: string;
-    let inscriptionResult = null;
+    let inscriptionResult: { transactionId: string } | null = null;
 
-    try {
-      inscriptionResult = await inscribeBitSignData({
-        type: 'document_signature',
-        documentHash: compositeHash,
-        signerName: handle,
-        walletAddress: walletAddress || '',
-        walletType: 'handcash',
-        signedAt: new Date().toISOString(),
-      });
-      txid = inscriptionResult.txid;
-    } catch (inscribeError) {
-      console.warn('[seal] Blockchain inscription failed, recording locally:', inscribeError);
+    const authToken = request.cookies.get('handcash_auth_token')?.value;
+    const userAccount = authToken ? getUserAccount(authToken) : null;
+
+    if (userAccount) {
+      try {
+        const inscriptionData = {
+          protocol: 'b0ase-bitsign',
+          version: '1.0',
+          type: 'document_signature',
+          documentHash: compositeHash,
+          signerName: handle,
+          walletType: 'handcash',
+          signedAt: new Date().toISOString(),
+        };
+
+        const paymentResult = await userAccount.wallet.pay({
+          description: `BitSign: Seal document "${originalFileName}"`,
+          appAction: 'seal',
+          payments: [
+            { destination: handle, currencyCode: 'BSV', sendAmount: 0.00001 },
+          ],
+          attachment: { format: 'json', value: inscriptionData },
+        });
+
+        txid = paymentResult.transactionId;
+        inscriptionResult = paymentResult;
+        console.log(`[seal] On-chain inscription via HandCash: ${txid}`);
+      } catch (inscribeError: any) {
+        console.warn('[seal] HandCash inscription failed:', inscribeError?.message || inscribeError);
+        txid = `pending-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      }
+    } else {
+      console.warn('[seal] No HandCash auth token — cannot inscribe on-chain');
       txid = `pending-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     }
 
@@ -215,8 +237,8 @@ export async function POST(request: NextRequest) {
       id: sealed.id,
       txid,
       inscription: inscriptionResult ? {
-        dataHash: inscriptionResult.dataHash,
-        explorerUrl: inscriptionResult.blockchainExplorerUrl,
+        transactionId: inscriptionResult.transactionId,
+        explorerUrl: `https://whatsonchain.com/tx/${inscriptionResult.transactionId}`,
       } : null,
     });
   } catch (error: any) {

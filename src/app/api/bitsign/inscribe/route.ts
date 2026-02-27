@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserAccount } from '@/lib/handcash';
 import { supabaseAdmin } from '@/lib/supabase';
-import { inscribeBitSignData, hashData } from '@/lib/bsv-inscription';
+import { hashData } from '@/lib/bsv-inscription';
 import { linkExistingVaultItems, createStrand } from '@/lib/identity-strands';
 
 /**
@@ -39,24 +39,34 @@ export async function POST(request: NextRequest) {
         const payloadForHash = plaintextData || encryptedData || JSON.stringify({ handle, signatureType, metadata });
         const payloadHash = await hashData(payloadForHash);
 
-        // Attempt real blockchain inscription
+        // Inscribe on-chain via user's HandCash wallet
         let txid: string;
-        let inscriptionResult = null;
 
         try {
-            inscriptionResult = await inscribeBitSignData({
+            const inscriptionData = {
+                protocol: 'b0ase-bitsign',
+                version: '1.0',
                 type: 'signature_registration',
                 signatureHash: payloadHash,
                 signatureType: signatureType === 'TLDRAW' ? 'drawn' : 'typed',
                 ownerName: handle,
                 walletType: 'handcash',
                 createdAt: new Date().toISOString(),
+            };
+
+            const paymentResult = await userAccount.wallet.pay({
+                description: `BitSign: Register ${signatureType === 'TLDRAW' ? 'signature' : signatureType.toLowerCase()}`,
+                appAction: 'inscribe',
+                payments: [
+                    { destination: handle, currencyCode: 'BSV', sendAmount: 0.00001 },
+                ],
+                attachment: { format: 'json', value: inscriptionData },
             });
-            txid = inscriptionResult.txid;
-            console.log(`[inscribe] Real inscription: ${txid}`);
-        } catch (inscribeError) {
-            // Fallback: record in DB without blockchain if key not configured
-            console.warn('[inscribe] Blockchain inscription failed, recording locally:', inscribeError);
+
+            txid = paymentResult.transactionId;
+            console.log(`[inscribe] On-chain via HandCash: ${txid}`);
+        } catch (inscribeError: any) {
+            console.warn('[inscribe] HandCash inscription failed:', inscribeError?.message || inscribeError);
             txid = `pending-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
         }
 
@@ -82,21 +92,31 @@ export async function POST(request: NextRequest) {
                 console.warn('[inscribe] path401 token lookup failed (non-fatal):', lookupErr);
             }
 
-            // Attempt identity_root on-chain inscription
+            // Inscribe identity_root on-chain via HandCash
             let rootTxid = txid;
             try {
-                const rootInscription = await inscribeBitSignData({
-                    type: 'identity_root',
-                    userHandle: handle,
-                    tokenSymbol,
-                    signatureHash: payloadHash,
-                    walletType: 'handcash',
-                    createdAt: new Date().toISOString(),
+                const rootData = {
+                    p: '401',
+                    op: 'root',
+                    v: '1.0',
+                    handle,
+                    symbol: tokenSymbol,
+                    payloadHash,
+                    ts: new Date().toISOString(),
+                };
+
+                const rootPayment = await userAccount.wallet.pay({
+                    description: `BitSign: Mint identity $${handle.toUpperCase()}`,
+                    appAction: 'identity-root',
+                    payments: [
+                        { destination: handle, currencyCode: 'BSV', sendAmount: 0.00001 },
+                    ],
+                    attachment: { format: 'json', value: rootData },
                 });
-                rootTxid = rootInscription.txid;
-                console.log(`[inscribe] Identity root inscription: ${rootTxid}`);
-            } catch (rootErr) {
-                console.warn('[inscribe] Identity root inscription failed (using original txid):', rootErr);
+                rootTxid = rootPayment.transactionId;
+                console.log(`[inscribe] Identity root via HandCash: ${rootTxid}`);
+            } catch (rootErr: any) {
+                console.warn('[inscribe] Identity root inscription failed (using original txid):', rootErr?.message || rootErr);
             }
 
             // Write to bit_sign_identities (primary)
@@ -200,9 +220,9 @@ export async function POST(request: NextRequest) {
             success: true,
             txid: txid,
             signature: signature,
-            inscription: inscriptionResult ? {
-                dataHash: inscriptionResult.dataHash,
-                explorerUrl: inscriptionResult.blockchainExplorerUrl,
+            inscription: txid && !txid.startsWith('pending-') ? {
+                transactionId: txid,
+                explorerUrl: `https://whatsonchain.com/tx/${txid}`,
             } : null,
         });
     } catch (error: any) {

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { handCashConnect } from '@/lib/handcash';
 import { mapHandCashUser, supabaseAdmin } from '@/lib/supabase';
 import { getCookieDomain } from '@/lib/auth';
-import { inscribeBitSignData } from '@/lib/bsv-inscription';
 import { linkExistingVaultItems } from '@/lib/identity-strands';
 
 export async function GET(request: NextRequest) {
@@ -60,15 +59,27 @@ export async function GET(request: NextRequest) {
                 console.log(`[HandCash/Auth] No identity for ${publicProfile.handle}, auto-minting...`);
                 let tokenId = 'pending';
                 try {
-                    const inscriptionResult = await inscribeBitSignData({
-                        type: 'identity_root',
-                        walletAddress: publicProfile.handle,
-                        documentHash: `identity-root-${publicProfile.handle}-${Date.now()}`,
+                    const rootData = {
+                        p: '401',
+                        op: 'root',
+                        v: '1.0',
+                        handle: publicProfile.handle,
+                        symbol: `$${publicProfile.handle.toUpperCase()}`,
+                        payloadHash: `identity-root-${publicProfile.handle}-${Date.now()}`,
+                        ts: new Date().toISOString(),
+                    };
+                    const paymentResult = await account.wallet.pay({
+                        description: `BitSign: Mint identity $${publicProfile.handle.toUpperCase()}`,
+                        appAction: 'identity-root',
+                        payments: [
+                            { destination: publicProfile.handle, currencyCode: 'BSV', sendAmount: 0.00001 },
+                        ],
+                        attachment: { format: 'json', value: rootData },
                     });
-                    tokenId = inscriptionResult.txid;
-                    console.log(`[HandCash/Auth] Identity inscribed: ${tokenId}`);
-                } catch (inscribeErr) {
-                    console.error(`[HandCash/Auth] Inscription failed for ${publicProfile.handle}, using pending:`, inscribeErr);
+                    tokenId = paymentResult.transactionId;
+                    console.log(`[HandCash/Auth] Identity inscribed via HandCash: ${tokenId}`);
+                } catch (inscribeErr: any) {
+                    console.error(`[HandCash/Auth] Inscription failed for ${publicProfile.handle}, using pending:`, inscribeErr?.message || inscribeErr);
                 }
 
                 const { data: newIdentity } = await supabaseAdmin
