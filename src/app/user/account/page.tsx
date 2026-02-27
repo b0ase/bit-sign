@@ -501,6 +501,23 @@ function AccountPageInner() {
             fetchTrash();
             // Auto-purge expired trash (fire and forget)
             fetch('/api/bitsign/trash-purge', { method: 'POST' }).catch(() => {});
+
+            // Auto-claim co-sign request if arrived via email link (?cosign=TOKEN)
+            const params = new URLSearchParams(window.location.search);
+            const cosignToken = params.get('cosign');
+            if (cosignToken) {
+                fetch('/api/bitsign/co-sign-request/claim', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ claimToken: cosignToken }),
+                }).then(() => {
+                    // Re-fetch so the request appears immediately
+                    fetchCoSignRequests();
+                    fetchSharedWithMe();
+                    // Clean URL
+                    window.history.replaceState({}, '', window.location.pathname);
+                }).catch(() => {});
+            }
         } else {
             setLoading(false);
         }
@@ -2156,7 +2173,7 @@ function AccountPageInner() {
                                             </span>
                                         </div>
                                         <span className="text-xs text-zinc-600">
-                                            To ${req.recipient_handle || req.recipient_email || 'unknown'} &middot; {new Date(req.created_at).toLocaleDateString()}
+                                            To {req.recipient_handle ? `$${req.recipient_handle}` : req.recipient_email || 'unknown'} &middot; {new Date(req.created_at).toLocaleDateString()}
                                         </span>
                                     </div>
                                     <div className="shrink-0 flex items-center gap-2">
