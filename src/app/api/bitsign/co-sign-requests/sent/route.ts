@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
             .from('co_sign_requests')
             .select('*')
             .eq('sender_handle', handle)
-            .neq('sender_dismissed', true)
+            .not('sender_dismissed', 'is', true)
             .order('created_at', { ascending: false });
 
         if (error) throw error;

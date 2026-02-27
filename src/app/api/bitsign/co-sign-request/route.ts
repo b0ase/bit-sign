@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (notifyEmail) {
-            const claimUrl = `${appUrl}/user/account`;
+            const claimUrl = `${appUrl}/user/account?cosign=${claimToken}`;
             const emailResult = await sendCoSignRequestEmail({
                 recipientEmail: notifyEmail,
                 senderHandle: handle,
@@ -218,7 +218,7 @@ export async function GET(request: NextRequest) {
             .from('co_sign_requests')
             .select('*')
             .or(orFilter)
-            .neq('recipient_dismissed', true)
+            .not('recipient_dismissed', 'is', true)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
