@@ -844,13 +844,34 @@ function AccountPageInner() {
             // If this was a co-sign or witness request, return the signed document to sender
             const matchingRequest = coSignRequests.find(r => r.document_id === selectedDocumentId && r.status === 'pending');
             if (matchingRequest) {
-                const isWitness = matchingRequest.request_type === 'witness';
                 const returned = await handleCoSignResponse(sealData.id, selectedDocumentId!);
                 if (!returned) {
                     addToast(`Document sealed but could not auto-return to sender. Use "Return to Sender" in the Received tab.`, 'warning');
                 }
             } else {
-                addToast('Document sealed! Download a copy for your records.', 'download');
+                // Check if this was a received doc (email invite / direct share) — auto-return to sender
+                const sharedDoc = sharedWithMe.find(d => d.document_id === selectedDocumentId);
+                if (sharedDoc?.grantor_handle) {
+                    try {
+                        const returnRes = await fetch('/api/bitsign/return-to-sender', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                sealedDocId: sealData.id,
+                                senderHandle: sharedDoc.grantor_handle,
+                            }),
+                        });
+                        if (returnRes.ok) {
+                            addToast(`Signed document returned to $${sharedDoc.grantor_handle}`, 'success');
+                        } else {
+                            addToast('Document sealed! Could not auto-return to sender.', 'warning');
+                        }
+                    } catch {
+                        addToast('Document sealed! Could not auto-return to sender.', 'warning');
+                    }
+                } else {
+                    addToast('Document sealed! Download a copy for your records.', 'download');
+                }
             }
         } catch (error: any) {
             console.error('Seal failed:', error);
@@ -1480,9 +1501,22 @@ function AccountPageInner() {
         }
     };
 
-    const dismissSharedDoc = (docId: string) => {
-        setSharedWithMe(prev => prev.filter(d => d.id !== docId));
-        addToast('Dismissed from inbox', 'info');
+    const dismissSharedDoc = async (grantId: string) => {
+        // Optimistic removal from UI
+        setSharedWithMe(prev => prev.filter(d => d.id !== grantId));
+        try {
+            const res = await fetch('/api/bitsign/shared-with-me/dismiss', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ grantId }),
+            });
+            if (!res.ok) throw new Error('Dismiss failed');
+            addToast('Dismissed from inbox', 'info');
+        } catch {
+            addToast('Failed to dismiss', 'warning');
+            // Re-fetch to restore
+            fetchSharedWithMe();
+        }
     };
 
     const downloadSignature = async (sigId: string, sig?: Signature) => {
@@ -2517,10 +2551,7 @@ function AccountPageInner() {
                                                                     </button>
                                                                 )}
                                                                 <button
-                                                                    onClick={() => {
-                                                                        setSharedWithMe(prev => prev.filter(d => d.id !== doc.id));
-                                                                        addToast('Removed from received', 'info');
-                                                                    }}
+                                                                    onClick={() => dismissSharedDoc(doc.id)}
                                                                     className="px-2 py-1 text-zinc-600 text-[10px] rounded hover:text-red-400 transition-all flex items-center gap-1"
                                                                     title="Remove from received"
                                                                 >
