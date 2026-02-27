@@ -71,6 +71,12 @@ export default function CallPage() {
         apiRef.current = api;
         setJoined(true);
 
+        // Ensure the Jitsi iframe has camera/mic permissions
+        const iframe = containerRef.current?.querySelector('iframe');
+        if (iframe) {
+            iframe.setAttribute('allow', 'camera *; microphone *; display-capture *; autoplay *');
+        }
+
         api.addListener('readyToClose', () => {
             setJoined(false);
             setEnded(true);

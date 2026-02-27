@@ -80,6 +80,12 @@ export default function VideoCall({ roomToken, displayName, onClose, documentNam
 
         apiRef.current = api;
 
+        // Ensure the Jitsi iframe has camera/mic permissions
+        const iframe = containerRef.current?.querySelector('iframe');
+        if (iframe) {
+            iframe.setAttribute('allow', 'camera *; microphone *; display-capture *; autoplay *');
+        }
+
         api.addListener('participantJoined', () => {
             setParticipants((prev: number) => prev + 1);
         });
