@@ -287,6 +287,12 @@ function AccountPageInner() {
         );
     }, [sharedWithMe, coSignRequests]);
 
+    // Received unsealed docs count (for Unsealed tab)
+    const receivedUnsealedCount = useMemo(() =>
+        allReceivedDocs.filter(d => d.signature_type !== 'SEALED_DOCUMENT' && d.document_type !== 'SEALED_DOCUMENT').length,
+        [allReceivedDocs]
+    );
+
     // Pending co-sign document IDs (for showing co-sign button in received tab)
     const pendingCoSignDocIds = useMemo(() =>
         new Set(coSignRequests.filter(r => r.status === 'pending').map(r => r.document_id)),
@@ -2301,7 +2307,7 @@ function AccountPageInner() {
                         {[
                             { key: 'all', label: 'All', count: signatures.length },
                             { key: 'received', label: 'Received', count: allReceivedDocs.length },
-                            { key: 'documents', label: 'Unsealed', count: documents.length },
+                            { key: 'documents', label: 'Unsealed', count: documents.length + receivedUnsealedCount },
                             { key: 'sealed', label: 'Sealed', count: sealedItems.length },
                             { key: 'sent', label: 'Sent', count: sentItems.length },
                             { key: 'returned', label: 'Signed & Returned', count: signedReturnedItems.length },
@@ -2431,11 +2437,36 @@ function AccountPageInner() {
                                                                     <span className="px-1.5 py-0.5 bg-amber-600/20 text-amber-400 text-[9px] rounded flex items-center gap-0.5">
                                                                         <FiEdit3 size={9} /> Co-Sign
                                                                     </span>
-                                                                ) : (
+                                                                ) : isSealed ? (
                                                                     <span className="px-1 py-0.5 bg-blue-950/30 text-blue-400 text-[9px] rounded">Shared</span>
+                                                                ) : (
+                                                                    <span className="px-1 py-0.5 bg-purple-950/30 text-purple-400 text-[9px] rounded">Unsealed</span>
                                                                 )}
                                                             </div>
                                                         </button>
+                                                        {/* Actions row for received docs */}
+                                                        {!hasSignedCoSign && !hasPendingCoSign && (
+                                                            <div className="px-2.5 pb-2 flex items-center gap-1.5">
+                                                                {!isSealed && (
+                                                                    <button
+                                                                        onClick={() => openCoSign(doc)}
+                                                                        className="px-2 py-1 bg-amber-600/20 text-amber-400 text-[10px] font-medium rounded border border-amber-900/40 hover:bg-amber-600/30 transition-all flex items-center gap-1"
+                                                                    >
+                                                                        <FiEdit3 size={10} /> Sign &amp; Seal
+                                                                    </button>
+                                                                )}
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setSharedWithMe(prev => prev.filter(d => d.id !== doc.id));
+                                                                        addToast('Removed from received', 'info');
+                                                                    }}
+                                                                    className="px-2 py-1 text-zinc-600 text-[10px] rounded hover:text-red-400 transition-all flex items-center gap-1"
+                                                                    title="Remove from received"
+                                                                >
+                                                                    <FiTrash2 size={10} /> Remove
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                         {/* Manual "Return to Sender" for pending co-sign that user has already sealed */}
                                                         {hasPendingCoSign && signatures.some(s => s.signature_type === 'SEALED_DOCUMENT' && s.metadata?.originalDocumentId === doc.document_id) && (
                                                             <div className="px-2.5 pb-2">
@@ -2671,7 +2702,10 @@ function AccountPageInner() {
                                         onElementsChange={setPlacedElements}
                                         onSeal={handleSeal}
                                         onClose={closeDocumentCanvas}
-                                        onEmailRecipients={undefined}
+                                        onEmailRecipients={() => {
+                                            const fileName = signatures.find(s => s.id === selectedDocumentId)?.metadata?.fileName || 'Document';
+                                            setShareModal({ documentId: selectedDocumentId!, documentType: 'vault_item', itemType: 'DOCUMENT', itemLabel: fileName });
+                                        }}
                                         onSaveSignature={saveSignatureFromCanvas}
                                         pageCount={docPageCount}
                                         onEffectivePagesDetected={(pages) => setDocPageCount(pages)}
@@ -2713,11 +2747,7 @@ function AccountPageInner() {
                                                         {!isSigned && (
                                                             <button onClick={() => attestSignature(sig.id)} className="px-2.5 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-500 transition-all flex items-center gap-1.5"><FiShield size={11} /> Seal</button>
                                                         )}
-                                                        {isSealed ? (
-                                                            <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: sig.signature_type, itemLabel: sig.metadata?.type || sig.signature_type })} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiShare2 size={11} /> Share</button>
-                                                        ) : (
-                                                            <span className="px-2.5 py-1 text-zinc-600 text-xs flex items-center gap-1.5" title="Seal this document before sharing"><FiShare2 size={11} /> Seal to share</span>
-                                                        )}
+                                                        <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: sig.signature_type, itemLabel: sig.metadata?.type || sig.signature_type })} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiShare2 size={11} /> Share</button>
                                                         <button onClick={() => downloadSignature(sig.id, sig)} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiDownload size={11} /> Download</button>
                                                         {sig.signature_type === 'CAMERA' && isSigned && (
                                                             <button
