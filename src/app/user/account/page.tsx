@@ -162,7 +162,7 @@ function AccountPageInner() {
     const [previewRotation, setPreviewRotation] = useState(0);
     const [registeredSignatureId, setRegisteredSignatureId] = useState<string | null>(null);
     const [hasE2EKeys, setHasE2EKeys] = useState<boolean | null>(null);
-    const [shareModal, setShareModal] = useState<{ documentId: string; documentType: string; itemType?: string; itemLabel?: string } | null>(null);
+    const [shareModal, setShareModal] = useState<{ documentId: string; documentType: string; itemType?: string; itemLabel?: string; encryptionVersion?: number } | null>(null);
     const [sharedWithMe, setSharedWithMe] = useState<SharedDocument[]>([]);
     const [registeredSignatureSvg, setRegisteredSignatureSvg] = useState<string | null>(null);
     const [strands, setStrands] = useState<Strand[]>([]);
@@ -2812,8 +2812,9 @@ function AccountPageInner() {
                                         onSeal={handleSeal}
                                         onClose={closeDocumentCanvas}
                                         onEmailRecipients={() => {
-                                            const fileName = signatures.find(s => s.id === selectedDocumentId)?.metadata?.fileName || 'Document';
-                                            setShareModal({ documentId: selectedDocumentId!, documentType: 'vault_item', itemType: 'DOCUMENT', itemLabel: fileName });
+                                            const sig = signatures.find(s => s.id === selectedDocumentId);
+                                            const fileName = sig?.metadata?.fileName || 'Document';
+                                            setShareModal({ documentId: selectedDocumentId!, documentType: 'vault_item', itemType: 'DOCUMENT', itemLabel: fileName, encryptionVersion: sig?.encryption_version });
                                         }}
                                         onSaveSignature={saveSignatureFromCanvas}
                                         pageCount={docPageCount}
@@ -2835,8 +2836,8 @@ function AccountPageInner() {
                                                         <div className="flex items-center gap-2 flex-wrap pb-2 mb-2 border-b border-zinc-800">
                                                             <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Send:</span>
                                                             <button onClick={() => setCoSignModal({ documentId: sig.id, documentName: resolveDocName(sig) })} className="px-2.5 py-1 bg-white text-black text-xs font-medium rounded hover:bg-zinc-200 transition-all flex items-center gap-1.5"><FiEdit3 size={11} /> Co-Sign</button>
-                                                            <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT', itemLabel: resolveDocName(sig) })} className="px-2.5 py-1 bg-amber-600 text-black text-xs font-medium rounded hover:bg-amber-500 transition-all flex items-center gap-1.5"><FiMail size={11} /> Email</button>
-                                                            <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT_HC', itemLabel: resolveDocName(sig) })} className="px-2.5 py-1 bg-green-600 text-black text-xs font-medium rounded hover:bg-green-500 transition-all flex items-center gap-1.5"><FiUsers size={11} /> Seal &amp; Send</button>
+                                                            <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT', itemLabel: resolveDocName(sig), encryptionVersion: sig.encryption_version })} className="px-2.5 py-1 bg-amber-600 text-black text-xs font-medium rounded hover:bg-amber-500 transition-all flex items-center gap-1.5"><FiMail size={11} /> Email</button>
+                                                            <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT_HC', itemLabel: resolveDocName(sig), encryptionVersion: sig.encryption_version })} className="px-2.5 py-1 bg-green-600 text-black text-xs font-medium rounded hover:bg-green-500 transition-all flex items-center gap-1.5"><FiUsers size={11} /> Seal &amp; Send</button>
                                                             <button onClick={() => setCoSignModal({ documentId: sig.id, documentName: resolveDocName(sig), requestType: 'witness' })} className="px-2.5 py-1 bg-blue-600 text-black text-xs font-medium rounded hover:bg-blue-500 transition-all flex items-center gap-1.5"><FiEye size={11} /> Witness</button>
                                                             {!ipThreads.some(t => t.metadata?.documentId === sig.id) && (
                                                                 <button onClick={() => setIpThreadModal({ documentId: sig.id, documentName: resolveDocName(sig) })} className="px-2.5 py-1 bg-amber-700 text-white text-xs font-medium rounded hover:bg-amber-600 transition-all flex items-center gap-1.5"><FiBookOpen size={11} /> IP Thread</button>
@@ -2856,7 +2857,7 @@ function AccountPageInner() {
                                                         {!isSigned && (
                                                             <button onClick={() => attestSignature(sig.id)} className="px-2.5 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-500 transition-all flex items-center gap-1.5"><FiShield size={11} /> Seal</button>
                                                         )}
-                                                        <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: sig.signature_type, itemLabel: sig.metadata?.type || sig.signature_type })} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiShare2 size={11} /> Share</button>
+                                                        <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: sig.signature_type, itemLabel: sig.metadata?.type || sig.signature_type, encryptionVersion: sig.encryption_version })} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiShare2 size={11} /> Share</button>
                                                         <button onClick={() => downloadSignature(sig.id, sig)} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiDownload size={11} /> Download</button>
                                                         {sig.signature_type === 'CAMERA' && isSigned && (
                                                             <button
@@ -3010,6 +3011,7 @@ function AccountPageInner() {
                         documentType={shareModal.documentType}
                         itemType={shareModal.itemType}
                         itemLabel={shareModal.itemLabel}
+                        encryptionVersion={shareModal.encryptionVersion}
                         onClose={() => setShareModal(null)}
                     />
                 )}

@@ -17,12 +17,13 @@ interface ShareModalProps {
     documentType: string;
     itemType?: string;
     itemLabel?: string;
+    encryptionVersion?: number;
     onClose: () => void;
 }
 
 type ShareTab = 'handle' | 'email';
 
-export default function ShareModal({ documentId, documentType, itemType, itemLabel, onClose }: ShareModalProps) {
+export default function ShareModal({ documentId, documentType, itemType, itemLabel, encryptionVersion, onClose }: ShareModalProps) {
     const [tab, setTab] = useState<ShareTab>('handle');
     const [handle, setHandle] = useState('');
     const [email, setEmail] = useState('');
@@ -41,8 +42,29 @@ export default function ShareModal({ documentId, documentType, itemType, itemLab
         setError(null);
 
         try {
-            // 1. Fetch recipient's public key
             const cleanHandle = handle.replace(/^\$/, '');
+
+            // For v0 (plaintext) documents, use the simple return-to-sender flow
+            if (encryptionVersion === 0) {
+                const res = await fetch('/api/bitsign/return-to-sender', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sealedDocId: documentId,
+                        senderHandle: cleanHandle,
+                    }),
+                });
+                if (!res.ok) {
+                    const data = await res.json();
+                    throw new Error(data.error || 'Failed to share');
+                }
+                setSuccessMessage(`Shared with $${cleanHandle}`);
+                setSuccess(true);
+                return;
+            }
+
+            // E2E encrypted share flow for v1+ documents
+            // 1. Fetch recipient's public key
             const recipientRes = await fetch(`/api/bitsign/public-key/${cleanHandle}`);
             if (!recipientRes.ok) {
                 const data = await recipientRes.json();
@@ -76,12 +98,10 @@ export default function ShareModal({ documentId, documentType, itemType, itemLab
             );
 
             // 4. Get the document's encrypted payload to extract envelope key
-            //    For v1 items, we need the encryption seed to derive the envelope key
             const seedRes = await fetch('/api/bitsign/encryption-seed');
             if (!seedRes.ok) throw new Error('Failed to get encryption seed');
             const { encryptionSeed } = await seedRes.json();
 
-            // Derive the v1 encryption key as the "envelope key" for wrapping
             const encoder = new TextEncoder();
             const seedBytes = encoder.encode(encryptionSeed);
             const hashBuffer = await crypto.subtle.digest('SHA-256', seedBytes);
@@ -115,7 +135,7 @@ export default function ShareModal({ documentId, documentType, itemType, itemLab
                 throw new Error(data.error || 'Failed to share');
             }
 
-            setSuccessMessage(`Shared with $${handle.replace(/^\$/, '')}`);
+            setSuccessMessage(`Shared with $${cleanHandle}`);
             setSuccess(true);
         } catch (err: any) {
             console.error('Share failed:', err);
