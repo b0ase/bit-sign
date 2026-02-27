@@ -484,6 +484,18 @@ function AccountPageInner() {
         }
     }, []);
 
+    // Poll inbox every 10s so new requests appear without page refresh
+    useEffect(() => {
+        if (!handle) return;
+        const interval = setInterval(() => {
+            fetchCoSignRequests();
+            fetchSentCoSignRequests();
+            fetchSharedWithMe();
+            fetchPeerAttestRequests();
+        }, 10_000);
+        return () => clearInterval(interval);
+    }, [handle]);
+
     const checkE2EKeys = async () => {
         try {
             const res = await fetch('/api/bitsign/keypair');
