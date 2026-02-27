@@ -46,6 +46,28 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Document not owned by you' }, { status: 403 });
         }
 
+        // If sharing an unsealed document, auto-upgrade to the most recent sealed version
+        // so the recipient sees the sender's signature
+        let finalDocumentId = documentId;
+        if (sig.signature_type === 'DOCUMENT') {
+            const { data: sealedVersion } = await supabaseAdmin
+                .from('bit_sign_signatures')
+                .select('id, signature_type, metadata')
+                .eq('user_handle', handle)
+                .eq('signature_type', 'SEALED_DOCUMENT')
+                .filter('metadata->>originalDocumentId', 'eq', documentId)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (sealedVersion) {
+                finalDocumentId = sealedVersion.id;
+                // Update sig reference for metadata below
+                sig.signature_type = sealedVersion.signature_type;
+                sig.metadata = sealedVersion.metadata;
+            }
+        }
+
         // Determine item type and label
         const itemType = sig.signature_type || 'DOCUMENT';
         const itemLabel = sig.metadata?.type || ITEM_LABELS[itemType] || itemType;
@@ -58,7 +80,7 @@ export async function POST(request: NextRequest) {
             .from('vault_share_invites')
             .insert({
                 sender_handle: handle,
-                document_id: documentId,
+                document_id: finalDocumentId,
                 recipient_email: recipientEmail,
                 claim_token: claimToken,
                 message: message || null,

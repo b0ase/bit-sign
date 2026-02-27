@@ -2819,9 +2819,11 @@ function AccountPageInner() {
                                         onSeal={handleSeal}
                                         onClose={closeDocumentCanvas}
                                         onEmailRecipients={() => {
-                                            const sig = signatures.find(s => s.id === selectedDocumentId);
-                                            const fileName = sig?.metadata?.fileName || 'Document';
-                                            setShareModal({ documentId: selectedDocumentId!, documentType: 'vault_item', itemType: 'DOCUMENT', itemLabel: fileName, encryptionVersion: sig?.encryption_version });
+                                            // Share the sealed version if it exists, otherwise the original
+                                            const sealedVersion = signatures.find(s => s.signature_type === 'SEALED_DOCUMENT' && s.metadata?.originalDocumentId === selectedDocumentId);
+                                            const docToShare = sealedVersion || signatures.find(s => s.id === selectedDocumentId);
+                                            const fileName = docToShare?.metadata?.originalFileName || docToShare?.metadata?.fileName || 'Document';
+                                            setShareModal({ documentId: docToShare?.id || selectedDocumentId!, documentType: 'vault_item', itemType: docToShare?.signature_type || 'DOCUMENT', itemLabel: fileName, encryptionVersion: docToShare?.encryption_version });
                                         }}
                                         onSaveSignature={saveSignatureFromCanvas}
                                         pageCount={docPageCount}
