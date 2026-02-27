@@ -47,15 +47,15 @@ export async function POST(request: NextRequest) {
 
     if (originalDoc.user_handle !== handle) {
       // Check for access grant (shared / co-sign)
-      const { data: grant } = await supabaseAdmin
+      const { data: grantRows } = await supabaseAdmin
         .from('document_access_grants')
         .select('id')
         .eq('document_id', originalDocumentId)
         .eq('grantee_handle', handle)
         .is('revoked_at', null)
-        .maybeSingle();
+        .limit(1);
 
-      if (!grant) {
+      if (!grantRows?.length) {
         return NextResponse.json({ error: 'Document not found or not yours' }, { status: 404 });
       }
     }

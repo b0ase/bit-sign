@@ -44,15 +44,15 @@ export async function GET(request: NextRequest) {
                 }
 
                 // Create access grant if missing
-                const { data: existingGrant } = await supabaseAdmin
+                const { data: existingGrants } = await supabaseAdmin
                     .from('document_access_grants')
                     .select('id')
                     .eq('document_id', req.document_id)
                     .eq('grantee_handle', handle)
                     .is('revoked_at', null)
-                    .maybeSingle();
+                    .limit(1);
 
-                if (!existingGrant) {
+                if (!existingGrants?.length) {
                     await supabaseAdmin
                         .from('document_access_grants')
                         .insert({

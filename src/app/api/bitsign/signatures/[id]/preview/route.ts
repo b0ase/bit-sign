@@ -37,14 +37,15 @@ export async function GET(
         if (ownedSig) {
             signature = ownedSig;
         } else {
-            // Check for access grant
-            const { data: grant } = await supabaseAdmin
+            // Check for access grant (limit 1 — user may have multiple grants)
+            const { data: grants } = await supabaseAdmin
                 .from('document_access_grants')
                 .select('document_id')
                 .eq('document_id', id)
                 .eq('grantee_handle', handle)
                 .is('revoked_at', null)
-                .maybeSingle();
+                .limit(1);
+            const grant = grants?.[0] || null;
 
             if (grant) {
                 const { data: sharedSig } = await supabaseAdmin

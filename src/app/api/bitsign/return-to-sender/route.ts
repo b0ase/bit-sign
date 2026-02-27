@@ -42,15 +42,15 @@ export async function POST(request: NextRequest) {
         }
 
         // Check for existing grant to avoid duplicates
-        const { data: existing } = await supabaseAdmin
+        const { data: existingRows } = await supabaseAdmin
             .from('document_access_grants')
             .select('id')
             .eq('document_id', sealedDocId)
             .eq('grantee_handle', senderHandle)
             .is('revoked_at', null)
-            .maybeSingle();
+            .limit(1);
 
-        if (existing) {
+        if (existingRows?.length) {
             return NextResponse.json({ success: true, message: 'Already shared' });
         }
 

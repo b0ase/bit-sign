@@ -71,15 +71,15 @@ export async function POST(request: NextRequest) {
         if (updateError) throw updateError;
 
         // Share the response document back to the sender
-        const { data: existingGrant } = await supabaseAdmin
+        const { data: existingGrants } = await supabaseAdmin
             .from('document_access_grants')
             .select('id')
             .eq('document_id', responseDocumentId)
             .eq('grantee_handle', coSignReq.sender_handle)
             .is('revoked_at', null)
-            .maybeSingle();
+            .limit(1);
 
-        if (!existingGrant) {
+        if (!existingGrants?.length) {
             await supabaseAdmin
                 .from('document_access_grants')
                 .insert({

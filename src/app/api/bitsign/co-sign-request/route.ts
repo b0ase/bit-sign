@@ -38,15 +38,15 @@ export async function POST(request: NextRequest) {
 
         if (doc.user_handle !== handle) {
             // Also check if user has an access grant (shared doc)
-            const { data: grant } = await supabaseAdmin
+            const { data: grantRows } = await supabaseAdmin
                 .from('document_access_grants')
                 .select('id')
                 .eq('document_id', documentId)
                 .eq('grantee_handle', handle)
                 .is('revoked_at', null)
-                .maybeSingle();
+                .limit(1);
 
-            if (!grant) {
+            if (!grantRows?.length) {
                 return NextResponse.json({ error: 'Document not owned by you' }, { status: 403 });
             }
         }
@@ -124,15 +124,15 @@ export async function POST(request: NextRequest) {
         const granteeHandle = resolvedHandle;
         if (granteeHandle) {
             // Check if grant already exists
-            const { data: existingGrant } = await supabaseAdmin
+            const { data: existingGrants } = await supabaseAdmin
                 .from('document_access_grants')
                 .select('id')
                 .eq('document_id', documentId)
                 .eq('grantee_handle', granteeHandle)
                 .is('revoked_at', null)
-                .maybeSingle();
+                .limit(1);
 
-            if (!existingGrant) {
+            if (!existingGrants?.length) {
                 await supabaseAdmin
                     .from('document_access_grants')
                     .insert({
