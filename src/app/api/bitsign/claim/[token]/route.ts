@@ -92,8 +92,8 @@ export async function POST(
                 document_type: 'vault_item',
                 grantor_handle: invite.sender_handle,
                 grantee_handle: handle,
-                wrapped_key: null,
-                ephemeral_public_key: null,
+                wrapped_key: 'invite-claim',
+                ephemeral_public_key: '',
                 encryption_version: 0,
             });
 
