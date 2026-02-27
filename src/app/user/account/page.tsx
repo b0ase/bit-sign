@@ -1540,31 +1540,42 @@ function AccountPageInner() {
 
     const downloadSignature = async (sigId: string, sig?: Signature) => {
         try {
-            let filename: string;
-            if (sig?.metadata?.fileName) {
-                filename = sig.metadata.fileName;
-            } else if (sig?.signature_type === 'SEALED_DOCUMENT') {
-                const date = new Date(sig.created_at).toISOString().slice(0, 10);
-                const txShort = sig.txid && !sig.txid.startsWith('pending-') ? `-${sig.txid.slice(0, 8)}` : '';
-                filename = `sealed-document-${date}${txShort}.png`;
-            } else if (sig?.signature_type === 'TLDRAW') {
-                filename = `signature-${sigId.slice(0, 8)}.svg`;
-            } else if (sig?.signature_type === 'CAMERA') {
-                filename = `photo-${sigId.slice(0, 8)}.jpg`;
-            } else if (sig?.signature_type === 'VIDEO') {
-                filename = `video-${sigId.slice(0, 8)}.webm`;
-            } else {
-                const ext = sig?.metadata?.mimeType?.split('/')[1] || 'bin';
-                filename = `document-${sigId.slice(0, 8)}.${ext}`;
-            }
             addToast('Downloading...', 'download');
             const res = await fetch(`/api/bitsign/signatures/${sigId}/preview`);
             if (!res.ok) throw new Error('Download failed');
             const blob = await res.blob();
+            const ct = res.headers.get('content-type') || '';
+
+            // Derive correct extension from actual content-type
+            let ext = '.bin';
+            if (ct.includes('jpeg') || ct.includes('jpg')) ext = '.jpg';
+            else if (ct.includes('png')) ext = '.png';
+            else if (ct.includes('pdf')) ext = '.pdf';
+            else if (ct.includes('svg')) ext = '.svg';
+            else if (ct.includes('webm')) ext = '.webm';
+            else if (ct.includes('mp4')) ext = '.mp4';
+
+            let baseName: string;
+            if (sig?.metadata?.fileName) {
+                baseName = sig.metadata.fileName.replace(/\.[^.]+$/, '');
+            } else if (sig?.signature_type === 'SEALED_DOCUMENT') {
+                const date = new Date(sig.created_at).toISOString().slice(0, 10);
+                const txShort = sig.txid && !sig.txid.startsWith('pending-') ? `-${sig.txid.slice(0, 8)}` : '';
+                baseName = `sealed-document-${date}${txShort}`;
+            } else if (sig?.signature_type === 'TLDRAW') {
+                baseName = `signature-${sigId.slice(0, 8)}`;
+            } else if (sig?.signature_type === 'CAMERA') {
+                baseName = `photo-${sigId.slice(0, 8)}`;
+            } else if (sig?.signature_type === 'VIDEO') {
+                baseName = `video-${sigId.slice(0, 8)}`;
+            } else {
+                baseName = `document-${sigId.slice(0, 8)}`;
+            }
+
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = filename;
+            a.download = `${baseName}${ext}`;
             a.click();
             URL.revokeObjectURL(url);
         } catch (error) {
@@ -2636,10 +2647,13 @@ function AccountPageInner() {
                                                                         const res = await fetch(`/api/bitsign/signatures/${req.response_document_id}/preview`);
                                                                         if (!res.ok) throw new Error('Download failed');
                                                                         const blob = await res.blob();
+                                                                        const ct = res.headers.get('content-type') || '';
+                                                                        const ext = ct.includes('jpeg') || ct.includes('jpg') ? '.jpg' : ct.includes('png') ? '.png' : ct.includes('pdf') ? '.pdf' : '.jpg';
+                                                                        const baseName = req.document_name.replace(/\.[^.]+$/, '');
                                                                         const url = URL.createObjectURL(blob);
                                                                         const a = document.createElement('a');
                                                                         a.href = url;
-                                                                        a.download = `cosigned-${req.document_name}`;
+                                                                        a.download = `cosigned-${baseName}${ext}`;
                                                                         a.click();
                                                                         URL.revokeObjectURL(url);
                                                                     } catch {
