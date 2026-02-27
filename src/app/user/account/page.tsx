@@ -13,6 +13,7 @@ import ShareModal from '@/components/ShareModal';
 import SignatureExplorer from '@/components/SignatureExplorer';
 import DocumentCanvas from '@/components/DocumentCanvas';
 import VideoCall from '@/components/VideoCall';
+import IncomingCall from '@/components/IncomingCall';
 import type { PlacedElement } from '@/components/DocumentCanvas';
 import { pdfToImage, type PdfImageResult } from '@/lib/pdf-to-image';
 import {
@@ -53,6 +54,8 @@ import {
     FiRotateCcw,
     FiTrash2,
     FiVideo,
+    FiPhone,
+    FiPhoneOff,
 } from 'react-icons/fi';
 
 interface Signature {
@@ -173,6 +176,12 @@ function AccountPageInner() {
     const [e2eAutoSetupStatus, setE2eAutoSetupStatus] = useState<'idle' | 'running' | 'done' | 'failed'>('idle');
     const [videoCallToken, setVideoCallToken] = useState<{ token: string; documentName: string } | null>(null);
 
+    // Direct video call state
+    const [incomingCalls, setIncomingCalls] = useState<any[]>([]);
+    const [callModal, setCallModal] = useState(false);
+    const [callTarget, setCallTarget] = useState('');
+    const [callSubmitting, setCallSubmitting] = useState(false);
+
     // Self-attestation form state
     const [selfAttestOpen, setSelfAttestOpen] = useState(false);
     const [selfAttestForm, setSelfAttestForm] = useState({ fullName: '', addressLine1: '', addressLine2: '', city: '', postcode: '', country: '' });
@@ -206,6 +215,13 @@ function AccountPageInner() {
     const [placedElements, setPlacedElements] = useState<PlacedElement[]>([]);
     const [docPageCount, setDocPageCount] = useState(1);
     const vaultRef = useRef<HTMLDivElement>(null);
+
+    // Listen for navbar call button click
+    useEffect(() => {
+        const openCallModal = () => setCallModal(true);
+        window.addEventListener('bitsign:open-call-modal', openCallModal);
+        return () => window.removeEventListener('bitsign:open-call-modal', openCallModal);
+    }, []);
 
     // Close fullscreen preview on Esc
     useEffect(() => {
@@ -490,14 +506,28 @@ function AccountPageInner() {
         }
     }, []);
 
-    // Poll inbox every 10s so new requests appear without page refresh
+    // Fetch incoming video calls
+    const fetchIncomingCalls = async () => {
+        try {
+            const res = await fetch('/api/bitsign/call');
+            if (!res.ok) return;
+            const data = await res.json();
+            setIncomingCalls(data.calls || []);
+        } catch {
+            // Not critical
+        }
+    };
+
+    // Poll inbox + calls every 10s
     useEffect(() => {
         if (!handle) return;
+        fetchIncomingCalls();
         const interval = setInterval(() => {
             fetchCoSignRequests();
             fetchSentCoSignRequests();
             fetchSharedWithMe();
             fetchPeerAttestRequests();
+            fetchIncomingCalls();
         }, 10_000);
         return () => clearInterval(interval);
     }, [handle]);
@@ -582,6 +612,31 @@ function AccountPageInner() {
             setTrashItems(data.signatures || []);
         } catch {
             // Not critical
+        }
+    };
+
+    const initiateCall = async () => {
+        if (!callTarget.trim()) return;
+        setCallSubmitting(true);
+        try {
+            const res = await fetch('/api/bitsign/call', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ calleeHandle: callTarget.trim() }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                addToast(data.error || 'Failed to initiate call', 'warning');
+                return;
+            }
+            setCallModal(false);
+            setCallTarget('');
+            setVideoCallToken({ token: data.roomToken, documentName: `Call with $${callTarget.trim().replace(/^\$/, '')}` });
+            addToast(`Calling $${callTarget.trim().replace(/^\$/, '')}...`, 'success');
+        } catch (error: any) {
+            addToast(error?.message || 'Failed to initiate call', 'warning');
+        } finally {
+            setCallSubmitting(false);
         }
     };
 
@@ -1836,6 +1891,12 @@ function AccountPageInner() {
                         <span className="px-1.5 py-0.5 bg-blue-950 text-blue-400 text-[10px] rounded-full font-medium">
                             {dedupedSharedWithMe.length + coSignRequests.filter(r => r.status === 'pending').length + peerAttestRequests.filter(r => r.status === 'pending').length}
                         </span>
+                        <button
+                            onClick={() => setCallModal(true)}
+                            className="ml-auto px-2.5 py-1 bg-green-600/20 text-green-400 text-[10px] font-medium rounded hover:bg-green-600/30 transition-colors flex items-center gap-1"
+                        >
+                            <FiPhone size={10} /> Call
+                        </button>
                     </h3>
                     {dedupedSharedWithMe.length === 0 && coSignRequests.filter(r => r.status === 'pending').length === 0 && peerAttestRequests.filter(r => r.status === 'pending').length === 0 ? (
                         <></>
@@ -3115,6 +3176,61 @@ function AccountPageInner() {
                         documentName={videoCallToken.documentName}
                         onClose={() => setVideoCallToken(null)}
                     />
+                )}
+
+                {/* Incoming Call overlay */}
+                {incomingCalls.length > 0 && !videoCallToken && (
+                    <IncomingCall
+                        callId={incomingCalls[0].id}
+                        callerHandle={incomingCalls[0].caller_handle}
+                        createdAt={incomingCalls[0].created_at}
+                        onAccept={(roomToken) => {
+                            setIncomingCalls(prev => prev.filter(c => c.id !== incomingCalls[0].id));
+                            setVideoCallToken({ token: roomToken, documentName: `Call with $${incomingCalls[0].caller_handle}` });
+                        }}
+                        onDecline={() => {
+                            setIncomingCalls(prev => prev.filter(c => c.id !== incomingCalls[0].id));
+                        }}
+                    />
+                )}
+
+                {/* Call modal */}
+                {callModal && (
+                    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setCallModal(false)}>
+                        <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 max-w-sm w-full mx-4 space-y-4" onClick={e => e.stopPropagation()}>
+                            <h3 className="text-sm font-medium text-white flex items-center gap-2">
+                                <FiPhone size={14} /> Start a Video Call
+                            </h3>
+                            <div>
+                                <label className="text-xs text-zinc-500 mb-1 block">Enter handle or email</label>
+                                <input
+                                    type="text"
+                                    value={callTarget}
+                                    onChange={e => setCallTarget(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && initiateCall()}
+                                    placeholder="$handle or email"
+                                    className="w-full px-3 py-2 bg-black border border-zinc-700 rounded-md text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-green-600"
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="flex items-center gap-2 justify-end">
+                                <button
+                                    onClick={() => setCallModal(false)}
+                                    className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={initiateCall}
+                                    disabled={callSubmitting || !callTarget.trim()}
+                                    className="px-4 py-1.5 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                                >
+                                    {callSubmitting ? <FiLoader size={12} className="animate-spin" /> : <FiPhone size={12} />}
+                                    Call
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 )}
             </div>
         </div>

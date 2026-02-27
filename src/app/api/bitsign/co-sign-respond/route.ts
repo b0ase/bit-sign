@@ -148,7 +148,9 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // Auto-create peer_attestation/cosign strands for both parties
+        // Auto-create cosign_exchange strands for both parties
+        // NOTE: This is NOT peer_attestation — co-signing a document doesn't vouch
+        // for someone's identity. Peer attestation requires explicit action.
         try {
             const senderHandle = coSignReq.sender_handle;
 
@@ -175,8 +177,7 @@ export async function POST(request: NextRequest) {
                     .from('bit_sign_strands')
                     .select('id')
                     .eq('identity_id', identity.id)
-                    .eq('strand_type', 'peer_attestation')
-                    .eq('strand_subtype', 'cosign')
+                    .eq('strand_type', 'cosign_exchange')
                     .contains('metadata', { requestId })
                     .maybeSingle();
 
@@ -184,13 +185,12 @@ export async function POST(request: NextRequest) {
                     await createStrand({
                         identityId: identity.id,
                         rootTxid: identity.token_id,
-                        strandType: 'peer_attestation',
-                        strandSubtype: 'cosign',
+                        strandType: 'cosign_exchange',
                         label: `Co-signed with $${counterpartyHandle}`,
                         metadata: { requestId, counterpartyHandle },
                         userHandle,
                     });
-                    console.log(`[co-sign-respond] Created peer_attestation/cosign strand for ${userHandle}`);
+                    console.log(`[co-sign-respond] Created cosign_exchange strand for ${userHandle}`);
                 }
             };
 
@@ -201,7 +201,7 @@ export async function POST(request: NextRequest) {
                 await createCosignStrand(senderIdentityRecord, senderHandle, handle);
             }
         } catch (strandErr) {
-            console.warn('[co-sign-respond] peer_attestation strand creation failed (non-fatal):', strandErr);
+            console.warn('[co-sign-respond] cosign_exchange strand creation failed (non-fatal):', strandErr);
         }
 
         return NextResponse.json({

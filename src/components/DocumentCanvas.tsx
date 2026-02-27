@@ -627,6 +627,16 @@ export default function DocumentCanvas({
                         />
                     )}
 
+                    {/* Hint overlay — show when doc loaded but no elements placed */}
+                    {docLoaded && elements.length === 0 && !dragOver && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <div className="bg-black/80 border border-zinc-700 rounded-lg px-5 py-3 text-center">
+                                <p className="text-sm text-zinc-300">Click <span className="text-white font-medium">Draw Signature</span> to place your signature</p>
+                                <p className="text-xs text-zinc-500 mt-1">or drag an existing signature from your vault</p>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Drop overlay */}
                     {dragOver && (
                         <div className="absolute inset-0 bg-green-500/10 border-2 border-dashed border-green-500/40 rounded-md flex items-center justify-center pointer-events-none">

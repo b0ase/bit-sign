@@ -159,7 +159,27 @@ export default function VideoCall({ roomToken, displayName, onClose, documentNam
                     </div>
                 </div>
             ) : (
-                <div ref={containerRef} className="flex-1 bg-[#050505]" />
+                <div ref={containerRef} className="flex-1 bg-[#050505] relative" />
+            )}
+
+            {/* Floating controls — always visible even in expanded/fullscreen mode */}
+            {expanded && (
+                <div className="absolute top-3 right-3 z-10 flex items-center gap-1 bg-black/70 backdrop-blur-sm rounded-lg px-2 py-1 border border-zinc-700/50">
+                    <button
+                        onClick={() => setExpanded(false)}
+                        className="p-1.5 text-zinc-400 hover:text-white transition-colors"
+                        title="Minimize"
+                    >
+                        <FiMinimize2 size={14} />
+                    </button>
+                    <button
+                        onClick={handleClose}
+                        className="p-1.5 text-zinc-400 hover:text-red-400 transition-colors"
+                        title="End call"
+                    >
+                        <FiPhoneOff size={14} />
+                    </button>
+                </div>
             )}
         </div>
     );
