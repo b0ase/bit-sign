@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { FiShield, FiVideo, FiLock } from 'react-icons/fi';
+import { FiShield, FiVideo, FiLock, FiGithub } from 'react-icons/fi';
+import { FcGoogle } from 'react-icons/fc';
 
 declare global {
     interface Window {
@@ -18,6 +19,8 @@ export default function CallPage() {
     const [handle, setHandle] = useState<string | null>(null);
     const [joined, setJoined] = useState(false);
     const [ended, setEnded] = useState(false);
+
+    const returnTo = `/call/${token}`;
 
     useEffect(() => {
         const cookies = document.cookie.split('; ');
@@ -127,23 +130,72 @@ export default function CallPage() {
                             </div>
                         </div>
 
-                        {handle && (
-                            <p className="text-xs text-zinc-500 text-center">
-                                Joining as <span className="text-white font-medium">${handle}</span>
-                            </p>
-                        )}
+                        {handle ? (
+                            <>
+                                <p className="text-xs text-zinc-500 text-center">
+                                    Joining as <span className="text-white font-medium">${handle}</span>
+                                </p>
 
-                        <button
-                            onClick={joinCall}
-                            disabled={!loaded}
-                            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:cursor-wait"
-                        >
-                            {loaded ? (
-                                <><FiVideo size={16} /> Join Signing Call</>
-                            ) : (
-                                <><span className="w-4 h-4 border-2 border-zinc-600 border-t-white rounded-full animate-spin" /> Connecting...</>
-                            )}
-                        </button>
+                                <button
+                                    onClick={joinCall}
+                                    disabled={!loaded}
+                                    className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:cursor-wait"
+                                >
+                                    {loaded ? (
+                                        <><FiVideo size={16} /> Join Signing Call</>
+                                    ) : (
+                                        <><span className="w-4 h-4 border-2 border-zinc-600 border-t-white rounded-full animate-spin" /> Connecting...</>
+                                    )}
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <div className="space-y-2.5">
+                                    <p className="text-xs text-zinc-500 text-center mb-3">Sign in to join with your identity verified</p>
+
+                                    <a
+                                        href={`/api/auth/handcash?returnTo=${encodeURIComponent(returnTo)}`}
+                                        className="w-full py-2.5 px-4 bg-white text-black font-medium rounded-lg flex items-center justify-center gap-2.5 hover:bg-neutral-200 transition-colors text-sm"
+                                    >
+                                        <svg width="18" height="18" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#38CB7C"/><path d="M10 16.5L14 20.5L22 12.5" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                        Sign in with HandCash
+                                    </a>
+
+                                    <a
+                                        href={`/api/auth/google?returnTo=${encodeURIComponent(returnTo)}`}
+                                        className="w-full py-2.5 px-4 bg-zinc-900 border border-zinc-800 text-white font-medium rounded-lg flex items-center justify-center gap-2.5 hover:bg-zinc-800 transition-colors text-sm"
+                                    >
+                                        <FcGoogle size={18} />
+                                        Sign in with Google
+                                    </a>
+
+                                    <a
+                                        href={`/api/auth/github?returnTo=${encodeURIComponent(returnTo)}`}
+                                        className="w-full py-2.5 px-4 bg-zinc-900 border border-zinc-800 text-white font-medium rounded-lg flex items-center justify-center gap-2.5 hover:bg-zinc-800 transition-colors text-sm"
+                                    >
+                                        <FiGithub size={18} />
+                                        Sign in with GitHub
+                                    </a>
+                                </div>
+
+                                <div className="relative">
+                                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-800" /></div>
+                                    <div className="relative flex justify-center"><span className="bg-zinc-950 px-3 text-[10px] text-zinc-600">or</span></div>
+                                </div>
+
+                                <button
+                                    onClick={joinCall}
+                                    disabled={!loaded}
+                                    className="w-full py-2.5 px-4 bg-zinc-900 border border-zinc-800 text-zinc-400 font-medium rounded-lg transition-colors flex items-center justify-center gap-2 hover:bg-zinc-800 hover:text-white text-sm cursor-pointer disabled:cursor-wait disabled:opacity-50"
+                                >
+                                    {loaded ? (
+                                        <><FiVideo size={14} /> Join as Guest</>
+                                    ) : (
+                                        <><span className="w-3.5 h-3.5 border-2 border-zinc-600 border-t-white rounded-full animate-spin" /> Loading...</>
+                                    )}
+                                </button>
+                            </>
+                        )}
                     </div>
 
                     <p className="text-[10px] text-zinc-700 mt-8">
