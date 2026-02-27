@@ -46,6 +46,11 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Document not owned by you' }, { status: 403 });
         }
 
+        // Only sealed documents can be shared via email invite
+        if (sig.signature_type !== 'SEALED_DOCUMENT') {
+            return NextResponse.json({ error: 'Please seal this document before sharing. Only sealed documents can be sent.' }, { status: 400 });
+        }
+
         // Determine item type and label
         const itemType = sig.signature_type || 'DOCUMENT';
         const itemLabel = sig.metadata?.type || ITEM_LABELS[itemType] || itemType;

@@ -25,7 +25,7 @@ export async function GET(
             .maybeSingle();
 
         if (!identity) {
-            return NextResponse.json({ error: 'User not found' }, { status: 404 });
+            return NextResponse.json({ error: 'HandCash user not found. They must sign in with HandCash first.' }, { status: 404 });
         }
 
         const { data: user } = await supabaseAdmin
@@ -35,7 +35,7 @@ export async function GET(
             .single();
 
         if (!user?.public_key) {
-            return NextResponse.json({ error: 'User has not set up E2E encryption' }, { status: 404 });
+            return NextResponse.json({ error: 'Recipient has not set up E2E encryption yet. Ask them to sign in to Bit-Sign first.' }, { status: 404 });
         }
 
         return NextResponse.json({

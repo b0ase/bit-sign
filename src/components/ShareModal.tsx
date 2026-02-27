@@ -119,7 +119,7 @@ export default function ShareModal({ documentId, documentType, itemType, itemLab
             setSuccess(true);
         } catch (err: any) {
             console.error('Share failed:', err);
-            setError(err?.message || 'Failed to share. Please try again.');
+            setError(err?.message || 'Failed to share. Check the handle and try again.');
         } finally {
             setIsSharing(false);
         }
