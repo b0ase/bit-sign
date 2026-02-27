@@ -131,6 +131,52 @@ export async function hashBuffer(buffer: ArrayBuffer): Promise<string> {
 }
 
 function generateBitSignJson(data: BitSignInscriptionData): string {
+  // $401 identity types use canonical { p: "401" } format
+  // Signing types (signature_registration, document_signature, envelope_signing) keep legacy format
+
+  if (data.type === 'identity_root') {
+    return JSON.stringify({
+      p: '401',
+      op: 'root',
+      v: '1.0',
+      handle: data.userHandle,
+      symbol: data.tokenSymbol,
+      payloadHash: data.signatureHash || '',
+      ts: new Date().toISOString(),
+    }, null, 2);
+  }
+
+  if (data.type === 'identity_strand') {
+    const strand: Record<string, any> = {
+      p: '401',
+      op: 'strand',
+      v: '1.0',
+      root: data.rootTxid,
+      type: data.strandType,
+      handle: data.userHandle,
+      ts: new Date().toISOString(),
+    };
+    if (data.strandSubtype) strand.subtype = data.strandSubtype;
+    if (data.strandLabel) strand.label = data.strandLabel;
+    return JSON.stringify(strand, null, 2);
+  }
+
+  if (data.type === 'ip_thread') {
+    return JSON.stringify({
+      p: '401',
+      op: 'strand',
+      v: '1.0',
+      root: data.rootTxid,
+      type: 'ip_thread',
+      documentHash: data.documentHash,
+      title: data.threadTitle,
+      sequence: data.threadSequence || 1,
+      handle: data.userHandle,
+      ts: new Date().toISOString(),
+    }, null, 2);
+  }
+
+  // Legacy format for non-identity signing types
   const inscriptionData: Record<string, any> = {
     protocol: 'b0ase-bitsign',
     version: '1.0',
@@ -162,28 +208,6 @@ function generateBitSignJson(data: BitSignInscriptionData): string {
     inscriptionData.signerWallet = data.walletAddress;
     inscriptionData.walletType = data.walletType;
     inscriptionData.signedAt = data.signedAt;
-  } else if (data.type === 'identity_root') {
-    inscriptionData.version = '2.0';
-    inscriptionData.schema = '401-identity-root-v1';
-    inscriptionData.userHandle = data.userHandle;
-    inscriptionData.tokenSymbol = data.tokenSymbol;
-    inscriptionData.walletType = data.walletType || 'handcash';
-  } else if (data.type === 'identity_strand') {
-    inscriptionData.version = '2.0';
-    inscriptionData.schema = '401-identity-strand-v1';
-    inscriptionData.rootTxid = data.rootTxid;
-    inscriptionData.strandType = data.strandType;
-    if (data.strandSubtype) inscriptionData.strandSubtype = data.strandSubtype;
-    if (data.strandLabel) inscriptionData.strandLabel = data.strandLabel;
-    if (data.userHandle) inscriptionData.userHandle = data.userHandle;
-  } else if (data.type === 'ip_thread') {
-    inscriptionData.version = '2.0';
-    inscriptionData.schema = '401-ip-thread-v1';
-    inscriptionData.rootTxid = data.rootTxid;
-    inscriptionData.documentHash = data.documentHash;
-    inscriptionData.threadTitle = data.threadTitle;
-    inscriptionData.threadSequence = data.threadSequence || 1;
-    if (data.userHandle) inscriptionData.userHandle = data.userHandle;
   }
 
   return JSON.stringify(inscriptionData, null, 2);
@@ -280,12 +304,61 @@ export async function inscribeBitSignData(
 }
 
 /**
- * Verify a BitSign inscription on blockchain
+ * Parse an inscription payload, handling both legacy (b0ase-bitsign) and canonical ($401) formats.
+ * Returns normalized data regardless of source format.
+ */
+export function parseInscription(data: Record<string, any>): {
+  format: 'canonical' | 'legacy';
+  op?: string;
+  type?: string;
+  handle?: string;
+  root?: string;
+  strandType?: string;
+  strandSubtype?: string;
+  raw: Record<string, any>;
+} {
+  // Canonical $401 format: { p: "401", op: "root"|"strand", v: "1.0", ... }
+  if (data.p === '401') {
+    return {
+      format: 'canonical',
+      op: data.op,
+      type: data.type || data.op,
+      handle: data.handle,
+      root: data.root,
+      strandType: data.type,
+      strandSubtype: data.subtype,
+      raw: data,
+    };
+  }
+
+  // Legacy b0ase-bitsign format: { protocol: "b0ase-bitsign", type: "identity_strand", ... }
+  if (data.protocol === 'b0ase-bitsign') {
+    const isRoot = data.type === 'identity_root';
+    const isStrand = data.type === 'identity_strand';
+    return {
+      format: 'legacy',
+      op: isRoot ? 'root' : isStrand ? 'strand' : data.type,
+      type: data.type,
+      handle: data.userHandle,
+      root: data.rootTxid,
+      strandType: data.strandType,
+      strandSubtype: data.strandSubtype,
+      raw: data,
+    };
+  }
+
+  return { format: 'legacy', raw: data };
+}
+
+/**
+ * Verify a BitSign inscription on blockchain.
+ * Handles both legacy (b0ase-bitsign protocol marker) and canonical ($401 JSON) formats.
  */
 export async function verifyBitSignInscription(txid: string): Promise<{
   found: boolean;
   data?: any;
   dataHash?: string;
+  format?: 'canonical' | 'legacy';
 }> {
   try {
     const url = `${WHATSONCHAIN_API}/tx/${txid}/hex`;
@@ -303,16 +376,32 @@ export async function verifyBitSignInscription(txid: string): Promise<{
       const chunks = script.chunks;
 
       if (chunks.length > 0 && chunks[0].op === 106) {
-        if (chunks.length >= 4) {
-          const protocolBuf = chunks[1].data as Buffer | undefined;
-          const protocol = protocolBuf ? Buffer.from(protocolBuf).toString('utf8') : '';
-          if (protocol === 'b0ase-bitsign') {
-            const dataBuf = chunks[3].data as Buffer | undefined;
-            const jsonData = dataBuf ? Buffer.from(dataBuf).toString('utf8') : '';
-            if (jsonData) {
-              const data = JSON.parse(jsonData);
-              const dataHash = await hashData(jsonData);
-              return { found: true, data, dataHash };
+        // Try to extract JSON from OP_RETURN chunks
+        for (let i = 1; i < chunks.length; i++) {
+          const buf = chunks[i].data as Buffer | undefined;
+          if (!buf) continue;
+          const text = Buffer.from(buf).toString('utf8');
+
+          // Try parsing as JSON
+          try {
+            const data = JSON.parse(text);
+            if (data && typeof data === 'object') {
+              const parsed = parseInscription(data);
+              if (parsed.format === 'canonical' || data.protocol === 'b0ase-bitsign') {
+                const dataHash = await hashData(text);
+                return { found: true, data, dataHash, format: parsed.format };
+              }
+            }
+          } catch {
+            // Not JSON, check if it's the protocol marker
+            if (text === 'b0ase-bitsign' && chunks.length >= i + 3) {
+              const dataBuf = chunks[i + 2].data as Buffer | undefined;
+              const jsonData = dataBuf ? Buffer.from(dataBuf).toString('utf8') : '';
+              if (jsonData) {
+                const data = JSON.parse(jsonData);
+                const dataHash = await hashData(jsonData);
+                return { found: true, data, dataHash, format: 'legacy' };
+              }
             }
           }
         }

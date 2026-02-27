@@ -66,6 +66,22 @@ export async function POST(request: NextRequest) {
             const tokenSymbol = `$${handle.toUpperCase()}`;
             const identityMetadata = { ...metadata, symbol: tokenSymbol };
 
+            // Check if this handle already has a path402_identity_tokens record
+            let path401TokenId: string | null = null;
+            try {
+                const { data: existingToken } = await supabaseAdmin
+                    .from('path402_identity_tokens')
+                    .select('id, token_id')
+                    .eq('symbol', tokenSymbol)
+                    .maybeSingle();
+                if (existingToken) {
+                    path401TokenId = existingToken.id;
+                    console.log(`[inscribe] Found existing path401 token: ${path401TokenId}`);
+                }
+            } catch (lookupErr) {
+                console.warn('[inscribe] path401 token lookup failed (non-fatal):', lookupErr);
+            }
+
             // Attempt identity_root on-chain inscription
             let rootTxid = txid;
             try {
@@ -73,6 +89,7 @@ export async function POST(request: NextRequest) {
                     type: 'identity_root',
                     userHandle: handle,
                     tokenSymbol,
+                    signatureHash: payloadHash,
                     walletType: 'handcash',
                     createdAt: new Date().toISOString(),
                 });
@@ -82,6 +99,7 @@ export async function POST(request: NextRequest) {
                 console.warn('[inscribe] Identity root inscription failed (using original txid):', rootErr);
             }
 
+            // Write to bit_sign_identities (primary)
             const { data: identity, error: idError } = await supabaseAdmin
                 .from('bit_sign_identities')
                 .insert({
@@ -93,6 +111,33 @@ export async function POST(request: NextRequest) {
                 .single();
 
             if (idError) throw idError;
+
+            // Dual-write: also create/link path402_identity_tokens record
+            if (!path401TokenId) {
+                try {
+                    const tokenId = await hashData(`path402:${tokenSymbol}:bitsign`);
+                    const { data: newToken } = await supabaseAdmin
+                        .from('path402_identity_tokens')
+                        .insert({
+                            holder_id: identity.id, // Will be overwritten if holder exists
+                            symbol: tokenSymbol,
+                            token_id: tokenId,
+                            broadcast_txid: rootTxid.startsWith('pending-') ? null : rootTxid,
+                            broadcast_status: rootTxid.startsWith('pending-') ? 'local' : 'confirmed',
+                            source: 'bitsign',
+                            inscription_data: { p: '401', op: 'root', v: '1.0', handle, symbol: tokenSymbol },
+                        })
+                        .select('id')
+                        .maybeSingle();
+                    if (newToken) {
+                        path401TokenId = newToken.id;
+                        console.log(`[inscribe] Created path401 token: ${path401TokenId}`);
+                    }
+                } catch (tokenErr) {
+                    // May fail if symbol already taken — non-fatal for bit-sign flow
+                    console.warn('[inscribe] path401 token creation failed (non-fatal):', tokenErr);
+                }
+            }
 
             // Retroactively link existing vault items as strands
             try {

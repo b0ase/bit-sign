@@ -133,6 +133,7 @@ export async function createStrand(params: CreateStrandParams): Promise<{ id: st
     console.warn('[strand] On-chain inscription failed (non-fatal):', err);
   }
 
+  // Primary write: bit_sign_strands
   const { data: strand, error } = await supabaseAdmin
     .from('bit_sign_strands')
     .insert({
@@ -154,6 +155,48 @@ export async function createStrand(params: CreateStrandParams): Promise<{ id: st
   if (error) {
     console.error('[strand] DB insert error:', error);
     throw error;
+  }
+
+  // Dual-write: also insert into path401_identity_strands (non-fatal)
+  try {
+    // Look up the path402_identity_tokens record for this identity
+    const { data: identity } = await supabaseAdmin
+      .from('bit_sign_identities')
+      .select('user_handle, token_id')
+      .eq('id', params.identityId)
+      .single();
+
+    if (identity) {
+      const { data: token } = await supabaseAdmin
+        .from('path402_identity_tokens')
+        .select('id, holder_id')
+        .or(`symbol.eq.$${identity.user_handle.toUpperCase()},broadcast_txid.eq.${identity.token_id}`)
+        .maybeSingle();
+
+      if (token) {
+        await supabaseAdmin
+          .from('path401_identity_strands')
+          .insert({
+            identity_token_id: token.id,
+            holder_id: token.holder_id,
+            provider: params.strandType === 'oauth' ? (params.strandSubtype || 'unknown') : params.strandType,
+            provider_user_id: params.providerId || params.signatureId || strand.id,
+            provider_handle: params.providerHandle || params.userHandle || null,
+            provider_metadata: params.providerMetadata || params.metadata || {},
+            proof_hash: strandTxid || strand.id,
+            strand_txid: strandTxid || null,
+            broadcast_status: strandTxid ? 'confirmed' : 'local',
+            strand_type: params.strandType,
+            strand_subtype: params.strandSubtype || null,
+            signature_id: params.signatureId || null,
+            label: params.label || null,
+            source: 'bitsign',
+          });
+        console.log(`[strand] Dual-write to path401_identity_strands OK`);
+      }
+    }
+  } catch (dualWriteErr) {
+    console.warn('[strand] Dual-write to path401 failed (non-fatal):', dualWriteErr);
   }
 
   // Recalculate strength
