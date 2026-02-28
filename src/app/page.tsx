@@ -11,7 +11,7 @@ export default async function BitSignPage() {
     <main className="min-h-screen bg-black text-white selection:bg-zinc-800 selection:text-white overflow-hidden">
 
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center px-8 bg-black overflow-hidden">
+      <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-8 bg-black overflow-hidden">
         {/* Video background */}
         <div className="absolute inset-0 z-0">
           <video
@@ -27,18 +27,18 @@ export default async function BitSignPage() {
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/80" />
         </div>
 
-        <div className="max-w-7xl mx-auto relative z-10 py-32">
+        <div className="max-w-7xl mx-auto relative z-10 py-20 sm:py-32">
           <HeroAnimation>
             <div className="inline-flex items-center gap-3 px-5 py-2 bg-black/50 backdrop-blur-sm border border-zinc-800/60 text-sm text-zinc-400 mb-10 rounded-full">
               <FiShield className="text-zinc-500" size={14} />
               Document Signing on Bitcoin
             </div>
 
-            <h1 className="text-6xl md:text-8xl lg:text-9xl font-bold tracking-tight mb-8 leading-[0.9] text-white">
+            <h1 className="text-5xl sm:text-6xl md:text-8xl lg:text-9xl font-bold tracking-tight mb-6 sm:mb-8 leading-[0.9] text-white">
               Bit-Sign
             </h1>
 
-            <p className="text-base md:text-lg text-zinc-300 max-w-2xl leading-relaxed mb-14">
+            <p className="text-sm sm:text-base md:text-lg text-zinc-300 max-w-2xl leading-relaxed mb-10 sm:mb-14">
               Sign documents with blockchain-verified proof. Every signature is permanently recorded on-chain &mdash; immutable, instant, and verifiable by anyone.
             </p>
 
@@ -69,8 +69,8 @@ export default async function BitSignPage() {
       </section>
 
       {/* Stats Row */}
-      <section className="border-y border-zinc-900 bg-black py-16 px-8">
-        <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-y-12 gap-x-16">
+      <section className="border-y border-zinc-900 bg-black py-10 sm:py-16 px-4 sm:px-8">
+        <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-y-8 sm:gap-y-12 gap-x-16">
           {[
             { label: 'Confirmation Speed', val: '0.2 seconds' },
             { label: 'Signature Standard', val: 'BSV Ordinal' },
@@ -85,7 +85,7 @@ export default async function BitSignPage() {
       </section>
 
       {/* Feature Grid */}
-      <section className="py-32 px-8 bg-black">
+      <section className="py-16 sm:py-32 px-4 sm:px-8 bg-black">
         <div className="max-w-7xl mx-auto grid md:grid-cols-3 border border-zinc-900 rounded-md overflow-hidden">
           {[
             {
@@ -104,7 +104,7 @@ export default async function BitSignPage() {
               desc: "Anyone can verify a signed document with a link. On-chain proof confirms who signed, when, and that nothing changed."
             }
           ].map((item, i) => (
-            <div key={i} className="p-10 border-r border-b border-zinc-900 bg-black hover:bg-zinc-950 transition-all group space-y-6 relative last:border-r-0">
+            <div key={i} className="p-6 sm:p-10 border-b md:border-r border-zinc-900 bg-black hover:bg-zinc-950 transition-all group space-y-6 relative last:border-b-0 md:last:border-r-0">
               <div className="w-10 h-10 border border-zinc-800 rounded-md flex items-center justify-center text-zinc-500 group-hover:text-white group-hover:border-zinc-600 transition-all">
                 <item.icon size={18} />
               </div>
@@ -119,7 +119,7 @@ export default async function BitSignPage() {
         </div>
       </section>
 
-      <footer className="border-t border-zinc-900 bg-black py-16 px-8 text-center space-y-2">
+      <footer className="border-t border-zinc-900 bg-black py-10 sm:py-16 px-4 sm:px-8 text-center space-y-2">
         <p className="text-[11px] tracking-[0.25em] uppercase text-zinc-600">
           A Bitcoin Corporation Product
         </p>

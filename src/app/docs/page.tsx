@@ -1,8 +1,8 @@
 export default function DocsPage() {
     return (
-        <div className="min-h-screen p-6 pt-24 pb-24 max-w-7xl mx-auto space-y-16">
-            <header className="border-b border-white/10 pb-8">
-                <h1 className="text-4xl font-bold tracking-tight mb-3">Documentation</h1>
+        <div className="min-h-screen p-4 sm:p-6 pt-20 sm:pt-24 pb-24 max-w-7xl mx-auto space-y-10 sm:space-y-16">
+            <header className="border-b border-white/10 pb-6 sm:pb-8">
+                <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">Documentation</h1>
                 <p className="text-zinc-400 text-base">How Bit-Sign verification works</p>
             </header>
 

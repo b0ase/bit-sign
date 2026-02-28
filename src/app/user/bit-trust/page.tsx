@@ -245,8 +245,8 @@ export default function BitTrustPage() {
     const filteredThreads = threads.filter(t => matchesFilter(t.documentType, filter));
 
     return (
-        <div className="min-h-screen bg-black pt-20 pb-12">
-            <div className="max-w-5xl mx-auto px-6">
+        <div className="min-h-screen bg-black pt-16 sm:pt-20 pb-12">
+            <div className="max-w-5xl mx-auto px-4 sm:px-6">
                 {/* Header */}
                 <div className="mb-8">
                     <div className="flex items-center gap-3 mb-2">
@@ -257,7 +257,7 @@ export default function BitTrustPage() {
                 </div>
 
                 {/* Mode toggle + form */}
-                <div className="border border-zinc-800 rounded-lg p-6 mb-8">
+                <div className="border border-zinc-800 rounded-lg p-4 sm:p-6 mb-8">
                     <div className="flex gap-2 mb-6">
                         <button
                             onClick={() => { setMode('upload'); setError(''); setSuccess(''); }}

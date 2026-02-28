@@ -1710,11 +1710,11 @@ function AccountPageInner() {
 
     return (
         <div className="min-h-screen bg-black text-white selection:bg-zinc-800 selection:text-white overflow-x-hidden">
-            <div className="relative z-10 p-6 pt-24 max-w-7xl mx-auto space-y-12 pb-40">
+            <div className="relative z-10 p-4 sm:p-6 pt-20 sm:pt-24 max-w-7xl mx-auto space-y-8 sm:space-y-12 pb-40">
                 {/* Header */}
-                <header className="grid lg:grid-cols-12 gap-8 border-b border-zinc-900 pb-12 items-end">
-                    <div className="lg:col-span-8 flex flex-col md:flex-row md:items-center gap-8">
-                        <div className="w-20 h-20 bg-black border border-zinc-800 flex items-center justify-center text-4xl shadow-lg rounded-lg shrink-0 relative overflow-hidden group">
+                <header className="grid lg:grid-cols-12 gap-6 sm:gap-8 border-b border-zinc-900 pb-8 sm:pb-12 items-end">
+                    <div className="lg:col-span-8 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-8">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-black border border-zinc-800 flex items-center justify-center text-4xl shadow-lg rounded-lg shrink-0 relative overflow-hidden group">
                             <div className="absolute inset-0 bg-zinc-900/0 group-hover:bg-zinc-900/20 transition-colors" />
                             {identity?.avatar_url ? (
                                 <img src={identity.avatar_url} alt={handle || ''} className="w-full h-full object-cover grayscale contrast-125" />
@@ -1726,13 +1726,13 @@ function AccountPageInner() {
 
                         <div className="space-y-3">
                             <div>
-                                <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-white">
+                                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-white">
                                     ${handle}
                                 </h1>
                                 <p className="text-zinc-500 text-sm mt-1">Identity Vault</p>
                             </div>
 
-                            <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                                     {[
                                         { id: 'github', label: 'GitHub', icon: FiGithub, active: true, linked: !!identity?.github_handle, handle: identity?.github_handle, authUrl: '/api/auth/github' },
                                         { id: 'google', label: 'Google', icon: FiMail, active: true, linked: !!identity?.google_email, handle: identity?.google_email, authUrl: '/api/auth/google' },
@@ -1771,27 +1771,27 @@ function AccountPageInner() {
                         </div>
                     </div>
 
-                    <div className="lg:col-span-4 flex flex-col items-start lg:items-end justify-between h-full gap-6">
+                    <div className="lg:col-span-4 flex flex-col items-start lg:items-end justify-between h-full gap-4 sm:gap-6">
                         {identity && (
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 flex-wrap">
                                 <button
                                     onClick={sendTestVerification}
                                     disabled={isProcessing}
-                                    className="px-4 py-2 border border-zinc-800 bg-zinc-950 text-zinc-400 text-sm font-medium rounded-md hover:bg-zinc-900 hover:text-white transition-all flex items-center gap-2"
+                                    className="px-3 sm:px-4 py-2 border border-zinc-800 bg-zinc-950 text-zinc-400 text-xs sm:text-sm font-medium rounded-md hover:bg-zinc-900 hover:text-white transition-all flex items-center gap-2"
                                 >
                                     <FiZap /> Test Alert
                                 </button>
                                 <button
                                     onClick={exportIdentity}
-                                    className="px-4 py-2 border border-zinc-800 bg-zinc-950 text-zinc-400 text-sm font-medium rounded-md hover:border-white/20 hover:text-white transition-all flex items-center gap-2"
+                                    className="px-3 sm:px-4 py-2 border border-zinc-800 bg-zinc-950 text-zinc-400 text-xs sm:text-sm font-medium rounded-md hover:border-white/20 hover:text-white transition-all flex items-center gap-2"
                                 >
-                                    <FiDownload /> Export Identity
+                                    <FiDownload /> Export
                                 </button>
                             </div>
                         )}
 
                         {identity ? (
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                                 {(() => {
                                     const s = getStrengthLabel(identity.identity_strength || 0);
                                     return (
@@ -1854,7 +1854,7 @@ function AccountPageInner() {
                             </span>
                         </div>
                     </div>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                    <div className="grid grid-cols-3 xs:grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 sm:gap-2">
                         <button
                             onClick={() => setIsSignatureModalOpen(true)}
                             className="flex flex-col items-center gap-1.5 px-3 py-3 border border-zinc-700 bg-zinc-800/60 rounded-lg text-sm text-zinc-300 hover:text-white hover:border-zinc-500 hover:bg-zinc-700/60 transition-all"
@@ -1981,56 +1981,60 @@ function AccountPageInner() {
                                 return (
                                     <div
                                         key={`cosign-${req.id}`}
-                                        className={`w-full text-left border rounded-md bg-black p-4 flex items-center gap-4 hover:bg-zinc-950 transition-colors ${isWitReq ? 'border-blue-900/40 hover:border-blue-800/60' : 'border-amber-900/40 hover:border-amber-800/60'}`}
+                                        className={`w-full text-left border rounded-md bg-black p-3 sm:p-4 hover:bg-zinc-950 transition-colors ${isWitReq ? 'border-blue-900/40 hover:border-blue-800/60' : 'border-amber-900/40 hover:border-amber-800/60'}`}
                                     >
-                                        <div className={`shrink-0 ${isWitReq ? 'text-blue-400' : 'text-amber-500'}`}>
-                                            {isWitReq ? <FiEye size={18} /> : <FiEdit3 size={18} />}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-sm font-medium text-white truncate">
-                                                    {req.document_name}
-                                                </span>
-                                                <span className={`px-1.5 py-0.5 text-[10px] rounded shrink-0 ${isWitReq ? 'bg-blue-950 text-blue-400' : 'bg-amber-950 text-amber-400'}`}>
-                                                    {isWitReq ? 'Witness Request' : 'Co-Sign Request'}
-                                                </span>
+                                        <div className="flex items-start gap-3 sm:gap-4">
+                                            <div className={`shrink-0 mt-0.5 ${isWitReq ? 'text-blue-400' : 'text-amber-500'}`}>
+                                                {isWitReq ? <FiEye size={18} /> : <FiEdit3 size={18} />}
                                             </div>
-                                            <span className="text-xs text-zinc-600">
-                                                From ${req.sender_handle} &middot; {new Date(req.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                                            </span>
-                                            {req.message && (
-                                                <p className="text-xs text-zinc-400 mt-1 italic">&ldquo;{req.message}&rdquo;</p>
-                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="text-sm font-medium text-white truncate">
+                                                        {req.document_name}
+                                                    </span>
+                                                    <span className={`px-1.5 py-0.5 text-[10px] rounded shrink-0 ${isWitReq ? 'bg-blue-950 text-blue-400' : 'bg-amber-950 text-amber-400'}`}>
+                                                        {isWitReq ? 'Witness' : 'Co-Sign'}
+                                                    </span>
+                                                </div>
+                                                <span className="text-xs text-zinc-600 block mt-0.5">
+                                                    From ${req.sender_handle} &middot; {new Date(req.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric' })}
+                                                </span>
+                                                {req.message && (
+                                                    <p className="text-xs text-zinc-400 mt-1 italic">&ldquo;{req.message}&rdquo;</p>
+                                                )}
+                                            </div>
                                         </div>
-                                        {req.claim_token && (
+                                        <div className="flex items-center gap-2 mt-3 ml-7 sm:ml-0 sm:mt-0 sm:justify-end">
+                                            {req.claim_token && (
+                                                <button
+                                                    onClick={() => setVideoCallToken({ token: req.claim_token!, documentName: req.document_name })}
+                                                    className="px-2 py-1.5 text-xs rounded bg-blue-600/20 text-blue-400 border border-blue-900/40 hover:bg-blue-600/30 transition-all flex items-center gap-1 shrink-0 cursor-pointer"
+                                                    title="Join live signing call"
+                                                >
+                                                    <FiVideo size={11} />
+                                                </button>
+                                            )}
                                             <button
-                                                onClick={() => setVideoCallToken({ token: req.claim_token!, documentName: req.document_name })}
-                                                className="px-2 py-1.5 text-xs rounded bg-blue-600/20 text-blue-400 border border-blue-900/40 hover:bg-blue-600/30 transition-all flex items-center gap-1 shrink-0 cursor-pointer"
-                                                title="Join live signing call"
+                                                onClick={() => openCoSign({ id: req.id, document_id: req.document_id, document_type: 'vault_item', grantor_handle: req.sender_handle, wrapped_key: '', ephemeral_public_key: '', created_at: req.created_at, signature_type: 'SEALED_DOCUMENT', metadata: { originalFileName: req.document_name } })}
+                                                className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 shrink-0 cursor-pointer bg-green-600/20 text-green-400 hover:bg-green-600/30 border border-green-900/40"
                                             >
-                                                <FiVideo size={11} />
+                                                <FiEdit3 size={12} /> Sign
                                             </button>
-                                        )}
-                                        <button
-                                            onClick={() => openCoSign({ id: req.id, document_id: req.document_id, document_type: 'vault_item', grantor_handle: req.sender_handle, wrapped_key: '', ephemeral_public_key: '', created_at: req.created_at, signature_type: 'SEALED_DOCUMENT', metadata: { originalFileName: req.document_name } })}
-                                            className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 shrink-0 cursor-pointer bg-green-600/20 text-green-400 hover:bg-green-600/30 border border-green-900/40"
-                                        >
-                                            <FiEdit3 size={12} /> Sign
-                                        </button>
-                                        <button
-                                            onClick={() => dismissCoSignRequest(req.id, 'received')}
-                                            className="px-2 py-1.5 text-xs rounded bg-red-950/40 text-red-400 border border-red-900/40 hover:bg-red-900/40 transition-colors shrink-0 flex items-center gap-1"
-                                            title="Remove"
-                                        >
-                                            <FiX size={12} /> Remove
-                                        </button>
+                                            <button
+                                                onClick={() => dismissCoSignRequest(req.id, 'received')}
+                                                className="px-2 py-1.5 text-xs rounded bg-red-950/40 text-red-400 border border-red-900/40 hover:bg-red-900/40 transition-colors shrink-0 flex items-center gap-1"
+                                                title="Remove"
+                                            >
+                                                <FiX size={12} />
+                                            </button>
+                                        </div>
                                     </div>
                                 );
                             })}
 
                             {/* Peer attestation requests */}
                             {peerAttestRequests.filter(r => r.status === 'pending').map((req) => (
-                                <div key={`peer-${req.id}`} className="border border-green-900/40 rounded-md bg-black p-4 flex items-center gap-4">
+                                <div key={`peer-${req.id}`} className="border border-green-900/40 rounded-md bg-black p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                                     <div className="text-green-500 shrink-0">
                                         <FiUserCheck size={18} />
                                     </div>
@@ -2069,8 +2073,9 @@ function AccountPageInner() {
                                 const rawName = doc.metadata?.originalFileName || doc.metadata?.fileName;
                                 const docName = (rawName && rawName !== 'Sealed Document') ? rawName : (doc.metadata?.type !== 'Sealed Document' ? doc.metadata?.type : null) || doc.signature_type || 'Document';
                                 return (
-                                    <div key={doc.id} className={`border rounded-md bg-black p-4 flex items-center gap-4 ${isReturnedDoc ? 'border-green-900/40' : 'border-zinc-900'}`}>
-                                        <div className="text-zinc-500 shrink-0">
+                                    <div key={doc.id} className={`border rounded-md bg-black p-3 sm:p-4 ${isReturnedDoc ? 'border-green-900/40' : 'border-zinc-900'}`}>
+                                        <div className="flex items-start gap-3 sm:gap-4">
+                                        <div className="text-zinc-500 shrink-0 mt-0.5">
                                             {isReturnedDoc ? (
                                                 <FiCheck size={18} className="text-green-400" />
                                             ) : isWitnessRequest ? (
@@ -2103,6 +2108,8 @@ function AccountPageInner() {
                                                 <p className="text-xs text-zinc-400 mt-1 italic">&ldquo;{doc.invite_message}&rdquo;</p>
                                             )}
                                         </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-2 ml-7 sm:ml-0 sm:mt-0 sm:justify-end">
                                         {isReturnedDoc ? (
                                             <>
                                                 <button
@@ -2132,7 +2139,7 @@ function AccountPageInner() {
                                                     onClick={() => downloadSignature(doc.document_id)}
                                                     className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
                                                 >
-                                                    <FiDownload size={12} /> Download
+                                                    <FiDownload size={12} />
                                                 </button>
                                             </>
                                         ) : (
@@ -2148,8 +2155,9 @@ function AccountPageInner() {
                                             className="px-2 py-1.5 text-xs rounded bg-red-950/40 text-red-400 border border-red-900/40 hover:bg-red-900/40 transition-colors shrink-0 flex items-center gap-1"
                                             title="Remove"
                                         >
-                                            <FiX size={12} /> Remove
+                                            <FiX size={12} />
                                         </button>
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -2169,7 +2177,7 @@ function AccountPageInner() {
                         </div>
                         <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                             {sentCoSignRequests.map((req) => (
-                                <div key={req.id} className={`border rounded-md bg-black p-4 flex items-center gap-4 ${req.status === 'signed' ? 'border-green-900/40' : 'border-zinc-900'}`}>
+                                <div key={req.id} className={`border rounded-md bg-black p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 ${req.status === 'signed' ? 'border-green-900/40' : 'border-zinc-900'}`}>
                                     <div className="shrink-0">
                                         {req.status === 'signed' ? (
                                             <FiCheck size={18} className="text-green-400" />
@@ -2253,10 +2261,10 @@ function AccountPageInner() {
                             onClick={() => setSelfAttestOpen(!selfAttestOpen)}
                             className="w-full flex items-center justify-between px-4 py-3 text-left"
                         >
-                            <div className="flex items-center gap-2">
-                                <FiShield className="text-blue-400" size={16} />
-                                <span className="text-sm font-medium text-blue-400">Upgrade to Lv.2 Verified</span>
-                                <span className="text-xs text-zinc-500">Self-attest your name and address</span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <FiShield className="text-blue-400 shrink-0" size={16} />
+                                <span className="text-sm font-medium text-blue-400">Upgrade to Lv.2</span>
+                                <span className="text-xs text-zinc-500 hidden sm:inline">Self-attest your name and address</span>
                             </div>
                             {selfAttestOpen ? <FiChevronUp className="text-zinc-500" size={16} /> : <FiChevronDown className="text-zinc-500" size={16} />}
                         </button>
@@ -2426,7 +2434,7 @@ function AccountPageInner() {
                 {/* ===== UNIFIED VAULT ===== */}
                 <div ref={vaultRef} className="space-y-3">
                     {/* Tabs */}
-                    <div className="flex items-center gap-1 border-b border-zinc-900">
+                    <div className="flex items-center gap-1 border-b border-zinc-900 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
                         {[
                             { key: 'all', label: 'All', count: signatures.length },
                             { key: 'received', label: 'Received', count: allReceivedDocs.length },
@@ -2441,7 +2449,7 @@ function AccountPageInner() {
                             <button
                                 key={tab.key}
                                 onClick={() => setVaultTab(tab.key)}
-                                className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+                                className={`px-2.5 sm:px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
                                     vaultTab === tab.key
                                         ? 'border-white text-white'
                                         : tab.key === 'received' && tab.count > 0
@@ -2463,9 +2471,9 @@ function AccountPageInner() {
                             <p className="text-xs text-zinc-600 mt-1">Create your first signature or upload a document.</p>
                         </div>
                     ) : (
-                        <div className="grid lg:grid-cols-12 gap-3 h-[calc(100vh-12rem)]">
+                        <div className="grid lg:grid-cols-12 gap-3 lg:h-[calc(100vh-12rem)]">
                             {/* LEFT — Item list / Signature Explorer */}
-                            <div className="lg:col-span-4 border border-zinc-900 rounded-md bg-zinc-950/50 overflow-hidden flex flex-col">
+                            <div className="lg:col-span-4 border border-zinc-900 rounded-md bg-zinc-950/50 overflow-hidden flex flex-col max-h-[60vh] lg:max-h-none">
                                 {selectedDocBlobUrl && selectedDocumentId ? (
                                     /* Signing mode: show draggable signature explorer with thumbnails */
                                     <div className="flex-1 overflow-y-auto p-3">
@@ -2801,7 +2809,7 @@ function AccountPageInner() {
                             </div>
 
                             {/* RIGHT — Viewer / Canvas */}
-                            <div className="lg:col-span-8 border border-zinc-900 rounded-md bg-zinc-950/50 overflow-hidden flex flex-col">
+                            <div className="lg:col-span-8 border border-zinc-900 rounded-md bg-zinc-950/50 overflow-hidden flex flex-col min-h-[40vh] lg:min-h-0">
                                 {selectedDocBlobUrl && selectedDocumentId ? (
                                     <DocumentCanvas
                                         documentUrl={selectedDocBlobUrl}

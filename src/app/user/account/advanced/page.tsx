@@ -300,14 +300,14 @@ export default function DocumentsPage() {
 
   return (
     <div className="min-h-screen bg-black text-white overflow-x-hidden">
-      <div className="relative z-10 p-6 pt-24 max-w-6xl mx-auto space-y-12 pb-40">
+      <div className="relative z-10 p-4 sm:p-6 pt-20 sm:pt-24 max-w-6xl mx-auto space-y-8 sm:space-y-12 pb-40">
         {/* Back Link + Header */}
         <div className="space-y-6">
           <Link href="/user/account" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-white transition-colors">
             <FiArrowLeft size={14} /> Back to Account
           </Link>
 
-          <header className="flex flex-col md:flex-row md:items-end justify-between border-b border-zinc-900 pb-8 gap-6">
+          <header className="flex flex-col md:flex-row md:items-end justify-between border-b border-zinc-900 pb-6 sm:pb-8 gap-4 sm:gap-6">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 bg-black border border-zinc-800 flex items-center justify-center text-2xl rounded-lg shrink-0 relative overflow-hidden">
                 {avatarUrl ? (
@@ -317,7 +317,7 @@ export default function DocumentsPage() {
                 )}
               </div>
               <div>
-                <h1 className="text-3xl md:text-4xl font-bold tracking-tight">${handle}</h1>
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight">${handle}</h1>
                 <p className="text-zinc-500 text-sm mt-1">Document Dashboard</p>
               </div>
             </div>

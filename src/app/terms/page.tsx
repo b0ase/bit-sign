@@ -1,8 +1,8 @@
 export default function TermsPage() {
     return (
-        <div className="min-h-screen p-6 pt-24 pb-24 max-w-7xl mx-auto space-y-12">
-            <header className="border-b border-white/10 pb-8">
-                <h1 className="text-6xl font-mono font-bold tracking-tighter mb-4 uppercase">Terms of Service</h1>
+        <div className="min-h-screen p-4 sm:p-6 pt-20 sm:pt-24 pb-24 max-w-7xl mx-auto space-y-8 sm:space-y-12">
+            <header className="border-b border-white/10 pb-6 sm:pb-8">
+                <h1 className="text-3xl sm:text-5xl md:text-6xl font-mono font-bold tracking-tighter mb-4 uppercase">Terms of Service</h1>
                 <p className="text-neutral-500 font-mono tracking-[0.2em] uppercase text-sm">Last Updated: February 24, 2026</p>
             </header>
 

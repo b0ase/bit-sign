@@ -282,7 +282,7 @@ export default function SignPage() {
 
   return (
     <div className="min-h-screen bg-black text-white overflow-x-hidden">
-      <div className="relative z-10 p-6 pt-24 max-w-4xl mx-auto space-y-8 pb-40">
+      <div className="relative z-10 p-4 sm:p-6 pt-20 sm:pt-24 max-w-4xl mx-auto space-y-6 sm:space-y-8 pb-40">
         {/* Header */}
         <header className="border-b border-zinc-900 pb-6 space-y-2">
           <div className="flex items-center gap-3">
@@ -291,8 +291,8 @@ export default function SignPage() {
               Signing Request
             </p>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">{envelope?.title}</h1>
-          <div className="flex gap-6 text-sm text-zinc-500">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">{envelope?.title}</h1>
+          <div className="flex flex-col sm:flex-row gap-1 sm:gap-6 text-sm text-zinc-500">
             <span>From: {envelope?.created_by}</span>
             <span className="font-mono text-xs">Hash: {envelope?.document_hash.slice(0, 16)}...</span>
           </div>
@@ -338,7 +338,7 @@ export default function SignPage() {
           envelope.document_type === 'uploaded_document' && envelope.document_html.startsWith('data:') ? (
             <div className="border border-zinc-800 rounded-md overflow-hidden">
               {envelope.document_html.startsWith('data:application/pdf') ? (
-                <iframe src={envelope.document_html} className="w-full h-[600px]" />
+                <iframe src={envelope.document_html} className="w-full h-[400px] sm:h-[600px]" />
               ) : envelope.document_html.startsWith('data:image/') ? (
                 <img src={envelope.document_html} alt="Document" className="w-full max-h-[600px] object-contain bg-white" />
               ) : (
@@ -350,7 +350,7 @@ export default function SignPage() {
             </div>
           ) : envelope.document_html ? (
             <div className="border border-zinc-800 rounded-md overflow-hidden">
-              <div className="bg-white text-black p-8 overflow-y-auto max-h-[600px]">
+              <div className="bg-white text-black p-4 sm:p-8 overflow-y-auto max-h-[400px] sm:max-h-[600px]">
                 <div dangerouslySetInnerHTML={{ __html: envelope.document_html }} />
               </div>
             </div>

@@ -32,6 +32,15 @@ h6 {
   margin-right: auto;
 }
 
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 @keyframes shimmer {
   0% {
     background-position: -200% center;

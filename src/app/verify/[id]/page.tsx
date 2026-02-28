@@ -85,9 +85,9 @@ export default function VerifyPage() {
 
   return (
     <div className="min-h-screen bg-black text-white overflow-x-hidden">
-      <div className="relative z-10 p-6 pt-24 max-w-3xl mx-auto space-y-8 pb-40">
+      <div className="relative z-10 p-4 sm:p-6 pt-20 sm:pt-24 max-w-3xl mx-auto space-y-6 sm:space-y-8 pb-40">
         {/* Verification Header */}
-        <header className="text-center space-y-4 border-b border-zinc-900 pb-8">
+        <header className="text-center space-y-4 border-b border-zinc-900 pb-6 sm:pb-8">
           {allSigned && blockchain?.verified ? (
             <FiShield className="mx-auto text-green-400" size={48} />
           ) : allSigned ? (
@@ -96,7 +96,7 @@ export default function VerifyPage() {
             <FiClock className="mx-auto text-amber-400" size={48} />
           )}
 
-          <h1 className="text-3xl font-bold tracking-tight">{envelope.title}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{envelope.title}</h1>
 
           <div className="inline-flex items-center gap-2">
             {allSigned && blockchain?.verified ? (
@@ -111,14 +111,14 @@ export default function VerifyPage() {
 
         {/* Document Details */}
         <div className="grid grid-cols-2 gap-px bg-zinc-900 border border-zinc-900 rounded-md overflow-hidden">
-          <div className="bg-black p-5">
+          <div className="bg-black p-3 sm:p-5">
             <div className="flex items-center gap-2 text-zinc-500 mb-2">
               <FiFileText size={12} />
               <span className="text-xs">Document Type</span>
             </div>
             <span className="text-sm font-medium">{envelope.document_type.replace(/_/g, ' ')}</span>
           </div>
-          <div className="bg-black p-5">
+          <div className="bg-black p-3 sm:p-5">
             <div className="flex items-center gap-2 text-zinc-500 mb-2">
               <FiUser size={12} />
               <span className="text-xs">Created By</span>

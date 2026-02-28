@@ -179,14 +179,14 @@ export default function NewDocumentPage() {
 
   return (
     <div className="min-h-screen bg-black text-white overflow-x-hidden">
-      <div className="relative z-10 p-6 pt-24 max-w-4xl mx-auto space-y-8 pb-40">
+      <div className="relative z-10 p-4 sm:p-6 pt-20 sm:pt-24 max-w-4xl mx-auto space-y-6 sm:space-y-8 pb-40">
         {/* Header */}
         <header className="flex items-center gap-4 border-b border-zinc-900 pb-6">
           <Link href="/user/documents" className="p-2 border border-zinc-800 rounded-md hover:border-zinc-600 transition-colors">
             <FiArrowLeft size={16} />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">New Document</h1>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">New Document</h1>
             <p className="text-zinc-500 text-sm mt-0.5">
               {step === 'template' && 'Select a template'}
               {step === 'fields' && 'Fill in details'}
@@ -499,7 +499,7 @@ export default function NewDocumentPage() {
               <p className="text-sm text-zinc-500">Share these with each signer:</p>
 
               {result.signing_urls.map((s: any, i: number) => (
-                <div key={i} className="flex items-center gap-3 p-4 bg-zinc-950 border border-zinc-900 rounded-md">
+                <div key={i} className="flex items-center gap-3 p-3 sm:p-4 bg-zinc-950 border border-zinc-900 rounded-md">
                   <div className="flex-1 space-y-0.5">
                     <span className="block text-sm font-medium text-white">{s.name}</span>
                     <span className="block text-xs text-zinc-500">{s.role}</span>

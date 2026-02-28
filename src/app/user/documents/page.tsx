@@ -133,38 +133,43 @@ export default function DocumentsPage() {
       <div key={envelope.id} className="border border-zinc-900 bg-black rounded-md">
         {/* Main Row */}
         <div
-          className="group hover:bg-zinc-950 transition-colors p-5 grid md:grid-cols-12 gap-4 items-center relative cursor-pointer"
+          className="group hover:bg-zinc-950 transition-colors p-4 sm:p-5 grid grid-cols-[1fr_auto] md:grid-cols-12 gap-3 sm:gap-4 items-center relative cursor-pointer"
           onClick={() => setExpandedId(isExpanded ? null : envelope.id)}
         >
           <div className="absolute left-0 top-0 bottom-0 w-1 bg-zinc-900 group-hover:bg-white transition-colors rounded-l-md" />
 
-          <div className="md:col-span-1 text-zinc-600 group-hover:text-white transition-colors pl-2">
+          <div className="hidden md:block md:col-span-1 text-zinc-600 group-hover:text-white transition-colors pl-2">
             <FiFileText size={18} />
           </div>
 
-          <div className="md:col-span-4 space-y-0.5">
-            <span className="text-sm font-medium text-white">
+          <div className="col-span-1 md:col-span-4 space-y-0.5 min-w-0">
+            <span className="text-sm font-medium text-white truncate block">
               {envelope.title}
             </span>
-            <div className="text-xs text-zinc-500">
-              {envelope.document_type.replace(/_/g, ' ')}
+            <div className="text-xs text-zinc-500 flex items-center gap-2 flex-wrap">
+              <span>{envelope.document_type.replace(/_/g, ' ')}</span>
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded md:hidden ${config.color}`}>
+                <StatusIcon size={10} />
+                {config.label}
+              </span>
+              <span className="text-zinc-600 md:hidden">{signedCount}/{envelope.signers.length} signed</span>
             </div>
           </div>
 
-          <div className="md:col-span-2">
+          <div className="hidden md:block md:col-span-2">
             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded ${config.color}`}>
               <StatusIcon size={10} />
               {config.label}
             </span>
           </div>
 
-          <div className="md:col-span-2 text-right">
+          <div className="hidden md:block md:col-span-2 text-right">
             <span className="text-sm text-zinc-500">
               {signedCount}/{envelope.signers.length} signed
             </span>
           </div>
 
-          <div className="md:col-span-2 text-right flex items-center justify-end gap-2">
+          <div className="col-span-1 md:col-span-2 flex items-center justify-end gap-2">
             {iNeedToSign && mySigner?.signing_token && (
               <Link
                 href={`/sign/${mySigner.signing_token}`}
@@ -187,33 +192,33 @@ export default function DocumentsPage() {
             )}
           </div>
 
-          <div className="md:col-span-1 flex justify-end">
+          <div className="hidden md:flex md:col-span-1 justify-end">
             {isExpanded ? <FiChevronUp size={14} className="text-zinc-500" /> : <FiChevronDown size={14} className="text-zinc-500" />}
           </div>
         </div>
 
         {/* Expanded Detail Panel */}
         {isExpanded && (
-          <div className="border-t border-zinc-900 p-5 space-y-4 bg-zinc-950/50">
+          <div className="border-t border-zinc-900 p-4 sm:p-5 space-y-4 bg-zinc-950/50">
             {/* Signers */}
             <div className="space-y-2">
               <h4 className="text-xs text-zinc-500 font-medium">Signers</h4>
               {envelope.signers
                 .sort((a: Signer, b: Signer) => a.order - b.order)
                 .map((signer: Signer, i: number) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-zinc-900 last:border-0">
+                <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2 border-b border-zinc-900 last:border-0">
                   <div className="flex items-center gap-3">
                     {signer.status === 'signed' ? (
-                      <FiCheck className="text-green-400" size={14} />
+                      <FiCheck className="text-green-400 shrink-0" size={14} />
                     ) : (
-                      <FiClock className="text-zinc-600" size={14} />
+                      <FiClock className="text-zinc-600 shrink-0" size={14} />
                     )}
                     <div>
                       <span className="text-sm font-medium">{signer.name}</span>
                       <span className="text-xs text-zinc-500 ml-2">{signer.role}</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 ml-7 sm:ml-0">
                     {signer.status === 'signed' ? (
                       <span className="text-xs text-green-400">
                         Signed {signer.signed_at ? new Date(signer.signed_at).toLocaleDateString() : ''}
@@ -264,10 +269,10 @@ export default function DocumentsPage() {
             </div>
 
             {/* Actions Row */}
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 pt-2">
               <Link
                 href={`/verify/${envelope.id}`}
-                className="inline-flex items-center gap-1.5 px-4 py-2 border border-zinc-800 text-zinc-400 hover:text-white hover:border-white text-xs rounded-md transition-all"
+                className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 border border-zinc-800 text-zinc-400 hover:text-white hover:border-white text-xs rounded-md transition-all"
               >
                 <FiShield size={10} /> Verify
               </Link>
@@ -276,13 +281,13 @@ export default function DocumentsPage() {
                 <a
                   href={`/api/envelopes/${envelope.id}/pdf`}
                   target="_blank"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 border border-zinc-800 text-zinc-400 hover:text-white hover:border-white text-xs rounded-md transition-all"
+                  className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 border border-zinc-800 text-zinc-400 hover:text-white hover:border-white text-xs rounded-md transition-all"
                 >
                   <FiFileText size={10} /> Download PDF
                 </a>
               )}
 
-              <span className="font-mono text-xs text-zinc-600 ml-auto">
+              <span className="font-mono text-xs text-zinc-600 sm:ml-auto hidden sm:inline">
                 {envelope.document_hash.slice(0, 16)}...
               </span>
             </div>
@@ -299,18 +304,18 @@ export default function DocumentsPage() {
 
   return (
     <div className="min-h-screen bg-black text-white overflow-x-hidden">
-      <div className="relative z-10 p-6 pt-24 max-w-6xl mx-auto space-y-12 pb-40">
+      <div className="relative z-10 p-4 sm:p-6 pt-20 sm:pt-24 max-w-6xl mx-auto space-y-8 sm:space-y-12 pb-40">
         {/* Header */}
-        <header className="flex items-end justify-between border-b border-zinc-900 pb-8">
+        <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-zinc-900 pb-6 sm:pb-8">
           <div>
-            <h1 className="text-4xl font-bold tracking-tight">Documents</h1>
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Documents</h1>
             <p className="text-zinc-500 text-sm mt-1">
               Your signing envelopes
             </p>
           </div>
           <Link
             href="/user/documents/new"
-            className="px-6 py-3 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200 transition-all flex items-center gap-2"
+            className="px-5 sm:px-6 py-2.5 sm:py-3 bg-white text-black font-medium text-sm rounded-md hover:bg-zinc-200 transition-all flex items-center justify-center gap-2 shrink-0"
           >
             <FiPlus /> New Document
           </Link>
