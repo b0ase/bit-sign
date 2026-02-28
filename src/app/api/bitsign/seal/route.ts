@@ -210,10 +210,22 @@ export async function POST(request: NextRequest) {
     const txidLabel = `TXID: ${txid}`;
     // Render TXID using pixel font (SVG <rect> elements) — no system fonts needed.
     // This guarantees text renders correctly in Vercel serverless (librsvg has no fonts).
-    const txidPng = renderPixelText(txidLabel, txFontSize, '#22c55e');
-    const txidPngBuffer = await sharp(txidPng).png().toBuffer();
-    const txidPngMeta = await sharp(txidPngBuffer).metadata();
-    console.log(`[seal] TXID text strip: ${txidPngMeta.width}x${txidPngMeta.height} → position (${txX}, ${txY})`);
+    const maxStripW = imgW - txX;
+    const maxStripH = imgH - txY;
+    const txidSvgBuf = renderPixelText(txidLabel, txFontSize, '#22c55e');
+    let txidPngBuffer = await sharp(txidSvgBuf).png().toBuffer();
+    let txidPngMeta = await sharp(txidPngBuffer).metadata();
+
+    // Scale down if the strip exceeds available space
+    const stripW = txidPngMeta.width || 0;
+    const stripH = txidPngMeta.height || 0;
+    if (stripW > maxStripW || stripH > maxStripH) {
+      const scale = Math.min(maxStripW / stripW, maxStripH / stripH, 1);
+      const newW = Math.max(1, Math.round(stripW * scale));
+      txidPngBuffer = await sharp(txidPngBuffer).resize(newW).png().toBuffer();
+      txidPngMeta = await sharp(txidPngBuffer).metadata();
+    }
+    console.log(`[seal] TXID text strip: ${txidPngMeta.width}x${txidPngMeta.height} → position (${txX}, ${txY}), available ${maxStripW}x${maxStripH}`);
 
     // Composite the TXID PNG onto the main image at the exact position
     let pipeline = sharp(imgBuffer).composite([{
