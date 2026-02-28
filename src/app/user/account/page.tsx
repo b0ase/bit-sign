@@ -2054,10 +2054,9 @@ function AccountPageInner() {
                                             )}
                                             <button
                                                 onClick={() => dismissCoSignRequest(req.id, 'received')}
-                                                className="px-2 py-1.5 text-xs rounded bg-red-950/40 text-red-400 border border-red-900/40 hover:bg-red-900/40 transition-colors shrink-0 flex items-center gap-1"
-                                                title="Remove"
+                                                className="px-2.5 py-1.5 text-xs font-medium rounded bg-red-950/60 text-red-400 border border-red-900/40 hover:bg-red-900/50 hover:text-red-300 transition-colors shrink-0 flex items-center gap-1"
                                             >
-                                                <FiX size={12} />
+                                                <FiTrash2 size={11} /> Delete
                                             </button>
                                         </div>
                                     </div>
@@ -2198,10 +2197,9 @@ function AccountPageInner() {
                                         )}
                                         <button
                                             onClick={() => dismissSharedDoc(doc.id)}
-                                            className="px-2 py-1.5 text-xs rounded bg-red-950/40 text-red-400 border border-red-900/40 hover:bg-red-900/40 transition-colors shrink-0 flex items-center gap-1"
-                                            title="Remove"
+                                            className="px-2.5 py-1.5 text-xs font-medium rounded bg-red-950/60 text-red-400 border border-red-900/40 hover:bg-red-900/50 hover:text-red-300 transition-colors shrink-0 flex items-center gap-1"
                                         >
-                                            <FiX size={12} />
+                                            <FiTrash2 size={11} /> Delete
                                         </button>
                                         </div>
                                     </div>
@@ -2285,10 +2283,9 @@ function AccountPageInner() {
                                         )}
                                         <button
                                             onClick={() => dismissCoSignRequest(req.id, 'sent')}
-                                            className="p-1 text-zinc-700 hover:text-red-400 transition-colors"
-                                            title="Dismiss"
+                                            className="px-2.5 py-1.5 text-xs font-medium rounded bg-red-950/60 text-red-400 border border-red-900/40 hover:bg-red-900/50 hover:text-red-300 transition-colors flex items-center gap-1"
                                         >
-                                            <FiX size={14} />
+                                            <FiTrash2 size={11} /> Delete
                                         </button>
                                     </div>
                                 </div>
@@ -2640,10 +2637,9 @@ function AccountPageInner() {
                                                                 )}
                                                                 <button
                                                                     onClick={() => dismissSharedDoc(doc.id)}
-                                                                    className="px-2 py-1 text-zinc-600 text-[10px] rounded hover:text-red-400 transition-all flex items-center gap-1"
-                                                                    title="Remove from received"
+                                                                    className="px-2 py-1 bg-red-950/60 text-red-400 text-[10px] font-medium rounded border border-red-900/40 hover:bg-red-900/50 hover:text-red-300 transition-all flex items-center gap-1"
                                                                 >
-                                                                    <FiTrash2 size={10} /> Remove
+                                                                    <FiTrash2 size={10} /> Delete
                                                                 </button>
                                                             </div>
                                                         )}
@@ -2847,10 +2843,9 @@ function AccountPageInner() {
                                                         ) : null}
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); confirmDelete(sig.id, sig); }}
-                                                            className="p-0.5 text-zinc-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                                                            title="Delete"
+                                                            className="px-1.5 py-0.5 bg-red-950/60 text-red-400 text-[9px] font-medium rounded border border-red-900/40 hover:bg-red-900/50 hover:text-red-300 transition-all flex items-center gap-0.5 shrink-0"
                                                         >
-                                                            <FiX size={11} />
+                                                            <FiTrash2 size={9} /> Delete
                                                         </button>
                                                     </div>
                                                 </button>
@@ -2973,7 +2968,7 @@ function AccountPageInner() {
                                                         {isSealed && (
                                                             <button onClick={() => unsealDocument(sig.id)} className="px-2.5 py-1 border border-amber-900/30 bg-black text-amber-700 text-xs rounded hover:text-amber-400 hover:border-amber-800 transition-all flex items-center gap-1.5 ml-auto"><FiLock size={11} /> Unseal</button>
                                                         )}
-                                                        <button onClick={() => confirmDelete(sig.id, sig)} className={`px-2.5 py-1 border border-red-900/30 bg-black text-red-900 text-xs rounded hover:text-red-400 hover:border-red-800 transition-all flex items-center gap-1.5 ${!isSealed ? 'ml-auto' : ''}`}><FiX size={11} /> Delete</button>
+                                                        <button onClick={() => confirmDelete(sig.id, sig)} className={`px-2.5 py-1 bg-red-950/60 text-red-400 text-xs font-medium rounded border border-red-900/40 hover:bg-red-900/50 hover:text-red-300 transition-all flex items-center gap-1.5 ${!isSealed ? 'ml-auto' : ''}`}><FiTrash2 size={11} /> Delete</button>
                                                         <button onClick={() => { setExpandedSig(null); setPreviewData(null); }} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiX size={11} /> Close</button>
                                                     </div>
                                                 </div>
