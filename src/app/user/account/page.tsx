@@ -817,7 +817,7 @@ function AccountPageInner() {
     };
 
     // Multi-element seal handler
-    const handleSeal = async (compositeBase64: string, elements: PlacedElement[]) => {
+    const handleSeal = async (compositeBase64: string, elements: PlacedElement[], txidPosition?: { x: number; y: number; fontSize: number }) => {
         if (!handle || !selectedDocumentId) return;
         // Capture doc ID before any state changes
         const docId = selectedDocumentId;
@@ -850,6 +850,7 @@ function AccountPageInner() {
                     originalDocumentId: docId,
                     compositeData: compositeBase64,
                     elements,
+                    txidPosition,
                     walletSignature: verifyData.signature,
                     walletAddress: verifyData.walletAddress,
                     paymentTxid: verifyData.paymentTxid,

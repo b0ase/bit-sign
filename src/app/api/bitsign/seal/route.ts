@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
       compositeData,
       placement,
       elements,
+      txidPosition,
       walletSignature,
       walletAddress,
       paymentTxid,
@@ -133,8 +134,7 @@ export async function POST(request: NextRequest) {
       }, { status: 502 });
     }
 
-    // Burn the TXID onto the seal stamp in the border area.
-    // The client leaves a blank TXID line; the server writes the real TXID here.
+    // Burn the TXID onto the seal stamp using exact coordinates from the client.
     let finalBase64 = compositeData.replace(/^data:image\/\w+;base64,/, '');
     const isJpeg = compositeData.startsWith('data:image/jpeg');
 
@@ -144,24 +144,14 @@ export async function POST(request: NextRequest) {
       const imgW = imgMeta.width || 800;
       const imgH = imgMeta.height || 600;
 
-      // Match client layout constants exactly
-      const stampFontSize = Math.max(14, Math.round(imgW * 0.016));
-      const lineHeight = Math.round(stampFontSize * 1.5);
-      const borderWidth = Math.round(imgW * 0.04);
-      const stampTextX = borderWidth + Math.round(borderWidth * 0.5);
+      // Use exact pixel coordinates sent by the client
+      const txX = txidPosition?.x || Math.round(imgW * 0.06);
+      const txY = txidPosition?.y || Math.round(imgH * 0.92);
+      const txFontSize = txidPosition?.fontSize || Math.max(14, Math.round(imgW * 0.015));
 
-      // The stamp area: separator line is at (borderWidth + docHeight + borderWidth*0.5)
-      // Stamp text starts at separator + borderWidth*0.5
-      // The TXID blank line is 2nd-to-last in the stamp.
-      // From the bottom: the last line is "bit-sign.online" (smallFont).
-      // Above that is the blank TXID line. So TXID Y = imgH - borderWidth*1.5 - lineHeight*2
-      const txidY = imgH - Math.round(borderWidth * 1.5) - lineHeight * 2;
-
-      // Always burn the real TXID onto the sealed document
       const txidLabel = `TXID: ${txid}`;
-      const displayTxid = txidLabel.length > 60 ? txidLabel.slice(0, 57) + '...' : txidLabel;
       const svgOverlay = Buffer.from(`<svg width="${imgW}" height="${imgH}" xmlns="http://www.w3.org/2000/svg">
-        <text x="${stampTextX}" y="${txidY + stampFontSize}" font-family="monospace" font-size="${stampFontSize}" fill="#22c55e">${displayTxid.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</text>
+        <text x="${txX}" y="${txY + txFontSize}" font-family="monospace" font-size="${txFontSize}" fill="#22c55e">${txidLabel.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</text>
       </svg>`);
 
       let pipeline = sharp(imgBuffer).composite([{ input: svgOverlay, top: 0, left: 0 }]);
@@ -169,6 +159,7 @@ export async function POST(request: NextRequest) {
       else pipeline = pipeline.png();
       const result = await pipeline.toBuffer();
       finalBase64 = result.toString('base64');
+      console.log(`[seal] TXID burned at (${txX}, ${txY}) fontSize=${txFontSize}`);
     } catch (burnErr) {
       console.warn('[seal] TXID burn failed (non-fatal):', burnErr);
     }

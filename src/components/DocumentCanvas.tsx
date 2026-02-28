@@ -31,7 +31,7 @@ interface DocumentCanvasProps {
     existingSealCount?: number;
     elements: PlacedElement[];
     onElementsChange: (elements: PlacedElement[]) => void;
-    onSeal: (compositeBase64: string, elements: PlacedElement[]) => void;
+    onSeal: (compositeBase64: string, elements: PlacedElement[], txidPosition?: { x: number; y: number; fontSize: number }) => void;
     onClose: () => void;
     onEmailRecipients?: () => void;
     onSaveSignature?: (signatureData: { svg: string; json: string }) => Promise<string | null>;
@@ -533,13 +533,21 @@ export default function DocumentCanvas({
             const brandWidth = sheetCtx.measureText(brandText).width;
             sheetCtx.fillText(brandText, sheetW - borderWidth - brandWidth - Math.round(borderWidth * 0.5), stampStartY);
 
+            // Calculate the exact TXID line position for the server to burn onto
+            const txidLineIndex = stampLines.length - 2;
+            const txidPosition = {
+                x: stampTextX,
+                y: Math.round(stampStartY + lineHeight * txidLineIndex),
+                fontSize: stampFontSize,
+            };
+
             // Use JPEG for multi-page docs to stay under Vercel's 4.5MB body limit
             const totalPixels = sheetW * sheetH;
             const useJpeg = effectivePages > 1 || totalPixels > 4_000_000;
             const mimeType = useJpeg ? 'image/jpeg' : 'image/png';
             const quality = useJpeg ? 0.82 : undefined;
             const compositeBase64 = sheetCanvas.toDataURL(mimeType, quality);
-            onSeal(compositeBase64, elements);
+            onSeal(compositeBase64, elements, txidPosition);
         } catch (error) {
             console.error('Compositing failed:', error);
             alert('Failed to create sealed document. Please try again.');
