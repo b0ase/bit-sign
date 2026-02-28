@@ -99,7 +99,8 @@ export async function GET(
             contentType = 'image/' + fileName.split('.').pop()!.toLowerCase().replace('jpg', 'jpeg');
         }
 
-        // ─── v0: Plaintext (base64 stored, no encryption) ─────────────────
+        // ─── v0: Plaintext (base64 stored, no encryption) — serve directly ──
+        // This applies to both owned AND shared documents with no encryption.
         if (encryptionVersion === 0) {
             const buffer = Buffer.from(signature.encrypted_payload, 'base64');
             return new NextResponse(buffer, {

@@ -2153,57 +2153,25 @@ function AccountPageInner() {
                                             )}
                                         </div>
                                         </div>
-                                        <div className="flex items-center gap-2 mt-2 ml-7 sm:ml-0 sm:mt-0 sm:justify-end">
-                                        {isReturnedDoc ? (
-                                            <>
-                                                <button
-                                                    onClick={async () => {
-                                                        setVaultTab('returned');
-                                                        setExpandedSig(doc.document_id);
-                                                        setPreviewLoading(true);
-                                                        setPreviewData(null);
-                                                        try {
-                                                            const res = await fetch(`/api/bitsign/signatures/${doc.document_id}/preview`);
-                                                            if (!res.ok) throw new Error('Failed to load');
-                                                            const blob = await res.blob();
-                                                            const url = URL.createObjectURL(blob);
-                                                            setPreviewData({ url, type: blob.type?.startsWith('image/') ? 'image' : (blob.type || 'image/png') });
-                                                        } catch {
-                                                            addToast('Failed to load document preview', 'warning');
-                                                        } finally {
-                                                            setPreviewLoading(false);
-                                                        }
-                                                        setTimeout(() => vaultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-                                                    }}
-                                                    className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-green-600/20 text-green-400 hover:bg-green-600/30"
-                                                >
-                                                    <FiEye size={12} /> View
-                                                </button>
-                                                <button
-                                                    onClick={() => downloadSignature(doc.document_id)}
-                                                    className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-                                                >
-                                                    <FiDownload size={12} />
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <button
-                                                    onClick={() => previewSharedDoc(doc)}
-                                                    className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-900/40"
-                                                >
-                                                    <FiEye size={12} /> View
-                                                </button>
-                                                {!isSealed && (
-                                                    <button
-                                                        onClick={() => openCoSign(doc)}
-                                                        className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-green-600 text-white hover:bg-green-500 font-medium border border-green-500"
-                                                    >
-                                                        <FiEdit3 size={12} /> Sign
-                                                    </button>
-                                                )}
-                                            </>
-                                        )}
+                                        <div className="flex items-center gap-2 mt-2 ml-7 sm:ml-0 sm:mt-0 sm:justify-end flex-wrap">
+                                            <button
+                                                onClick={() => previewSharedDoc(doc)}
+                                                className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-900/40"
+                                            >
+                                                <FiEye size={12} /> View
+                                            </button>
+                                            <button
+                                                onClick={() => openCoSign(doc)}
+                                                className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-green-600 text-white hover:bg-green-500 font-medium border border-green-500"
+                                            >
+                                                <FiEdit3 size={12} /> Sign
+                                            </button>
+                                            <button
+                                                onClick={() => downloadSignature(doc.document_id)}
+                                                className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 border border-zinc-700"
+                                            >
+                                                <FiDownload size={12} /> Download
+                                            </button>
                                         <button
                                             onClick={() => dismissSharedDoc(doc.id)}
                                             className="px-2.5 py-1.5 text-xs font-medium rounded bg-red-950/60 text-red-400 border border-red-900/40 hover:bg-red-900/50 hover:text-red-300 transition-colors shrink-0 flex items-center gap-1"
@@ -2268,6 +2236,18 @@ function AccountPageInner() {
                                         {req.status === 'signed' && req.response_document_id && (
                                             <button
                                                 onClick={async () => {
+                                                    const sharedDoc: SharedDocument = {
+                                                        id: req.id,
+                                                        document_id: req.response_document_id!,
+                                                        document_type: 'vault_item',
+                                                        grantor_handle: req.recipient_handle || '',
+                                                        wrapped_key: '',
+                                                        ephemeral_public_key: '',
+                                                        created_at: req.signed_at || req.created_at,
+                                                        signature_type: 'SEALED_DOCUMENT',
+                                                        metadata: { originalFileName: req.document_name },
+                                                    };
+                                                    setViewingSharedDoc(sharedDoc);
                                                     setVaultTab('returned');
                                                     setExpandedSig(req.response_document_id!);
                                                     setPreviewLoading(true);
@@ -2682,7 +2662,18 @@ function AccountPageInner() {
                                                     key={req.id}
                                                     onClick={async () => {
                                                         if (req.response_document_id) {
-                                                            // Response doc belongs to co-signer — preview via API (access grant allows it)
+                                                            const sharedDoc: SharedDocument = {
+                                                                id: req.id,
+                                                                document_id: req.response_document_id,
+                                                                document_type: 'vault_item',
+                                                                grantor_handle: req.recipient_handle || '',
+                                                                wrapped_key: '',
+                                                                ephemeral_public_key: '',
+                                                                created_at: req.signed_at || req.created_at,
+                                                                signature_type: 'SEALED_DOCUMENT',
+                                                                metadata: { originalFileName: req.document_name },
+                                                            };
+                                                            setViewingSharedDoc(sharedDoc);
                                                             setExpandedSig(req.response_document_id);
                                                             setPreviewLoading(true);
                                                             setPreviewData(null);
