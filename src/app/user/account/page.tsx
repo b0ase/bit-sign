@@ -1577,12 +1577,27 @@ function AccountPageInner() {
     const downloadSignature = async (sigId: string, sig?: Signature) => {
         try {
             addToast('Downloading...', 'download');
-            const res = await fetch(`/api/bitsign/signatures/${sigId}/preview`);
-            if (!res.ok) throw new Error('Download failed');
-            const blob = await res.blob();
-            const ct = res.headers.get('content-type') || '';
 
-            // Derive correct extension from actual content-type
+            let blobUrl: string;
+            let ct = '';
+
+            // If the document is already loaded in the viewer, use that directly
+            if (previewData?.url && expandedSig === sigId && previewData.url.startsWith('blob:')) {
+                blobUrl = previewData.url;
+                // Determine content type from preview type
+                if (previewData.type === 'svg') ct = 'image/svg+xml';
+                else if (previewData.type === 'pdf') ct = 'application/pdf';
+                else if (previewData.type === 'video') ct = 'video/webm';
+                else ct = 'image/png';
+            } else {
+                const res = await fetch(`/api/bitsign/signatures/${sigId}/preview`);
+                if (!res.ok) throw new Error('Download failed');
+                const blob = await res.blob();
+                ct = res.headers.get('content-type') || '';
+                blobUrl = URL.createObjectURL(blob);
+            }
+
+            // Derive correct extension from content-type
             let ext = '.bin';
             if (ct.includes('jpeg') || ct.includes('jpg')) ext = '.jpg';
             else if (ct.includes('png')) ext = '.png';
@@ -1595,7 +1610,7 @@ function AccountPageInner() {
             if (sig?.metadata?.fileName) {
                 baseName = sig.metadata.fileName.replace(/\.[^.]+$/, '');
             } else if (sig?.signature_type === 'SEALED_DOCUMENT') {
-                const date = new Date(sig.created_at).toISOString().slice(0, 10);
+                const date = sig.created_at ? new Date(sig.created_at).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
                 const txShort = sig.txid && !sig.txid.startsWith('pending-') ? `-${sig.txid.slice(0, 8)}` : '';
                 baseName = `sealed-document-${date}${txShort}`;
             } else if (sig?.signature_type === 'TLDRAW') {
@@ -1604,16 +1619,21 @@ function AccountPageInner() {
                 baseName = `photo-${sigId.slice(0, 8)}`;
             } else if (sig?.signature_type === 'VIDEO') {
                 baseName = `video-${sigId.slice(0, 8)}`;
+            } else if (viewingSharedDoc) {
+                const name = viewingSharedDoc.metadata?.originalFileName || viewingSharedDoc.metadata?.fileName;
+                baseName = name ? name.replace(/\.[^.]+$/, '') : `document-${sigId.slice(0, 8)}`;
             } else {
                 baseName = `document-${sigId.slice(0, 8)}`;
             }
 
-            const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url;
+            a.href = blobUrl;
             a.download = `${baseName}${ext}`;
             a.click();
-            URL.revokeObjectURL(url);
+            // Only revoke if we created the blob URL (not from previewData)
+            if (!previewData?.url || expandedSig !== sigId || blobUrl !== previewData.url) {
+                URL.revokeObjectURL(blobUrl);
+            }
         } catch (error) {
             console.error('Download failed:', error);
             alert('Failed to download. Please try again.');
