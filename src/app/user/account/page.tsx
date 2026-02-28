@@ -158,6 +158,7 @@ function AccountPageInner() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [processingStatus, setProcessingStatus] = useState('');
     const [expandedSig, setExpandedSig] = useState<string | null>(null);
+    const [viewingSharedDoc, setViewingSharedDoc] = useState<SharedDocument | null>(null);
     const [vaultTab, setVaultTab] = useState('all');
     const [previewData, setPreviewData] = useState<{ url: string; type: string } | null>(null);
     const [previewLoading, setPreviewLoading] = useState(false);
@@ -935,6 +936,7 @@ function AccountPageInner() {
     // Preview a shared document in the viewer (read-only)
     const previewSharedDoc = async (doc: SharedDocument) => {
         setExpandedSig(doc.document_id);
+        setViewingSharedDoc(doc);
         setPreviewLoading(true);
         setPreviewData(null);
         setPreviewRotation(0);
@@ -2911,6 +2913,45 @@ function AccountPageInner() {
                                         {/* Actions bar — TOP of viewer */}
                                         {(() => {
                                             const sig = signatures.find(s => s.id === expandedSig);
+                                            // Shared/received document — not in own vault yet
+                                            if (!sig && viewingSharedDoc) {
+                                                const isSealed = viewingSharedDoc.signature_type === 'SEALED_DOCUMENT';
+                                                const docName = viewingSharedDoc.metadata?.originalFileName || 'Document';
+                                                return (
+                                                    <div className="border-b border-zinc-900 p-3 shrink-0">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <span className="text-xs text-zinc-400">From <span className="text-white font-medium">${viewingSharedDoc.grantor_handle}</span></span>
+                                                            <span className="text-xs text-zinc-600">·</span>
+                                                            <span className="text-xs text-zinc-500 truncate">{docName}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setExpandedSig(null);
+                                                                    setPreviewData(null);
+                                                                    setViewingSharedDoc(null);
+                                                                    openCoSign(viewingSharedDoc);
+                                                                }}
+                                                                className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-500 transition-all flex items-center gap-1.5"
+                                                            >
+                                                                <FiEdit3 size={12} /> Sign This Document
+                                                            </button>
+                                                            <button
+                                                                onClick={() => downloadSignature(viewingSharedDoc.document_id, { signature_type: viewingSharedDoc.signature_type || 'DOCUMENT', metadata: viewingSharedDoc.metadata } as any)}
+                                                                className="px-2.5 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"
+                                                            >
+                                                                <FiDownload size={11} /> Download
+                                                            </button>
+                                                            <button
+                                                                onClick={() => { setExpandedSig(null); setPreviewData(null); setViewingSharedDoc(null); }}
+                                                                className="px-2.5 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5 ml-auto"
+                                                            >
+                                                                <FiX size={11} /> Close
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
                                             if (!sig) return null;
                                             const isOnChain = sig.txid && !sig.txid.startsWith('pending-');
                                             const isSigned = sig.wallet_signed;
@@ -2975,7 +3016,7 @@ function AccountPageInner() {
                                                             <button onClick={() => unsealDocument(sig.id)} className="px-2.5 py-1 border border-amber-900/30 bg-black text-amber-700 text-xs rounded hover:text-amber-400 hover:border-amber-800 transition-all flex items-center gap-1.5 ml-auto"><FiLock size={11} /> Unseal</button>
                                                         )}
                                                         <button onClick={() => confirmDelete(sig.id, sig)} className={`px-2.5 py-1 bg-red-950/60 text-red-400 text-xs font-medium rounded border border-red-900/40 hover:bg-red-900/50 hover:text-red-300 transition-all flex items-center gap-1.5 ${!isSealed ? 'ml-auto' : ''}`}><FiTrash2 size={11} /> Delete</button>
-                                                        <button onClick={() => { setExpandedSig(null); setPreviewData(null); }} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiX size={11} /> Close</button>
+                                                        <button onClick={() => { setExpandedSig(null); setPreviewData(null); setViewingSharedDoc(null); }} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiX size={11} /> Close</button>
                                                     </div>
                                                 </div>
                                             );
