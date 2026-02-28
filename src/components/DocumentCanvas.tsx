@@ -208,12 +208,23 @@ export default function DocumentCanvas({
         const drawnHeightPct = pxToHeightPct(SIG_HEIGHT_PX);
         const drawnWidthPct = pxToWidthPct(SIG_WIDTH_PX);
 
+        // Center in the visible viewport
+        const scrollParent = containerRef.current?.closest('.overflow-auto');
+        const container = containerRef.current;
+        let centerYPct = 50;
+        if (scrollParent && container) {
+            const containerRect = container.getBoundingClientRect();
+            const scrollRect = scrollParent.getBoundingClientRect();
+            const visibleCenterY = (scrollRect.top + scrollRect.height / 2) - containerRect.top;
+            centerYPct = Math.max(5, Math.min(90, (visibleCenterY / containerRect.height) * 100));
+        }
+
         const elementId = genId();
         const newElement: PlacedElement = {
             id: elementId,
             type: 'signature',
             xPct: 20,
-            yPct: pxToHeightPct(20),
+            yPct: centerYPct - drawnHeightPct / 2,
             widthPct: drawnWidthPct,
             heightPct: drawnHeightPct,
             signatureSvg: signatureData.svg,
