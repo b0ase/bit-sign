@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
     const txY = txidPosition?.y || Math.round(imgH * 0.92);
     const txFontSize = txidPosition?.fontSize || Math.max(14, Math.round(imgW * 0.015));
 
-    const txidLabel = `TXID: ${txid}`;
+    const txidLabel = `TXID: ${txid.slice(0, 8)}...${txid.slice(-8)}`;
     // Render TXID using pixel font (SVG <rect> elements) — no system fonts needed.
     // This guarantees text renders correctly in Vercel serverless (librsvg has no fonts).
     const maxStripW = imgW - txX;
