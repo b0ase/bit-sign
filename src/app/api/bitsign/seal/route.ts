@@ -10,6 +10,64 @@ import sharp from 'sharp';
 export const maxDuration = 30;
 export const dynamic = 'force-dynamic';
 
+// ─── Pixel font renderer (no system fonts needed) ─────────────────────
+// 5x7 bitmap glyphs for hex chars + TXID label chars. Each glyph is an
+// array of 7 strings, each string 5 chars wide ('X' = filled, '.' = empty).
+const PIXEL_FONT: Record<string, string[]> = {
+  'T': ['XXXXX', '..X..', '..X..', '..X..', '..X..', '..X..', '..X..'],
+  'X': ['X...X', '.X.X.', '..X..', '..X..', '..X..', '.X.X.', 'X...X'],
+  'I': ['XXXXX', '..X..', '..X..', '..X..', '..X..', '..X..', 'XXXXX'],
+  'D': ['XXXX.', 'X...X', 'X...X', 'X...X', 'X...X', 'X...X', 'XXXX.'],
+  ':': ['.....', '..X..', '..X..', '.....', '..X..', '..X..', '.....'],
+  ' ': ['.....', '.....', '.....', '.....', '.....', '.....', '.....'],
+  '0': ['.XXX.', 'X...X', 'X..XX', 'X.X.X', 'XX..X', 'X...X', '.XXX.'],
+  '1': ['..X..', '.XX..', '..X..', '..X..', '..X..', '..X..', '.XXX.'],
+  '2': ['.XXX.', 'X...X', '....X', '..XX.', '.X...', 'X....', 'XXXXX'],
+  '3': ['.XXX.', 'X...X', '....X', '..XX.', '....X', 'X...X', '.XXX.'],
+  '4': ['...X.', '..XX.', '.X.X.', 'X..X.', 'XXXXX', '...X.', '...X.'],
+  '5': ['XXXXX', 'X....', 'XXXX.', '....X', '....X', 'X...X', '.XXX.'],
+  '6': ['.XXX.', 'X....', 'XXXX.', 'X...X', 'X...X', 'X...X', '.XXX.'],
+  '7': ['XXXXX', '....X', '...X.', '..X..', '.X...', '.X...', '.X...'],
+  '8': ['.XXX.', 'X...X', 'X...X', '.XXX.', 'X...X', 'X...X', '.XXX.'],
+  '9': ['.XXX.', 'X...X', 'X...X', '.XXXX', '....X', '....X', '.XXX.'],
+  'a': ['.....', '.....', '.XXX.', '....X', '.XXXX', 'X...X', '.XXXX'],
+  'b': ['X....', 'X....', 'XXXX.', 'X...X', 'X...X', 'X...X', 'XXXX.'],
+  'c': ['.....', '.....', '.XXXX', 'X....', 'X....', 'X....', '.XXXX'],
+  'd': ['....X', '....X', '.XXXX', 'X...X', 'X...X', 'X...X', '.XXXX'],
+  'e': ['.....', '.....', '.XXX.', 'X...X', 'XXXXX', 'X....', '.XXX.'],
+  'f': ['..XX.', '.X...', 'XXXX.', '.X...', '.X...', '.X...', '.X...'],
+};
+
+/** Render a string as an SVG buffer using the pixel font (no system fonts). */
+function renderPixelText(text: string, fontSize: number, color: string): Buffer {
+  const pixelSize = Math.max(1, Math.round(fontSize / 9));
+  const charW = 5 * pixelSize;
+  const charH = 7 * pixelSize;
+  const gap = pixelSize; // 1-pixel gap between characters
+  const totalW = text.length * (charW + gap);
+  const totalH = charH + pixelSize * 2; // small padding
+
+  let rects = '';
+  for (let ci = 0; ci < text.length; ci++) {
+    const ch = text[ci];
+    const glyph = PIXEL_FONT[ch];
+    if (!glyph) continue; // skip unknown chars
+    const baseX = ci * (charW + gap);
+    const baseY = pixelSize; // top padding
+    for (let row = 0; row < 7; row++) {
+      for (let col = 0; col < 5; col++) {
+        if (glyph[row][col] === 'X') {
+          rects += `<rect x="${baseX + col * pixelSize}" y="${baseY + row * pixelSize}" width="${pixelSize}" height="${pixelSize}" fill="${color}"/>`;
+        }
+      }
+    }
+  }
+
+  return Buffer.from(
+    `<svg width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg">${rects}</svg>`
+  );
+}
+
 /**
  * POST /api/bitsign/seal
  * Stores a sealed (signature-placed) document composite and inscribes it on-chain.
@@ -150,24 +208,16 @@ export async function POST(request: NextRequest) {
     const txFontSize = txidPosition?.fontSize || Math.max(14, Math.round(imgW * 0.015));
 
     const txidLabel = `TXID: ${txid}`;
-    // Render TXID as a tight SVG strip (not full-image overlay) → convert to PNG → composite
-    const textWidth = Math.min(imgW - txX, Math.round(txidLabel.length * txFontSize * 0.62));
-    const textHeight = Math.round(txFontSize * 1.8);
-    const txidSvg = Buffer.from(
-      `<svg width="${textWidth}" height="${textHeight}" xmlns="http://www.w3.org/2000/svg">` +
-      `<text x="0" y="${txFontSize}" font-family="Courier,monospace,sans-serif" font-size="${txFontSize}" fill="#22c55e">` +
-      `${txidLabel.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}` +
-      `</text></svg>`
-    );
-
-    // Render the SVG text to PNG first (ensures text rasterization works)
-    const txidPng = await sharp(txidSvg).png().toBuffer();
-    const txidPngMeta = await sharp(txidPng).metadata();
+    // Render TXID using pixel font (SVG <rect> elements) — no system fonts needed.
+    // This guarantees text renders correctly in Vercel serverless (librsvg has no fonts).
+    const txidPng = renderPixelText(txidLabel, txFontSize, '#22c55e');
+    const txidPngBuffer = await sharp(txidPng).png().toBuffer();
+    const txidPngMeta = await sharp(txidPngBuffer).metadata();
     console.log(`[seal] TXID text strip: ${txidPngMeta.width}x${txidPngMeta.height} → position (${txX}, ${txY})`);
 
     // Composite the TXID PNG onto the main image at the exact position
     let pipeline = sharp(imgBuffer).composite([{
-      input: txidPng,
+      input: txidPngBuffer,
       top: txY,
       left: txX,
     }]);
