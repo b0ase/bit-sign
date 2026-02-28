@@ -2588,6 +2588,12 @@ function AccountPageInner() {
                                                         {/* Actions row for received docs */}
                                                         {!hasSignedCoSign && !hasPendingCoSign && (
                                                             <div className="px-2.5 pb-2 flex items-center gap-1.5">
+                                                                <button
+                                                                    onClick={() => previewSharedDoc(doc)}
+                                                                    className="px-2 py-1 bg-blue-600/20 text-blue-400 text-[10px] font-medium rounded border border-blue-900/40 hover:bg-blue-600/30 transition-all flex items-center gap-1"
+                                                                >
+                                                                    <FiEye size={10} /> View
+                                                                </button>
                                                                 {!isSealed && (
                                                                     <button
                                                                         onClick={() => openCoSign(doc)}
