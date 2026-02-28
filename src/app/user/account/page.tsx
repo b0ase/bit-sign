@@ -156,6 +156,7 @@ function AccountPageInner() {
     const [encryptionSeed, setEncryptionSeed] = useState<string | null>(null);
     const [uploadInputKey, setUploadInputKey] = useState(0);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [processingStatus, setProcessingStatus] = useState('');
     const [expandedSig, setExpandedSig] = useState<string | null>(null);
     const [vaultTab, setVaultTab] = useState('all');
     const [previewData, setPreviewData] = useState<{ url: string; type: string } | null>(null);
@@ -822,7 +823,9 @@ function AccountPageInner() {
         const originalDoc = signatures.find(s => s.id === docId);
         const originalFileName = originalDoc ? resolveDocName(originalDoc) : 'Document';
         setIsProcessing(true);
+        setProcessingStatus('Compositing signature onto document...');
         try {
+            setProcessingStatus('Verifying wallet identity via HandCash...');
             const verifyRes = await fetch('/api/bitsign/handcash-verify', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -838,6 +841,7 @@ function AccountPageInner() {
             }
             const verifyData = await verifyRes.json();
 
+            setProcessingStatus('Inscribing to Bitcoin blockchain and sealing document...');
             const sealRes = await fetch('/api/bitsign/seal', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -857,6 +861,7 @@ function AccountPageInner() {
                 if (sealRes.status === 413) msg = 'Document too large to seal. Try a smaller file.';
                 throw new Error(msg);
             }
+            setProcessingStatus('Saving sealed document to vault...');
             const sealData = await sealRes.json();
 
             setSignatures(prev => [{
@@ -923,6 +928,7 @@ function AccountPageInner() {
             alert(error?.message || 'Failed to seal document.');
         } finally {
             setIsProcessing(false);
+            setProcessingStatus('');
         }
     };
 
@@ -3288,17 +3294,16 @@ function AccountPageInner() {
 
                 {isProcessing && (
                     <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-2xl flex items-center justify-center">
-                        <div className="flex flex-col items-center gap-8">
+                        <div className="flex flex-col items-center gap-8 max-w-sm px-6">
                             <div className="relative w-16 h-16">
-                                <div className="absolute inset-0 border-t-2 border-r-2 border-white animate-spin rounded-full opacity-20" />
-                                <div className="absolute inset-4 border-b-2 border-l-2 border-zinc-500 animate-[spin_4s_linear_infinite] rounded-full opacity-40" />
+                                <div className="absolute inset-0 border-t-2 border-r-2 border-amber-500 animate-spin rounded-full opacity-40" />
+                                <div className="absolute inset-4 border-b-2 border-l-2 border-green-500 animate-[spin_4s_linear_infinite] rounded-full opacity-40" />
                                 <div className="absolute inset-0 flex items-center justify-center">
-                                    <FiCpu className="text-white text-lg animate-pulse" />
+                                    <FiShield className="text-amber-400 text-lg animate-pulse" />
                                 </div>
                             </div>
-                            <div className="text-center space-y-1">
-                                <span className="block text-base text-white font-medium">Processing...</span>
-                                <span className="block text-sm text-zinc-500">Encrypting and uploading</span>
+                            <div className="text-center space-y-2">
+                                <span className="block text-sm text-white font-medium">{processingStatus || 'Processing...'}</span>
                             </div>
                         </div>
                     </div>
