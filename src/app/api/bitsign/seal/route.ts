@@ -119,14 +119,14 @@ export async function POST(request: NextRequest) {
         description: `Seal: ${shortName}`,
         appAction: 'seal',
         payments: [
-          { destination: 'boase', currencyCode: 'BSV', sendAmount: 0.001 },
+          { destination: 'signature', currencyCode: 'BSV', sendAmount: 0.001 },
         ],
         attachment: { format: 'json', value: inscriptionData },
       });
 
       txid = paymentResult.transactionId;
       inscriptionResult = paymentResult;
-      console.log(`[seal] On-chain inscription: ${txid} (paid to $boase)`);
+      console.log(`[seal] On-chain inscription: ${txid} (paid to $signature)`);
     } catch (inscribeError: any) {
       console.error('[seal] HandCash inscription failed:', inscribeError?.message || inscribeError);
       return NextResponse.json({
@@ -134,35 +134,51 @@ export async function POST(request: NextRequest) {
       }, { status: 502 });
     }
 
-    // Burn the TXID onto the seal stamp using exact coordinates from the client.
+    // Burn the TXID onto the seal stamp — REQUIRED, not optional.
+    // Two-step: render TXID text as a small PNG strip, then composite onto the document.
     let finalBase64 = compositeData.replace(/^data:image\/\w+;base64,/, '');
     const isJpeg = compositeData.startsWith('data:image/jpeg');
 
-    try {
-      const imgBuffer = Buffer.from(finalBase64, 'base64');
-      const imgMeta = await sharp(imgBuffer).metadata();
-      const imgW = imgMeta.width || 800;
-      const imgH = imgMeta.height || 600;
+    const imgBuffer = Buffer.from(finalBase64, 'base64');
+    const imgMeta = await sharp(imgBuffer).metadata();
+    const imgW = imgMeta.width || 800;
+    const imgH = imgMeta.height || 600;
 
-      // Use exact pixel coordinates sent by the client
-      const txX = txidPosition?.x || Math.round(imgW * 0.06);
-      const txY = txidPosition?.y || Math.round(imgH * 0.92);
-      const txFontSize = txidPosition?.fontSize || Math.max(14, Math.round(imgW * 0.015));
+    // Use exact pixel coordinates sent by the client, or fallback
+    const txX = txidPosition?.x || Math.round(imgW * 0.06);
+    const txY = txidPosition?.y || Math.round(imgH * 0.92);
+    const txFontSize = txidPosition?.fontSize || Math.max(14, Math.round(imgW * 0.015));
 
-      const txidLabel = `TXID: ${txid}`;
-      const svgOverlay = Buffer.from(`<svg width="${imgW}" height="${imgH}" xmlns="http://www.w3.org/2000/svg">
-        <text x="${txX}" y="${txY + txFontSize}" font-family="monospace" font-size="${txFontSize}" fill="#22c55e">${txidLabel.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</text>
-      </svg>`);
+    const txidLabel = `TXID: ${txid}`;
+    // Render TXID as a tight SVG strip (not full-image overlay) → convert to PNG → composite
+    const textWidth = Math.min(imgW - txX, Math.round(txidLabel.length * txFontSize * 0.62));
+    const textHeight = Math.round(txFontSize * 1.8);
+    const txidSvg = Buffer.from(
+      `<svg width="${textWidth}" height="${textHeight}" xmlns="http://www.w3.org/2000/svg">` +
+      `<text x="0" y="${txFontSize}" font-family="Courier,monospace,sans-serif" font-size="${txFontSize}" fill="#22c55e">` +
+      `${txidLabel.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}` +
+      `</text></svg>`
+    );
 
-      let pipeline = sharp(imgBuffer).composite([{ input: svgOverlay, top: 0, left: 0 }]);
-      if (isJpeg) pipeline = pipeline.jpeg({ quality: 85 });
-      else pipeline = pipeline.png();
-      const result = await pipeline.toBuffer();
-      finalBase64 = result.toString('base64');
-      console.log(`[seal] TXID burned at (${txX}, ${txY}) fontSize=${txFontSize}`);
-    } catch (burnErr) {
-      console.warn('[seal] TXID burn failed (non-fatal):', burnErr);
-    }
+    // Render the SVG text to PNG first (ensures text rasterization works)
+    const txidPng = await sharp(txidSvg).png().toBuffer();
+    const txidPngMeta = await sharp(txidPng).metadata();
+    console.log(`[seal] TXID text strip: ${txidPngMeta.width}x${txidPngMeta.height} → position (${txX}, ${txY})`);
+
+    // Composite the TXID PNG onto the main image at the exact position
+    let pipeline = sharp(imgBuffer).composite([{
+      input: txidPng,
+      top: txY,
+      left: txX,
+    }]);
+    if (isJpeg) pipeline = pipeline.jpeg({ quality: 85 });
+    else pipeline = pipeline.png();
+    const burnedResult = await pipeline.toBuffer();
+    finalBase64 = burnedResult.toString('base64');
+
+    // Re-hash the final image (with TXID baked in) for the stored record
+    const finalHash = await hashData(`data:image/${isJpeg ? 'jpeg' : 'png'};base64,${finalBase64}`);
+    console.log(`[seal] TXID burned successfully. Pre-TXID hash: ${compositeHash.slice(0, 16)}... Final hash: ${finalHash.slice(0, 16)}...`);
 
     // Store sealed document as new vault item
     const { data: sealed, error: sealError } = await supabaseAdmin
@@ -170,7 +186,7 @@ export async function POST(request: NextRequest) {
       .insert({
         user_handle: handle,
         signature_type: 'SEALED_DOCUMENT',
-        payload_hash: compositeHash,
+        payload_hash: finalHash,
         encrypted_payload: finalBase64,
         iv: null,
         txid,
@@ -178,6 +194,7 @@ export async function POST(request: NextRequest) {
           type: 'Sealed Document',
           originalDocumentId,
           originalFileName,
+          preInscriptionHash: compositeHash,
           placement,
           elements: elements || undefined,
           mimeType: isJpeg ? 'image/jpeg' : 'image/png',
