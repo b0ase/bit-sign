@@ -2025,11 +2025,19 @@ function AccountPageInner() {
                                                 </button>
                                             )}
                                             <button
+                                                onClick={() => previewSharedDoc({ id: req.id, document_id: req.document_id, document_type: 'vault_item', grantor_handle: req.sender_handle, wrapped_key: '', ephemeral_public_key: '', created_at: req.created_at, signature_type: 'SEALED_DOCUMENT', metadata: { originalFileName: req.document_name } })}
+                                                className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 shrink-0 cursor-pointer bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-900/40"
+                                            >
+                                                <FiEye size={12} /> View
+                                            </button>
+                                            {!signatures.some(s => s.signature_type === 'SEALED_DOCUMENT' && s.metadata?.originalDocumentId === req.document_id) && (
+                                            <button
                                                 onClick={() => openCoSign({ id: req.id, document_id: req.document_id, document_type: 'vault_item', grantor_handle: req.sender_handle, wrapped_key: '', ephemeral_public_key: '', created_at: req.created_at, signature_type: 'SEALED_DOCUMENT', metadata: { originalFileName: req.document_name } })}
                                                 className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 shrink-0 cursor-pointer bg-green-600/20 text-green-400 hover:bg-green-600/30 border border-green-900/40"
                                             >
                                                 <FiEdit3 size={12} /> Sign
                                             </button>
+                                            )}
                                             <button
                                                 onClick={() => dismissCoSignRequest(req.id, 'received')}
                                                 className="px-2 py-1.5 text-xs rounded bg-red-950/40 text-red-400 border border-red-900/40 hover:bg-red-900/40 transition-colors shrink-0 flex items-center gap-1"
