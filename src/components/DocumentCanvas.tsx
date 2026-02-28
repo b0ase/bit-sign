@@ -517,7 +517,7 @@ export default function DocumentCanvas({
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => setShowSignatureModal(true)}
-                        className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-300 text-xs rounded-md hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-1.5"
+                        className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-500 transition-all flex items-center gap-1.5"
                     >
                         <FiPenTool size={12} /> Draw Signature
                     </button>

@@ -266,9 +266,9 @@ export default function SovereignSignature({ onSave, onCancel }: SovereignSignat
                     <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="px-5 py-2 bg-white text-black text-sm font-medium rounded-md hover:bg-zinc-200 transition-colors disabled:opacity-50"
+                        className="px-5 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-500 transition-colors disabled:opacity-50"
                     >
-                        {saving ? 'Saving...' : 'Save Signature'}
+                        {saving ? 'Sealing...' : 'Save & Seal'}
                     </button>
                 </div>
             </header>
