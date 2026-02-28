@@ -36,6 +36,7 @@ export default function Navbar() {
                     </Link>
 
                     <div className="hidden md:flex items-center gap-6">
+                        {handle && <Link href="/user/account" className="text-sm text-neutral-400 hover:text-white transition-colors">Dashboard</Link>}
                         {handle && <Link href="/user/documents" className="text-sm text-neutral-400 hover:text-white transition-colors">Documents</Link>}
                         {handle && <Link href="/user/bit-trust" className="text-sm text-neutral-400 hover:text-white transition-colors">Bit Trust</Link>}
                         <Link href="/docs" className="text-sm text-neutral-400 hover:text-white transition-colors">Docs</Link>
@@ -106,7 +107,7 @@ export default function Navbar() {
                     {handle && (
                         <>
                             <Link href="/user/account" onClick={closeMobile} className="block px-3 py-2.5 text-sm text-neutral-300 hover:text-white rounded-md hover:bg-white/5 transition-colors">
-                                Account
+                                Dashboard
                             </Link>
                             <Link href="/user/documents" onClick={closeMobile} className="block px-3 py-2.5 text-sm text-neutral-300 hover:text-white rounded-md hover:bg-white/5 transition-colors">
                                 Documents
