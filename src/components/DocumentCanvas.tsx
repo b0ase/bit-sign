@@ -434,10 +434,13 @@ export default function DocumentCanvas({
                 }
             }
 
-            // Draw seal stamp — stacked upward from bottom-right so multiple seals don't overlap
-            const stampPad = Math.round(canvas.width * 0.02);
-            const stampFontSize = Math.max(12, Math.round(canvas.width * 0.014));
+            // === BORDERED SHEET WITH SEAL ===
+            // Place the signed document on a larger sheet with borders.
+            // The seal stamp goes on the border, not on the document itself.
+
+            const stampFontSize = Math.max(14, Math.round(docImg.naturalWidth * 0.016));
             const smallFont = Math.round(stampFontSize * 0.85);
+            const lineHeight = stampFontSize * 1.5;
             const now = new Date();
             const dateStr = now.toISOString().slice(0, 10);
             const timeStr = now.toTimeString().slice(0, 5);
@@ -448,50 +451,70 @@ export default function DocumentCanvas({
             if (signerName) {
                 stampLines.push({ text: signerName, color: '#e4e4e7' });
             }
-            // Add all connected identities (email, LinkedIn, Twitter, GitHub)
             for (const id of signerIdentities) {
                 stampLines.push({ text: id, color: '#a1a1aa' });
             }
             stampLines.push({ text: `${dateStr} ${timeStr} UTC`, color: '#d4d4d8' });
-            // TXID placeholder — the API will burn the real TXID over this line
             stampLines.push({ text: 'TXID: pending...', color: '#71717a' });
             stampLines.push({ text: 'bit-sign.online', color: '#52525b' });
 
-            // Measure widths
-            ctx.font = `bold ${stampFontSize}px monospace`;
-            const maxLineWidth = Math.max(...stampLines.map(l => {
-                ctx.font = `${l.bold ? 'bold ' : ''}${stampFontSize}px monospace`;
-                return ctx.measureText(l.text).width;
-            }));
-            const boxW = maxLineWidth + stampPad * 3;
-            const lineHeight = stampFontSize * 1.4;
-            const boxH = lineHeight * stampLines.length + stampPad * 2;
+            // Calculate border and sheet dimensions
+            const borderWidth = Math.round(docImg.naturalWidth * 0.04);
+            const stampAreaHeight = lineHeight * stampLines.length + borderWidth * 2;
+            const sheetW = docImg.naturalWidth + borderWidth * 2;
+            const sheetH = docImg.naturalHeight + borderWidth + stampAreaHeight;
 
-            // Position: bottom-right, offset upward by existingSealCount
-            const boxX = canvas.width - boxW - stampPad * 2;
-            const sealSpacing = boxH + stampPad;
-            const boxY = canvas.height - boxH - stampPad * 2 - (existingSealCount * sealSpacing);
+            // Create the bordered sheet canvas
+            const sheetCanvas = document.createElement('canvas');
+            sheetCanvas.width = sheetW;
+            sheetCanvas.height = sheetH;
+            const sheetCtx = sheetCanvas.getContext('2d')!;
 
-            // Stamp background
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-            ctx.fillRect(boxX, boxY, boxW, boxH);
-            ctx.strokeStyle = 'rgba(245, 158, 11, 0.8)';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(boxX, boxY, boxW, boxH);
+            // Sheet background (dark)
+            sheetCtx.fillStyle = '#18181b';
+            sheetCtx.fillRect(0, 0, sheetW, sheetH);
 
-            // Stamp text
-            ctx.textBaseline = 'top';
+            // Border line around document area
+            sheetCtx.strokeStyle = '#3f3f46';
+            sheetCtx.lineWidth = 2;
+            sheetCtx.strokeRect(borderWidth - 1, borderWidth - 1, docImg.naturalWidth + 2, docImg.naturalHeight + 2);
+
+            // Place the signed document (from the first canvas) inside the border
+            sheetCtx.drawImage(canvas, borderWidth, borderWidth);
+
+            // Draw amber accent line separating document from seal area
+            const sealY = borderWidth + docImg.naturalHeight + Math.round(borderWidth * 0.5);
+            sheetCtx.strokeStyle = 'rgba(245, 158, 11, 0.6)';
+            sheetCtx.lineWidth = 2;
+            sheetCtx.beginPath();
+            sheetCtx.moveTo(borderWidth, sealY);
+            sheetCtx.lineTo(sheetW - borderWidth, sealY);
+            sheetCtx.stroke();
+
+            // Draw seal stamp text in the border area below the document
+            sheetCtx.textBaseline = 'top';
+            const stampTextX = borderWidth + Math.round(borderWidth * 0.5);
+            const stampStartY = sealY + Math.round(borderWidth * 0.5);
+
             stampLines.forEach((line, idx) => {
-                ctx.fillStyle = line.color;
-                ctx.font = `${line.bold ? 'bold ' : ''}${idx === stampLines.length - 1 ? smallFont : stampFontSize}px monospace`;
-                ctx.fillText(line.text, boxX + stampPad * 1.5, boxY + stampPad + lineHeight * idx);
+                sheetCtx.fillStyle = line.color;
+                sheetCtx.font = `${line.bold ? 'bold ' : ''}${idx === stampLines.length - 1 ? smallFont : stampFontSize}px monospace`;
+                sheetCtx.fillText(line.text, stampTextX, stampStartY + lineHeight * idx);
             });
 
+            // bit-sign.online branding — right-aligned
+            sheetCtx.fillStyle = '#3f3f46';
+            sheetCtx.font = `${smallFont}px monospace`;
+            const brandText = 'bit-sign.online';
+            const brandWidth = sheetCtx.measureText(brandText).width;
+            sheetCtx.fillText(brandText, sheetW - borderWidth - brandWidth - Math.round(borderWidth * 0.5), stampStartY);
+
             // Use JPEG for multi-page docs to stay under Vercel's 4.5MB body limit
-            const useJpeg = effectivePages > 1 || canvas.width * canvas.height > 4_000_000;
+            const totalPixels = sheetW * sheetH;
+            const useJpeg = effectivePages > 1 || totalPixels > 4_000_000;
             const mimeType = useJpeg ? 'image/jpeg' : 'image/png';
             const quality = useJpeg ? 0.82 : undefined;
-            const compositeBase64 = canvas.toDataURL(mimeType, quality);
+            const compositeBase64 = sheetCanvas.toDataURL(mimeType, quality);
             onSeal(compositeBase64, elements);
         } catch (error) {
             console.error('Compositing failed:', error);

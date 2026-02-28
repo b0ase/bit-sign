@@ -870,9 +870,22 @@ function AccountPageInner() {
                 encryption_version: 0,
             }, ...prev]);
 
-            // If this was a co-sign or witness request, return the signed document to sender
-            // Close canvas now that seal succeeded — safe to clear state
+            // Close canvas and auto-open the sealed document preview
             closeDocumentCanvas();
+            // Show the sealed result in the vault viewer
+            setTimeout(() => {
+                previewSignature({
+                    id: sealData.id,
+                    signature_type: 'SEALED_DOCUMENT',
+                    txid: sealData.txid,
+                    created_at: new Date().toISOString(),
+                    metadata: { type: 'Sealed Document', mimeType: 'image/png', originalDocumentId: docId, originalFileName },
+                    wallet_signed: true,
+                    wallet_address: verifyData.walletAddress,
+                    encryption_version: 0,
+                });
+                setVaultTab('sealed');
+            }, 300);
 
             const matchingRequest = coSignRequests.find(r => r.document_id === docId && r.status === 'pending');
             if (matchingRequest) {
