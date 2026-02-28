@@ -113,8 +113,9 @@ export async function POST(request: NextRequest) {
         sealedAt: new Date().toISOString(),
       };
 
+      const shortName = originalFileName.length > 12 ? originalFileName.slice(0, 12) + '…' : originalFileName;
       const paymentResult = await userAccount.wallet.pay({
-        description: `BitSign: Seal "${originalFileName}"`,
+        description: `Seal: ${shortName}`,
         appAction: 'seal',
         payments: [
           { destination: 'boase', currencyCode: 'BSV', sendAmount: 0.001 },
