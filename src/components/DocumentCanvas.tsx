@@ -455,7 +455,8 @@ export default function DocumentCanvas({
                 stampLines.push({ text: id, color: '#a1a1aa' });
             }
             stampLines.push({ text: `${dateStr} ${timeStr} UTC`, color: '#d4d4d8' });
-            stampLines.push({ text: 'TXID: pending...', color: '#71717a' });
+            // TXID line is left blank — the server burns the real TXID here after chain inscription
+            stampLines.push({ text: '', color: 'transparent' });
             stampLines.push({ text: 'bit-sign.online', color: '#52525b' });
 
             // Calculate border and sheet dimensions

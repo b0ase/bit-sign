@@ -130,54 +130,50 @@ export async function POST(request: NextRequest) {
       txid = `pending-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     }
 
-    // Burn the real TXID onto the seal stamp in the border area
+    // Burn the real TXID onto the seal stamp in the border area.
+    // The client leaves a blank line (2nd from bottom) for the TXID.
+    // We write green TXID text there, or skip if inscription failed.
     let finalBase64 = compositeData.replace(/^data:image\/\w+;base64,/, '');
     const isJpeg = compositeData.startsWith('data:image/jpeg');
 
     try {
       const imgBuffer = Buffer.from(finalBase64, 'base64');
-      const metadata = await sharp(imgBuffer).metadata();
-      const imgW = metadata.width || 800;
-      const imgH = metadata.height || 600;
+      const imgMeta = await sharp(imgBuffer).metadata();
+      const imgW = imgMeta.width || 800;
+      const imgH = imgMeta.height || 600;
 
-      // The bordered sheet layout: document is inset by ~4% border on each side.
-      // Seal stamp is in the bottom border area below the document.
-      // Font size matches client: max(14, imgW * 0.016) but we use the sheet width here.
+      // Match client layout constants exactly
       const stampFontSize = Math.max(14, Math.round(imgW * 0.016));
       const lineHeight = Math.round(stampFontSize * 1.5);
       const borderWidth = Math.round(imgW * 0.04);
-
-      const txidText = txid.startsWith('pending-') ? `REF: ${txid}` : `TXID: ${txid}`;
-      const displayTxid = txidText.length > 60 ? txidText.slice(0, 57) + '...' : txidText;
-
-      // The TXID placeholder is the 2nd-to-last line in the stamp area.
-      // Count lines above it to find its Y position from the bottom of the sheet.
-      // Lines from bottom: bit-sign.online (last), TXID (2nd-to-last)
-      // The stamp area starts after the amber separator line.
-      // TXID line offset from bottom: borderWidth padding + 1 line (bit-sign.online) + smallFont line
-      const smallFontLine = Math.round(stampFontSize * 0.85 * 1.5);
-      const txidY = imgH - borderWidth - smallFontLine - lineHeight;
-
       const stampTextX = borderWidth + Math.round(borderWidth * 0.5);
-      const rectX = stampTextX - 4;
-      const rectW = Math.min(imgW - borderWidth * 2, stampFontSize * displayTxid.length * 0.65);
 
-      const svgOverlay = Buffer.from(`<svg width="${imgW}" height="${imgH}" xmlns="http://www.w3.org/2000/svg">
-        <style>
-          .txid { font: ${stampFontSize}px monospace; fill: #22c55e; }
-        </style>
-        <rect x="${rectX}" y="${txidY - 2}" width="${rectW}" height="${lineHeight}" fill="#18181b" />
-        <text x="${stampTextX}" y="${txidY + stampFontSize}" class="txid">${displayTxid.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</text>
-      </svg>`);
+      // The stamp area: separator line is at (borderWidth + docHeight + borderWidth*0.5)
+      // Stamp text starts at separator + borderWidth*0.5
+      // The TXID blank line is 2nd-to-last in the stamp.
+      // From the bottom: the last line is "bit-sign.online" (smallFont).
+      // Above that is the blank TXID line. So TXID Y = imgH - borderWidth*1.5 - lineHeight*2
+      const smallFont = Math.round(stampFontSize * 0.85);
+      const txidY = imgH - Math.round(borderWidth * 1.5) - lineHeight * 2;
 
-      let pipeline = sharp(imgBuffer).composite([{ input: svgOverlay, top: 0, left: 0 }]);
-      if (isJpeg) pipeline = pipeline.jpeg({ quality: 85 });
-      else pipeline = pipeline.png();
-      const result = await pipeline.toBuffer();
+      const txidText = txid.startsWith('pending-')
+        ? '' // Don't write anything if inscription failed
+        : `TXID: ${txid}`;
 
-      finalBase64 = result.toString('base64');
+      if (txidText) {
+        const displayTxid = txidText.length > 60 ? txidText.slice(0, 57) + '...' : txidText;
+        const svgOverlay = Buffer.from(`<svg width="${imgW}" height="${imgH}" xmlns="http://www.w3.org/2000/svg">
+          <text x="${stampTextX}" y="${txidY + stampFontSize}" font-family="monospace" font-size="${stampFontSize}" fill="#22c55e">${displayTxid.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</text>
+        </svg>`);
+
+        let pipeline = sharp(imgBuffer).composite([{ input: svgOverlay, top: 0, left: 0 }]);
+        if (isJpeg) pipeline = pipeline.jpeg({ quality: 85 });
+        else pipeline = pipeline.png();
+        const result = await pipeline.toBuffer();
+        finalBase64 = result.toString('base64');
+      }
     } catch (burnErr) {
-      console.warn('[seal] TXID burn failed (non-fatal, using original image):', burnErr);
+      console.warn('[seal] TXID burn failed (non-fatal):', burnErr);
     }
 
     // Store sealed document as new vault item
