@@ -11,7 +11,7 @@ const WHATSONCHAIN_API = 'https://api.whatsonchain.com/v1/bsv/main';
 const FETCH_TIMEOUT_MS = 30000;
 
 export interface BitSignInscriptionData {
-  type: 'signature_registration' | 'document_signature' | 'envelope_signing' | 'identity_root' | 'identity_strand' | 'ip_thread';
+  type: 'signature_registration' | 'document_signature' | 'envelope_signing' | 'identity_root' | 'identity_strand' | 'ip_thread' | 'document_seal' | 'document_seal_confirmation';
 
   // For signature registration
   signatureId?: string;

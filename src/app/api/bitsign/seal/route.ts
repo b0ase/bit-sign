@@ -167,6 +167,7 @@ export async function POST(request: NextRequest) {
         type: 'document_seal',
         documentHash: compositeHash,
         signerHandle: handle,
+        walletAddress: walletAddress || undefined,
         originalDocumentId,
         originalFileName,
         sealedAt: new Date().toISOString(),
@@ -242,6 +243,36 @@ export async function POST(request: NextRequest) {
     const finalHash = await hashData(`data:image/${isJpeg ? 'jpeg' : 'png'};base64,${finalBase64}`);
     console.log(`[seal] TXID burned successfully. Pre-TXID hash: ${compositeHash.slice(0, 16)}... Final hash: ${finalHash.slice(0, 16)}...`);
 
+    // Second inscription: confirm finalHash on-chain (non-fatal)
+    let confirmationTxid: string | null = null;
+    try {
+      const confirmData = {
+        protocol: 'b0ase-bitsign',
+        version: '1.0',
+        type: 'document_seal_confirmation',
+        finalHash,
+        sealTxid: txid,
+        preInscriptionHash: compositeHash,
+        signerHandle: handle,
+        walletAddress: walletAddress || undefined,
+        confirmedAt: new Date().toISOString(),
+      };
+
+      const confirmResult = await userAccount.wallet.pay({
+        description: 'Seal confirm',
+        appAction: 'seal-confirm',
+        payments: [
+          { destination: 'signature', currencyCode: 'BSV', sendAmount: 0.00001 },
+        ],
+        attachment: { format: 'json', value: confirmData },
+      });
+
+      confirmationTxid = confirmResult.transactionId;
+      console.log(`[seal] Confirmation inscription: ${confirmationTxid}`);
+    } catch (confirmErr: any) {
+      console.warn('[seal] Confirmation inscription failed (non-fatal):', confirmErr?.message || confirmErr);
+    }
+
     // Store sealed document as new vault item
     const { data: sealed, error: sealError } = await supabaseAdmin
       .from('bit_sign_signatures')
@@ -263,6 +294,7 @@ export async function POST(request: NextRequest) {
           walletAddress,
           walletSignature,
           paymentTxid,
+          confirmationTxid,
         },
         encryption_version: 0,
         wallet_signed: !!walletSignature,
@@ -305,6 +337,10 @@ export async function POST(request: NextRequest) {
         transactionId: inscriptionResult.transactionId,
         explorerUrl: `https://whatsonchain.com/tx/${inscriptionResult.transactionId}`,
       },
+      confirmation: confirmationTxid ? {
+        transactionId: confirmationTxid,
+        explorerUrl: `https://whatsonchain.com/tx/${confirmationTxid}`,
+      } : null,
     });
   } catch (error: any) {
     console.error('[seal] Error:', error);
