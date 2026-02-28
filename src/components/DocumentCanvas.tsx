@@ -233,13 +233,25 @@ export default function DocumentCanvas({
         }
     }, [elements, onElementsChange, onSaveSignature, docLoaded]);
 
-    // Add text element
+    // Add text element — centered in the visible viewport
     const addTextElement = useCallback(() => {
+        // Find the scroll container and compute visible center in document %
+        const scrollParent = containerRef.current?.closest('.overflow-auto');
+        const container = containerRef.current;
+        let centerYPct = 50; // default to middle of document
+        if (scrollParent && container) {
+            const containerRect = container.getBoundingClientRect();
+            const scrollRect = scrollParent.getBoundingClientRect();
+            // Visible center relative to the container
+            const visibleCenterY = (scrollRect.top + scrollRect.height / 2) - containerRect.top;
+            centerYPct = Math.max(5, Math.min(90, (visibleCenterY / containerRect.height) * 100));
+        }
+
         const newElement: PlacedElement = {
             id: genId(),
             type: 'text',
             xPct: 30,
-            yPct: pxToHeightPct(20),
+            yPct: centerYPct - pxToHeightPct(TEXT_HEIGHT_PX) / 2,
             widthPct: 40,
             heightPct: pxToHeightPct(TEXT_HEIGHT_PX),
             text: 'Type here...',
@@ -251,15 +263,26 @@ export default function DocumentCanvas({
         setEditingTextId(newElement.id);
     }, [elements, onElementsChange, docLoaded]);
 
-    // Add date element
+    // Add date element — centered in the visible viewport
     const addDateElement = useCallback(() => {
         const now = new Date();
         const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+        const scrollParent = containerRef.current?.closest('.overflow-auto');
+        const container = containerRef.current;
+        let centerYPct = 50;
+        if (scrollParent && container) {
+            const containerRect = container.getBoundingClientRect();
+            const scrollRect = scrollParent.getBoundingClientRect();
+            const visibleCenterY = (scrollRect.top + scrollRect.height / 2) - containerRect.top;
+            centerYPct = Math.max(5, Math.min(90, (visibleCenterY / containerRect.height) * 100));
+        }
+
         const newElement: PlacedElement = {
             id: genId(),
             type: 'text',
             xPct: 55,
-            yPct: pxToHeightPct(20),
+            yPct: centerYPct - pxToHeightPct(DATE_HEIGHT_PX) / 2,
             widthPct: 20,
             heightPct: pxToHeightPct(DATE_HEIGHT_PX),
             text: dateStr,
@@ -406,7 +429,7 @@ export default function DocumentCanvas({
                     if (sigImg) {
                         ctx.drawImage(sigImg, x, y, w, h);
                     }
-                } else if (el.type === 'text' && el.text) {
+                } else if (el.type === 'text' && el.text && el.text !== 'Type here...') {
                     const fontSize = Math.round((el.fontSize || 16) * (canvas.width / 800));
                     ctx.font = `${fontSize}px ${el.fontFamily || 'sans-serif'}`;
                     ctx.fillStyle = '#000000';
@@ -710,10 +733,28 @@ export default function DocumentCanvas({
                                         {/* Text element */}
                                         {isEditingText ? (
                                             <textarea
+                                                ref={(textarea) => {
+                                                    if (textarea) {
+                                                        textarea.focus();
+                                                        // If it's the placeholder, select all so typing replaces it
+                                                        if (el.text === 'Type here...') {
+                                                            textarea.select();
+                                                        }
+                                                    }
+                                                }}
                                                 value={el.text || ''}
                                                 onChange={(e) => updateText(el.id, e.target.value)}
                                                 onBlur={() => setEditingTextId(null)}
-                                                autoFocus
+                                                onKeyDown={(e) => {
+                                                    // On first keystroke with placeholder, clear and replace
+                                                    if (el.text === 'Type here...' && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+                                                        e.preventDefault();
+                                                        updateText(el.id, e.key);
+                                                        // Move cursor to end after replacing
+                                                        const ta = e.currentTarget;
+                                                        setTimeout(() => { ta.selectionStart = ta.selectionEnd = ta.value.length; }, 0);
+                                                    }
+                                                }}
                                                 className="w-full h-full bg-transparent text-black resize-none border-none outline-none p-1"
                                                 style={{
                                                     fontSize: `${el.fontSize || 16}px`,
@@ -727,7 +768,7 @@ export default function DocumentCanvas({
                                                 style={{
                                                     fontSize: `${el.fontSize || 16}px`,
                                                     fontFamily: el.fontFamily || 'sans-serif',
-                                                    color: '#000000',
+                                                    color: el.text === 'Type here...' ? '#9ca3af' : '#000000',
                                                 }}
                                             >
                                                 {el.text || 'Double-click to edit'}
@@ -736,13 +777,15 @@ export default function DocumentCanvas({
                                     </>
                                 )}
 
-                                {/* Move handle — visible on select/hover */}
+                                {/* Move handle — visible on select/hover (hidden when editing text) */}
                                 {isSelected && (
                                     <>
-                                        <div
-                                            className="absolute inset-0 cursor-move"
-                                            onPointerDown={(e) => handlePointerDown(e, el.id, 'move')}
-                                        />
+                                        {!isEditingText && (
+                                            <div
+                                                className="absolute inset-0 cursor-move"
+                                                onPointerDown={(e) => handlePointerDown(e, el.id, 'move')}
+                                            />
+                                        )}
                                         <div className="absolute top-0.5 left-0.5 p-0.5 bg-black/70 rounded text-green-400 pointer-events-none">
                                             <FiMove size={10} />
                                         </div>
