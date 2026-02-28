@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Document not found' }, { status: 404 });
         }
 
-        // Verify the recipient exists
+        // Verify the recipient exists (check bit_sign_identities first, then user_identities)
         const { data: recipientIdentity } = await supabaseAdmin
             .from('bit_sign_identities')
             .select('id')
@@ -38,7 +38,17 @@ export async function POST(request: NextRequest) {
             .maybeSingle();
 
         if (!recipientIdentity) {
-            return NextResponse.json({ error: 'Recipient not found. Check the handle.' }, { status: 404 });
+            // Fallback: check if they have a HandCash login in user_identities
+            const { data: userIdentity } = await supabaseAdmin
+                .from('user_identities')
+                .select('unified_user_id')
+                .eq('provider', 'handcash')
+                .eq('provider_user_id', senderHandle)
+                .maybeSingle();
+
+            if (!userIdentity) {
+                return NextResponse.json({ error: 'Recipient not found. They may not have signed up yet.' }, { status: 404 });
+            }
         }
 
         // Check for existing grant to avoid duplicates

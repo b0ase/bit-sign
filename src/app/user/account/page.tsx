@@ -316,14 +316,24 @@ function AccountPageInner() {
         [coSignRequests]
     );
 
+    // "All" tab: hide original documents that have been sealed (show only the sealed version)
+    const allItems = useMemo(() => {
+        const sealedOriginalIds = new Set(
+            signatures
+                .filter(s => s.signature_type === 'SEALED_DOCUMENT' && s.metadata?.originalDocumentId)
+                .map(s => s.metadata.originalDocumentId)
+        );
+        return signatures.filter(s => !sealedOriginalIds.has(s.id));
+    }, [signatures]);
+
     const filteredVaultItems = useMemo(() => {
         if (vaultTab === 'documents') return documents;
         if (vaultTab === 'sealed') return sealedItems;
         if (vaultTab === 'sent') return sentItems;
         if (vaultTab === 'signatures') return signaturesOnly;
         if (vaultTab === 'media') return mediaItems;
-        return signatures;
-    }, [vaultTab, signatures, documents, sealedItems, sentItems, signaturesOnly, mediaItems]);
+        return allItems;
+    }, [vaultTab, allItems, documents, sealedItems, sentItems, signaturesOnly, mediaItems]);
 
     // Resolve the real document name — walk up the seal chain client-side
     const resolveDocName = (sig: Signature): string => {
@@ -2436,7 +2446,7 @@ function AccountPageInner() {
                     {/* Tabs */}
                     <div className="flex items-center gap-1 border-b border-zinc-900 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
                         {[
-                            { key: 'all', label: 'All', count: signatures.length },
+                            { key: 'all', label: 'All', count: allItems.length },
                             { key: 'received', label: 'Received', count: allReceivedDocs.length },
                             { key: 'documents', label: 'Unsealed', count: documents.length + receivedUnsealedCount },
                             { key: 'sealed', label: 'Sealed', count: sealedItems.length },
@@ -2872,15 +2882,8 @@ function AccountPageInner() {
                                                 <div className="border-b border-zinc-900 p-3 space-y-2 shrink-0">
                                                     {isSealed && (
                                                         <div className="flex items-center gap-2 flex-wrap pb-2 mb-2 border-b border-zinc-800">
-                                                            <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Share:</span>
-                                                            <button onClick={() => setCoSignModal({ documentId: sig.id, documentName: resolveDocName(sig) })} className="px-2.5 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-500 transition-all flex items-center gap-1.5"><FiEdit3 size={11} /> Co-Sign</button>
-                                                            <button onClick={() => setShareModal({ documentId: sig.id, documentType: 'vault_item', itemType: 'SEALED_DOCUMENT', itemLabel: resolveDocName(sig), encryptionVersion: sig.encryption_version })} className="px-2.5 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-500 transition-all flex items-center gap-1.5"><FiMail size={11} /> Email</button>
-                                                            <button onClick={() => setCoSignModal({ documentId: sig.id, documentName: resolveDocName(sig), requestType: 'witness' })} className="px-2.5 py-1 bg-blue-600/60 text-blue-100 text-xs font-medium rounded hover:bg-blue-600 transition-all flex items-center gap-1.5"><FiEye size={11} /> Witness</button>
                                                             {!ipThreads.some(t => t.metadata?.documentId === sig.id) && (
                                                                 <button onClick={() => setIpThreadModal({ documentId: sig.id, documentName: resolveDocName(sig) })} className="px-2.5 py-1 bg-amber-700 text-white text-xs font-medium rounded hover:bg-amber-600 transition-all flex items-center gap-1.5"><FiBookOpen size={11} /> IP Thread</button>
-                                                            )}
-                                                            {!sig.metadata?.sent && (
-                                                                <button onClick={() => markAsSent(sig.id)} className="px-2.5 py-1 border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs rounded hover:text-white hover:border-zinc-600 transition-all flex items-center gap-1.5"><FiSend size={11} /> Mark as Sent</button>
                                                             )}
                                                         </div>
                                                     )}
