@@ -867,6 +867,7 @@ function AccountPageInner() {
                 metadata: { type: 'Sealed Document', mimeType: 'image/png', originalDocumentId: docId, originalFileName },
                 wallet_signed: true,
                 wallet_address: verifyData.walletAddress,
+                encryption_version: 0,
             }, ...prev]);
 
             // If this was a co-sign or witness request, return the signed document to sender

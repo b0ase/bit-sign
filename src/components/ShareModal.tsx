@@ -44,8 +44,8 @@ export default function ShareModal({ documentId, documentType, itemType, itemLab
         try {
             const cleanHandle = handle.replace(/^\$/, '');
 
-            // For v0 (plaintext) documents, use the simple return-to-sender flow
-            if (encryptionVersion === 0) {
+            // For v0/plaintext documents (or unknown encryption), use the simple share flow
+            if (!encryptionVersion) {
                 const res = await fetch('/api/bitsign/return-to-sender', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
