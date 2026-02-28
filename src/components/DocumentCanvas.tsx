@@ -579,38 +579,38 @@ export default function DocumentCanvas({
     return (
         <div className="flex flex-col h-full">
             {/* Toolbar */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-zinc-950/80 shrink-0">
-                <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-2 sm:px-4 py-2 sm:py-3 border-b border-zinc-800 bg-zinc-950/80 shrink-0">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                     <button
                         onClick={() => setShowSignatureModal(true)}
-                        className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-500 transition-all flex items-center gap-1.5"
+                        className="px-2 sm:px-3 py-2 sm:py-1.5 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-500 transition-all flex items-center gap-1.5"
                     >
-                        <FiPenTool size={12} /> Draw Signature
+                        <FiPenTool size={12} /> <span className="hidden sm:inline">Draw </span>Signature
                     </button>
                     <button
                         onClick={addTextElement}
-                        className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-300 text-xs rounded-md hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-1.5"
+                        className="px-2 sm:px-3 py-2 sm:py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-300 text-xs rounded-md hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-1.5"
                     >
-                        <FiType size={12} /> Add Text
+                        <FiType size={12} /> Text
                     </button>
                     <button
                         onClick={addDateElement}
-                        className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-300 text-xs rounded-md hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-1.5"
+                        className="px-2 sm:px-3 py-2 sm:py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-300 text-xs rounded-md hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-1.5"
                     >
-                        <FiCalendar size={12} /> Add Date
+                        <FiCalendar size={12} /> Date
                     </button>
                     {onEmailRecipients && (
                         <button
                             onClick={onEmailRecipients}
-                            className="px-3 py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-300 text-xs rounded-md hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-1.5"
+                            className="px-2 sm:px-3 py-2 sm:py-1.5 border border-zinc-700 bg-zinc-900 text-zinc-300 text-xs rounded-md hover:bg-zinc-800 hover:text-white transition-all flex items-center gap-1.5"
                         >
-                            <FiMail size={12} /> Email Recipients
+                            <FiMail size={12} /> <span className="hidden sm:inline">Email</span><span className="sm:hidden">Mail</span>
                         </button>
                     )}
                     {selectedId && (
                         <button
                             onClick={() => deleteElement(selectedId)}
-                            className="px-3 py-1.5 border border-red-900/40 bg-zinc-900 text-red-400 text-xs rounded-md hover:bg-red-950 transition-all flex items-center gap-1.5"
+                            className="px-2 sm:px-3 py-2 sm:py-1.5 border border-red-900/40 bg-zinc-900 text-red-400 text-xs rounded-md hover:bg-red-950 transition-all flex items-center gap-1.5"
                         >
                             <FiTrash2 size={12} /> Delete
                         </button>
@@ -620,7 +620,7 @@ export default function DocumentCanvas({
                     <button
                         onClick={handleSeal}
                         disabled={compositing || !docLoaded || elements.length === 0}
-                        className="px-4 py-1.5 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="px-3 sm:px-4 py-2 sm:py-1.5 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
                     >
                         {compositing ? (
                             <>
@@ -633,7 +633,7 @@ export default function DocumentCanvas({
                     </button>
                     <button
                         onClick={onClose}
-                        className="p-1.5 text-zinc-500 hover:text-white transition-colors"
+                        className="p-2 sm:p-1.5 text-zinc-500 hover:text-white transition-colors"
                     >
                         <FiX size={16} />
                     </button>
@@ -641,7 +641,7 @@ export default function DocumentCanvas({
             </div>
 
             {/* Canvas area */}
-            <div className="flex-1 overflow-auto p-4">
+            <div className="flex-1 overflow-auto p-2 sm:p-4">
                 <div
                     ref={containerRef}
                     className={`relative max-w-3xl mx-auto select-none transition-all ${

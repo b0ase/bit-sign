@@ -34,7 +34,7 @@ export default async function BitSignPage() {
               Document Signing on Bitcoin
             </div>
 
-            <h1 className="text-5xl sm:text-6xl md:text-8xl lg:text-9xl font-bold tracking-tight mb-6 sm:mb-8 leading-[0.9] text-white">
+            <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-9xl font-bold tracking-tight mb-6 sm:mb-8 leading-[0.9] text-white">
               Bit-Sign
             </h1>
 

@@ -250,23 +250,23 @@ export default function SovereignSignature({ onSave, onCancel }: SovereignSignat
     };
 
     return (
-        <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md flex flex-col px-6 pt-24 pb-6 md:px-12 md:pt-28 md:pb-12 overflow-hidden">
-            <header className="flex justify-between items-center mb-4">
+        <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md flex flex-col px-3 pt-16 pb-4 sm:px-6 sm:pt-20 sm:pb-6 md:px-12 md:pt-28 md:pb-12 overflow-hidden">
+            <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3 sm:mb-4">
                 <div>
-                    <h2 className="text-xl font-semibold text-white">Draw Your Signature</h2>
-                    <p className="text-sm text-zinc-500 mt-1">Use your mouse or touchscreen to sign below</p>
+                    <h2 className="text-lg sm:text-xl font-semibold text-white">Draw Your Signature</h2>
+                    <p className="text-xs sm:text-sm text-zinc-500 mt-1">Use your mouse or touchscreen to sign below</p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
                     <button
                         onClick={onCancel}
-                        className="px-5 py-2 border border-zinc-700 text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-500 transition-all"
+                        className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 sm:py-2 border border-zinc-700 text-zinc-400 text-sm rounded-md hover:text-white hover:border-zinc-500 transition-all"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="px-5 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-500 transition-colors disabled:opacity-50"
+                        className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 sm:py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-500 transition-colors disabled:opacity-50"
                     >
                         {saving ? 'Sealing...' : 'Save & Seal'}
                     </button>
@@ -275,7 +275,7 @@ export default function SovereignSignature({ onSave, onCancel }: SovereignSignat
 
             <div
                 ref={containerRef}
-                className="flex-1 border border-zinc-800 bg-zinc-950 relative rounded-md overflow-hidden min-h-[300px]"
+                className="flex-1 border border-zinc-800 bg-zinc-950 relative rounded-md overflow-hidden min-h-[200px] sm:min-h-[300px]"
             >
                 <canvas
                     ref={canvasRef}
@@ -294,18 +294,18 @@ export default function SovereignSignature({ onSave, onCancel }: SovereignSignat
                 )}
 
                 {/* Toolbar */}
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+                <div className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
                     <button
                         onClick={handleUndo}
                         disabled={strokeCount === 0}
-                        className="px-4 py-2 bg-black/60 backdrop-blur-md border border-zinc-800 text-zinc-400 text-sm rounded-full hover:text-white hover:border-zinc-600 transition-all disabled:opacity-30"
+                        className="px-3 sm:px-4 py-2 bg-black/60 backdrop-blur-md border border-zinc-800 text-zinc-400 text-sm rounded-full hover:text-white hover:border-zinc-600 transition-all disabled:opacity-30"
                     >
                         Undo
                     </button>
                     <button
                         onClick={handleClear}
                         disabled={strokeCount === 0}
-                        className="px-4 py-2 bg-black/60 backdrop-blur-md border border-zinc-800 text-red-500/70 text-sm rounded-full hover:text-red-400 hover:border-red-900 transition-all disabled:opacity-30"
+                        className="px-3 sm:px-4 py-2 bg-black/60 backdrop-blur-md border border-zinc-800 text-red-500/70 text-sm rounded-full hover:text-red-400 hover:border-red-900 transition-all disabled:opacity-30"
                     >
                         Clear
                     </button>

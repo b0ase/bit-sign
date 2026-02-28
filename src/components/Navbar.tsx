@@ -56,7 +56,7 @@ export default function Navbar() {
                             </Link>
                             <Link
                                 href="/user/account"
-                                className="sm:hidden flex items-center px-2.5 py-1.5 rounded-md border border-white/20 text-sm text-white font-medium"
+                                className="sm:hidden flex items-center px-2.5 py-2 rounded-md border border-white/20 text-sm text-white font-medium max-w-[120px] truncate"
                             >
                                 ${handle}
                             </Link>
@@ -92,7 +92,7 @@ export default function Navbar() {
                     {/* Mobile hamburger */}
                     <button
                         onClick={() => setMobileOpen(!mobileOpen)}
-                        className="md:hidden flex flex-col justify-center items-center w-8 h-8 gap-1.5"
+                        className="md:hidden flex flex-col justify-center items-center w-10 h-10 gap-1.5"
                         aria-label="Toggle menu"
                     >
                         <span className={`block w-5 h-px bg-white transition-all duration-200 ${mobileOpen ? 'rotate-45 translate-y-[3.5px]' : ''}`} />
@@ -106,25 +106,25 @@ export default function Navbar() {
                 <div className="md:hidden border-t border-white/[0.05] bg-[#050505]/95 backdrop-blur-md px-4 pb-4 pt-2 space-y-1">
                     {handle && (
                         <>
-                            <Link href="/user/account" onClick={closeMobile} className="block px-3 py-2.5 text-sm text-neutral-300 hover:text-white rounded-md hover:bg-white/5 transition-colors">
+                            <Link href="/user/account" onClick={closeMobile} className="block px-4 py-3 text-sm text-neutral-300 hover:text-white rounded-md hover:bg-white/5 transition-colors">
                                 Dashboard
                             </Link>
-                            <Link href="/user/documents" onClick={closeMobile} className="block px-3 py-2.5 text-sm text-neutral-300 hover:text-white rounded-md hover:bg-white/5 transition-colors">
+                            <Link href="/user/documents" onClick={closeMobile} className="block px-4 py-3 text-sm text-neutral-300 hover:text-white rounded-md hover:bg-white/5 transition-colors">
                                 Documents
                             </Link>
-                            <Link href="/user/bit-trust" onClick={closeMobile} className="block px-3 py-2.5 text-sm text-neutral-300 hover:text-white rounded-md hover:bg-white/5 transition-colors">
+                            <Link href="/user/bit-trust" onClick={closeMobile} className="block px-4 py-3 text-sm text-neutral-300 hover:text-white rounded-md hover:bg-white/5 transition-colors">
                                 Bit Trust
                             </Link>
                         </>
                     )}
-                    <Link href="/docs" onClick={closeMobile} className="block px-3 py-2.5 text-sm text-neutral-300 hover:text-white rounded-md hover:bg-white/5 transition-colors">
+                    <Link href="/docs" onClick={closeMobile} className="block px-4 py-3 text-sm text-neutral-300 hover:text-white rounded-md hover:bg-white/5 transition-colors">
                         Docs
                     </Link>
-                    <Link href="/pricing" onClick={closeMobile} className="block px-3 py-2.5 text-sm text-neutral-300 hover:text-white rounded-md hover:bg-white/5 transition-colors">
+                    <Link href="/pricing" onClick={closeMobile} className="block px-4 py-3 text-sm text-neutral-300 hover:text-white rounded-md hover:bg-white/5 transition-colors">
                         Pricing
                     </Link>
                     {handle && (
-                        <a href="/api/auth/logout" className="block px-3 py-2.5 text-sm text-red-400 rounded-md hover:bg-white/5 transition-colors">
+                        <a href="/api/auth/logout" className="block px-4 py-3 text-sm text-red-400 rounded-md hover:bg-white/5 transition-colors">
                             Sign Out
                         </a>
                     )}

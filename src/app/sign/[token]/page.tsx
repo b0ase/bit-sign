@@ -316,7 +316,7 @@ export default function SignPage() {
         </div>
 
         {/* Signers Progress */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
           {allSigners.map((s, i) => (
             <div
               key={i}

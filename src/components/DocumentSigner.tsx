@@ -139,13 +139,13 @@ export default function DocumentSigner({ documentUrl, signatureSvg, onSeal, onCa
   return (
     <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-xl flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-900">
-        <h2 className="text-sm font-medium text-white">Place Signature on Document</h2>
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-zinc-900">
+        <h2 className="text-xs sm:text-sm font-medium text-white">Place Signature on Document</h2>
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={handleSeal}
             disabled={compositing || !docLoaded}
-            className="px-4 py-2 bg-white text-black text-sm font-medium rounded-md hover:bg-zinc-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-3 sm:px-4 py-2 bg-white text-black text-xs sm:text-sm font-medium rounded-md hover:bg-zinc-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {compositing ? (
               <>
@@ -153,7 +153,10 @@ export default function DocumentSigner({ documentUrl, signatureSvg, onSeal, onCa
                 Sealing...
               </>
             ) : (
-              'Seal with HandCash ($0.01)'
+              <>
+                <span className="hidden sm:inline">Seal with HandCash ($0.01)</span>
+                <span className="sm:hidden">Seal ($0.01)</span>
+              </>
             )}
           </button>
           <button
