@@ -218,6 +218,7 @@ function AccountPageInner() {
     const [placedElements, setPlacedElements] = useState<PlacedElement[]>([]);
     const [docPageCount, setDocPageCount] = useState(1);
     const vaultRef = useRef<HTMLDivElement>(null);
+    const viewerRef = useRef<HTMLDivElement>(null);
 
     // Listen for navbar call button click
     useEffect(() => {
@@ -973,7 +974,7 @@ function AccountPageInner() {
             setPreviewData({ url: '', type: 'error' });
         } finally {
             setPreviewLoading(false);
-            setTimeout(() => vaultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+            setTimeout(() => viewerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
         }
     };
 
@@ -1018,8 +1019,8 @@ function AccountPageInner() {
             setSelectedDocBlobUrl(blobUrl);
             setPlacedElements([]);
             setDocPageCount(numPages);
-            // Scroll vault into view so user sees the canvas
-            setTimeout(() => vaultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+            // Scroll viewer into view so user sees the canvas
+            setTimeout(() => viewerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
         } catch (error) {
             console.error('Failed to open shared document for co-signing:', error);
             alert('Failed to load shared document.');
@@ -1770,7 +1771,7 @@ function AccountPageInner() {
                         <div className="w-16 h-16 sm:w-20 sm:h-20 bg-black border border-zinc-800 flex items-center justify-center text-4xl shadow-lg rounded-lg shrink-0 relative overflow-hidden group">
                             <div className="absolute inset-0 bg-zinc-900/0 group-hover:bg-zinc-900/20 transition-colors" />
                             {identity?.avatar_url ? (
-                                <img src={identity.avatar_url} alt={handle || ''} className="w-full h-full object-cover grayscale contrast-125" />
+                                <img src={identity.avatar_url} alt={handle || ''} className="w-full h-full object-cover" />
                             ) : (
                                 <span className="grayscale opacity-50">&#128100;</span>
                             )}
@@ -2876,7 +2877,7 @@ function AccountPageInner() {
                             </div>
 
                             {/* RIGHT — Viewer / Canvas */}
-                            <div className="lg:col-span-8 border border-zinc-900 rounded-md bg-zinc-950/50 overflow-hidden flex flex-col min-h-[40vh] lg:min-h-0">
+                            <div ref={viewerRef} className="lg:col-span-8 border border-zinc-900 rounded-md bg-zinc-950/50 overflow-hidden flex flex-col min-h-[40vh] lg:min-h-0">
                                 {selectedDocBlobUrl && selectedDocumentId ? (
                                     <DocumentCanvas
                                         documentUrl={selectedDocBlobUrl}

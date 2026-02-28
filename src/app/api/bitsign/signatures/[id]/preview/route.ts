@@ -112,8 +112,8 @@ export async function GET(
             });
         }
 
-        // ─── v2 / Shared: Return encrypted payload for client-side decryption ─
-        if (encryptionVersion === 2 || isShared) {
+        // ─── v2: Return encrypted payload for client-side decryption (E2E only) ─
+        if (encryptionVersion === 2) {
             return NextResponse.json({
                 encryption_version: encryptionVersion,
                 encrypted_payload: signature.encrypted_payload,
@@ -123,15 +123,18 @@ export async function GET(
             });
         }
 
-        // ─── v1: Server-side decryption (legacy) ─────────────────────────
+        // ─── v1: Server-side decryption ─────────────────────────
+        // For shared docs, use document owner's key; for owned docs, use current user's key
         if (!signature.iv) {
             return NextResponse.json({ error: 'Missing IV for encrypted item' }, { status: 422 });
         }
 
+        const keyLookupHandle = isShared ? signature.user_handle : handle;
+
         const { data: identityData } = await supabaseAdmin
             .from('bit_sign_identities')
             .select('encryption_key')
-            .eq('user_handle', handle)
+            .eq('user_handle', keyLookupHandle)
             .maybeSingle();
 
         let encryptionKey = identityData?.encryption_key;
@@ -141,7 +144,7 @@ export async function GET(
                 .from('user_identities')
                 .select('unified_user_id')
                 .eq('provider', 'handcash')
-                .eq('provider_user_id', handle)
+                .eq('provider_user_id', keyLookupHandle)
                 .maybeSingle();
 
             if (userIdentity) {
