@@ -42,3 +42,10 @@ next-env.d.ts
 .env*.local
 bit-sign-test-checklist.html
 bit-sign-test-checklist.pdf
+
+# Confidential documents (patents, NDAs, test files)
+/PATENT APPLICATIONS/
+NDA-*.html
+NDA-*.pdf
+test-contract.*
+Screenshot*.png
