@@ -90,49 +90,50 @@ export async function POST(request: NextRequest) {
     // Hash the composite image data
     const compositeHash = await hashData(compositeData);
 
-    // Inscribe on-chain via user's HandCash wallet
-    let txid: string;
-    let inscriptionResult: { transactionId: string } | null = null;
-
+    // Inscribe on-chain via user's HandCash wallet — REQUIRED for seal
     const authToken = request.cookies.get('handcash_auth_token')?.value;
     const userAccount = authToken ? getUserAccount(authToken) : null;
 
-    if (userAccount) {
-      try {
-        const inscriptionData = {
-          protocol: 'b0ase-bitsign',
-          version: '1.0',
-          type: 'document_signature',
-          documentHash: compositeHash,
-          signerName: handle,
-          walletType: 'handcash',
-          signedAt: new Date().toISOString(),
-        };
-
-        const paymentResult = await userAccount.wallet.pay({
-          description: `BitSign: Seal document "${originalFileName}"`,
-          appAction: 'seal',
-          payments: [
-            { destination: handle, currencyCode: 'BSV', sendAmount: 0.00001 },
-          ],
-          attachment: { format: 'json', value: inscriptionData },
-        });
-
-        txid = paymentResult.transactionId;
-        inscriptionResult = paymentResult;
-        console.log(`[seal] On-chain inscription via HandCash: ${txid}`);
-      } catch (inscribeError: any) {
-        console.warn('[seal] HandCash inscription failed:', inscribeError?.message || inscribeError);
-        txid = `pending-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-      }
-    } else {
-      console.warn('[seal] No HandCash auth token — cannot inscribe on-chain');
-      txid = `pending-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    if (!userAccount) {
+      return NextResponse.json({ error: 'HandCash wallet not connected. Please reconnect and try again.' }, { status: 401 });
     }
 
-    // Burn the real TXID onto the seal stamp in the border area.
-    // The client leaves a blank line (2nd from bottom) for the TXID.
-    // We write green TXID text there, or skip if inscription failed.
+    let txid: string;
+    let inscriptionResult: { transactionId: string };
+
+    try {
+      const inscriptionData = {
+        protocol: 'b0ase-bitsign',
+        version: '1.0',
+        type: 'document_seal',
+        documentHash: compositeHash,
+        signerHandle: handle,
+        originalDocumentId,
+        originalFileName,
+        sealedAt: new Date().toISOString(),
+      };
+
+      const paymentResult = await userAccount.wallet.pay({
+        description: `BitSign: Seal "${originalFileName}"`,
+        appAction: 'seal',
+        payments: [
+          { destination: 'boase', currencyCode: 'BSV', sendAmount: 0.001 },
+        ],
+        attachment: { format: 'json', value: inscriptionData },
+      });
+
+      txid = paymentResult.transactionId;
+      inscriptionResult = paymentResult;
+      console.log(`[seal] On-chain inscription: ${txid} (paid to $boase)`);
+    } catch (inscribeError: any) {
+      console.error('[seal] HandCash inscription failed:', inscribeError?.message || inscribeError);
+      return NextResponse.json({
+        error: `Blockchain inscription failed: ${inscribeError?.message || 'Unknown wallet error'}. Please check your HandCash balance and try again.`,
+      }, { status: 502 });
+    }
+
+    // Burn the TXID onto the seal stamp in the border area.
+    // The client leaves a blank TXID line; the server writes the real TXID here.
     let finalBase64 = compositeData.replace(/^data:image\/\w+;base64,/, '');
     const isJpeg = compositeData.startsWith('data:image/jpeg');
 
@@ -153,25 +154,20 @@ export async function POST(request: NextRequest) {
       // The TXID blank line is 2nd-to-last in the stamp.
       // From the bottom: the last line is "bit-sign.online" (smallFont).
       // Above that is the blank TXID line. So TXID Y = imgH - borderWidth*1.5 - lineHeight*2
-      const smallFont = Math.round(stampFontSize * 0.85);
       const txidY = imgH - Math.round(borderWidth * 1.5) - lineHeight * 2;
 
-      const txidText = txid.startsWith('pending-')
-        ? '' // Don't write anything if inscription failed
-        : `TXID: ${txid}`;
+      // Always burn the real TXID onto the sealed document
+      const txidLabel = `TXID: ${txid}`;
+      const displayTxid = txidLabel.length > 60 ? txidLabel.slice(0, 57) + '...' : txidLabel;
+      const svgOverlay = Buffer.from(`<svg width="${imgW}" height="${imgH}" xmlns="http://www.w3.org/2000/svg">
+        <text x="${stampTextX}" y="${txidY + stampFontSize}" font-family="monospace" font-size="${stampFontSize}" fill="#22c55e">${displayTxid.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</text>
+      </svg>`);
 
-      if (txidText) {
-        const displayTxid = txidText.length > 60 ? txidText.slice(0, 57) + '...' : txidText;
-        const svgOverlay = Buffer.from(`<svg width="${imgW}" height="${imgH}" xmlns="http://www.w3.org/2000/svg">
-          <text x="${stampTextX}" y="${txidY + stampFontSize}" font-family="monospace" font-size="${stampFontSize}" fill="#22c55e">${displayTxid.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</text>
-        </svg>`);
-
-        let pipeline = sharp(imgBuffer).composite([{ input: svgOverlay, top: 0, left: 0 }]);
-        if (isJpeg) pipeline = pipeline.jpeg({ quality: 85 });
-        else pipeline = pipeline.png();
-        const result = await pipeline.toBuffer();
-        finalBase64 = result.toString('base64');
-      }
+      let pipeline = sharp(imgBuffer).composite([{ input: svgOverlay, top: 0, left: 0 }]);
+      if (isJpeg) pipeline = pipeline.jpeg({ quality: 85 });
+      else pipeline = pipeline.png();
+      const result = await pipeline.toBuffer();
+      finalBase64 = result.toString('base64');
     } catch (burnErr) {
       console.warn('[seal] TXID burn failed (non-fatal):', burnErr);
     }
@@ -234,10 +230,10 @@ export async function POST(request: NextRequest) {
       success: true,
       id: sealed.id,
       txid,
-      inscription: inscriptionResult ? {
+      inscription: {
         transactionId: inscriptionResult.transactionId,
         explorerUrl: `https://whatsonchain.com/tx/${inscriptionResult.transactionId}`,
-      } : null,
+      },
     });
   } catch (error: any) {
     console.error('[seal] Error:', error);
