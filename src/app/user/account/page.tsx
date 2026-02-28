@@ -2114,9 +2114,13 @@ function AccountPageInner() {
                                                     <span className="px-1.5 py-0.5 bg-green-950 text-green-400 text-[10px] rounded shrink-0">
                                                         Returned
                                                     </span>
+                                                ) : isSealed ? (
+                                                    <span className="px-1.5 py-0.5 bg-blue-950 text-blue-400 text-[10px] rounded shrink-0">
+                                                        Shared
+                                                    </span>
                                                 ) : (
-                                                    <span className="px-1.5 py-0.5 bg-green-950 text-green-400 text-[10px] rounded shrink-0">
-                                                        Sign
+                                                    <span className="px-1.5 py-0.5 bg-amber-950 text-amber-400 text-[10px] rounded shrink-0">
+                                                        Needs Signature
                                                     </span>
                                                 )}
                                             </div>
@@ -2162,12 +2166,22 @@ function AccountPageInner() {
                                                 </button>
                                             </>
                                         ) : (
-                                            <button
-                                                onClick={() => openCoSign(doc)}
-                                                className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-green-600 text-white hover:bg-green-500 font-medium border border-green-500"
-                                            >
-                                                <FiEdit3 size={12} /> Sign
-                                            </button>
+                                            <>
+                                                <button
+                                                    onClick={() => previewSharedDoc(doc)}
+                                                    className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-900/40"
+                                                >
+                                                    <FiEye size={12} /> View
+                                                </button>
+                                                {!isSealed && (
+                                                    <button
+                                                        onClick={() => openCoSign(doc)}
+                                                        className="px-3 py-1.5 text-xs rounded flex items-center gap-1.5 transition-colors shrink-0 bg-green-600 text-white hover:bg-green-500 font-medium border border-green-500"
+                                                    >
+                                                        <FiEdit3 size={12} /> Sign
+                                                    </button>
+                                                )}
+                                            </>
                                         )}
                                         <button
                                             onClick={() => dismissSharedDoc(doc.id)}
