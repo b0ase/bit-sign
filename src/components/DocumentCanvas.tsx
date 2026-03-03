@@ -552,12 +552,12 @@ export default function DocumentCanvas({
                 fontSize: stampFontSize,
             };
 
-            // Use JPEG for multi-page docs to stay under Vercel's 4.5MB body limit
-            const totalPixels = sheetW * sheetH;
-            const useJpeg = effectivePages > 1 || totalPixels > 4_000_000;
-            const mimeType = useJpeg ? 'image/jpeg' : 'image/png';
-            const quality = useJpeg ? 0.82 : undefined;
-            const compositeBase64 = sheetCanvas.toDataURL(mimeType, quality);
+            // Always try PNG first (lossless) to prevent quality degradation on re-sealing.
+            // Fall back to high-quality JPEG only if PNG exceeds Vercel's ~3.3MB base64 limit.
+            let compositeBase64 = sheetCanvas.toDataURL('image/png');
+            if (compositeBase64.length > 3_300_000) {
+                compositeBase64 = sheetCanvas.toDataURL('image/jpeg', 0.95);
+            }
             onSeal(compositeBase64, elements, txidPosition);
         } catch (error) {
             console.error('Compositing failed:', error);

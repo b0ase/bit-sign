@@ -47,15 +47,12 @@ export async function pdfToImage(pdfData: ArrayBuffer): Promise<PdfImageResult> 
         yOffset += pc.height;
     }
 
-    // Use JPEG for large docs to reduce payload size
-    const mimeType = numPages > 3 ? 'image/jpeg' : 'image/png';
-    const quality = numPages > 3 ? 0.85 : undefined;
-
+    // Always use PNG (lossless) — sealed documents must survive multiple re-seals
+    // without quality degradation. JPEG cascading compression is the pixelation bug.
     const blob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob(
             (blob) => (blob ? resolve(blob) : reject(new Error('Canvas toBlob failed'))),
-            mimeType,
-            quality
+            'image/png'
         );
     });
 

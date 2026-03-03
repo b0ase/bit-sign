@@ -196,8 +196,6 @@ export async function POST(request: NextRequest) {
     // Burn the TXID onto the seal stamp — REQUIRED, not optional.
     // Two-step: render TXID text as a small PNG strip, then composite onto the document.
     let finalBase64 = compositeData.replace(/^data:image\/\w+;base64,/, '');
-    const isJpeg = compositeData.startsWith('data:image/jpeg');
-
     const imgBuffer = Buffer.from(finalBase64, 'base64');
     const imgMeta = await sharp(imgBuffer).metadata();
     const imgW = imgMeta.width || 800;
@@ -234,13 +232,14 @@ export async function POST(request: NextRequest) {
       top: txY,
       left: txX,
     }]);
-    if (isJpeg) pipeline = pipeline.jpeg({ quality: 85 });
-    else pipeline = pipeline.png();
+    // Always output PNG (lossless) to prevent quality degradation on re-sealing.
+    // Even if input was JPEG, output as PNG so subsequent seals don't cascade losses.
+    pipeline = pipeline.png();
     const burnedResult = await pipeline.toBuffer();
     finalBase64 = burnedResult.toString('base64');
 
     // Re-hash the final image (with TXID baked in) for the stored record
-    const finalHash = await hashData(`data:image/${isJpeg ? 'jpeg' : 'png'};base64,${finalBase64}`);
+    const finalHash = await hashData(`data:image/png;base64,${finalBase64}`);
     console.log(`[seal] TXID burned successfully. Pre-TXID hash: ${compositeHash.slice(0, 16)}... Final hash: ${finalHash.slice(0, 16)}...`);
 
     // Second inscription: confirm finalHash on-chain (non-fatal)
@@ -290,7 +289,7 @@ export async function POST(request: NextRequest) {
           preInscriptionHash: compositeHash,
           placement,
           elements: elements || undefined,
-          mimeType: isJpeg ? 'image/jpeg' : 'image/png',
+          mimeType: 'image/png',
           walletAddress,
           walletSignature,
           paymentTxid,
