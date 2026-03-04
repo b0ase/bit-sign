@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.996.0",
-    "@b0ase/wallet": "file:../b0ase-wallet",
     "@bsv/sdk": "^2.0.1",
     "@handcash/handcash-connect": "^0.8.11",
     "@handcash/sdk": "^1.0.3",

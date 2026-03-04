@@ -1,18 +1,35 @@
 import { NextRequest } from 'next/server';
-import { resolveUserHandle as _resolve } from '@b0ase/wallet/auth';
 import { getUserAccount } from './handcash';
 
 /**
  * Resolves the user's handle from the request.
- * Uses @b0ase/wallet's cookie resolution with HandCash API fallback.
+ * Fast path: direct handle cookie.
+ * Fallback: auth token -> HandCash API lookup.
+ *
+ * Cookie names follow @b0ase/wallet convention:
+ *   handcash_handle / b0ase_user_handle (handle)
+ *   handcash_auth_token / b0ase_handcash_token (auth token)
  */
 export async function resolveUserHandle(request: NextRequest): Promise<string | null> {
-    return _resolve(request, async (authToken) => {
+    const handleCookie =
+        request.cookies.get('handcash_handle')?.value ??
+        request.cookies.get('b0ase_user_handle')?.value;
+    if (handleCookie) return handleCookie;
+
+    const authToken =
+        request.cookies.get('handcash_auth_token')?.value ??
+        request.cookies.get('b0ase_handcash_token')?.value;
+    if (!authToken) return null;
+
+    try {
         const account = getUserAccount(authToken);
         if (!account) return null;
         const { publicProfile } = await account.profile.getCurrentProfile();
         return publicProfile?.handle || null;
-    });
+    } catch (e) {
+        console.error('[resolveUserHandle] HandCash lookup failed:', e);
+        return null;
+    }
 }
 
 /**
