@@ -11,6 +11,9 @@ importers:
       '@aws-sdk/client-ses':
         specifier: ^3.996.0
         version: 3.996.0
+      '@b0ase/wallet':
+        specifier: file:../b0ase-wallet
+        version: file:../b0ase-wallet(@bsv/sdk@2.0.1)(@handcash/handcash-connect@0.8.11)
       '@bsv/sdk':
         specifier: ^2.0.1
         version: 2.0.1
@@ -216,6 +219,18 @@ packages:
   '@aws/lambda-invoke-store@0.2.3':
     resolution: {integrity: sha512-oLvsaPMTBejkkmHhjf09xTgk71mOqyr/409NKhRIL08If7AhVfUsJhVsx386uJaqNd42v9kWamQ9lFbkoC2dYw==}
     engines: {node: '>=18.0.0'}
+
+  '@b0ase/wallet@file:../b0ase-wallet':
+    resolution: {directory: ../b0ase-wallet, type: directory}
+    peerDependencies:
+      '@babbage/go': '*'
+      '@bsv/sdk': ^2.0.0
+      '@handcash/handcash-connect': '*'
+    peerDependenciesMeta:
+      '@babbage/go':
+        optional: true
+      '@handcash/handcash-connect':
+        optional: true
 
   '@babel/code-frame@7.29.0':
     resolution: {integrity: sha512-9NhCeYjq9+3uxgdtp20LSiJXJvN0FeCtNGpJxuMFZ1Kv3cWUNb6DOhJwUvcVCzKGR66cw4njwM6hrJLqgOwbcw==}
@@ -4443,6 +4458,12 @@ snapshots:
       tslib: 2.8.1
 
   '@aws/lambda-invoke-store@0.2.3': {}
+
+  '@b0ase/wallet@file:../b0ase-wallet(@bsv/sdk@2.0.1)(@handcash/handcash-connect@0.8.11)':
+    dependencies:
+      '@bsv/sdk': 2.0.1
+    optionalDependencies:
+      '@handcash/handcash-connect': 0.8.11
 
   '@babel/code-frame@7.29.0':
     dependencies:

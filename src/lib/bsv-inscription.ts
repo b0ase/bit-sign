@@ -5,7 +5,7 @@
  * Ported from b0ase.com/lib/bitsign-inscription.ts
  */
 
-import { PrivateKey, Transaction, P2PKH, Script } from '@bsv/sdk';
+import { Transaction } from '@bsv/sdk';
 
 const WHATSONCHAIN_API = 'https://api.whatsonchain.com/v1/bsv/main';
 const FETCH_TIMEOUT_MS = 30000;
@@ -75,40 +75,6 @@ async function fetchWithTimeout(
     }
     throw error;
   }
-}
-
-async function fetchUtxos(address: string): Promise<any[]> {
-  const url = `${WHATSONCHAIN_API}/address/${address}/unspent`;
-  console.log(`[bitsign] Fetching UTXOs from: ${url}`);
-
-  const response = await fetchWithTimeout(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch UTXOs: ${response.statusText}`);
-  }
-
-  const utxos = await response.json();
-  console.log(`[bitsign] Found ${utxos.length} UTXOs`);
-  return utxos;
-}
-
-async function broadcastTransaction(rawTx: string): Promise<string> {
-  const url = `${WHATSONCHAIN_API}/tx/raw`;
-  console.log(`[bitsign] Broadcasting transaction...`);
-
-  const response = await fetchWithTimeout(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ txhex: rawTx }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to broadcast transaction: ${response.statusText} - ${errorText}`);
-  }
-
-  const txid = await response.text();
-  console.log(`[bitsign] Transaction broadcast successfully: ${txid}`);
-  return txid.replace(/"/g, '');
 }
 
 /**
@@ -213,96 +179,6 @@ function generateBitSignJson(data: BitSignInscriptionData): string {
   }
 
   return JSON.stringify(inscriptionData, null, 2);
-}
-
-/**
- * Inscribe BitSign data on BSV blockchain via OP_RETURN
- */
-export async function inscribeBitSignData(
-  data: BitSignInscriptionData,
-  privateKeyWif?: string
-): Promise<BitSignInscriptionResult> {
-  try {
-    const inscriptionJson = generateBitSignJson(data);
-    const dataHash = await hashData(inscriptionJson);
-
-    console.log(`[bitsign] Inscription type: ${data.type}`);
-    console.log(`[bitsign] Data hash: ${dataHash}`);
-    console.log(`[bitsign] Data size: ${inscriptionJson.length} bytes`);
-
-    const wif = privateKeyWif || process.env.BITSIGN_TREASURY_PRIVATE_KEY;
-    if (!wif) {
-      throw new Error('BITSIGN_TREASURY_PRIVATE_KEY not configured');
-    }
-
-    const privateKey = PrivateKey.fromWif(wif);
-    const publicKey = privateKey.toPublicKey();
-    const address = publicKey.toAddress();
-
-    console.log(`[bitsign] Inscribing from address: ${address}`);
-
-    const utxos = await fetchUtxos(address);
-    if (utxos.length === 0) {
-      throw new Error('No UTXOs found for inscription. Please fund the address.');
-    }
-
-    const tx = new Transaction();
-
-    const utxo = utxos[0];
-    tx.addInput({
-      sourceTXID: utxo.tx_hash,
-      sourceOutputIndex: utxo.tx_pos,
-      unlockingScriptTemplate: new P2PKH().unlock(privateKey),
-    });
-
-    const protocol = [...Buffer.from('b0ase-bitsign', 'utf8')];
-    const contentType = [...Buffer.from('application/json', 'utf8')];
-    const inscriptionDataBytes = [...Buffer.from(inscriptionJson, 'utf8')];
-
-    const opReturnScript = new Script();
-    opReturnScript.writeOpCode(106); // OP_RETURN
-    opReturnScript.writeBin(protocol);
-    opReturnScript.writeBin(contentType);
-    opReturnScript.writeBin(inscriptionDataBytes);
-
-    tx.addOutput({
-      lockingScript: opReturnScript,
-      satoshis: 1,
-    });
-
-    const minerFee = 500;
-    const ordinalFee = 1;
-    const inputSatoshis = utxo.value;
-    const changeSatoshis = inputSatoshis - minerFee - ordinalFee;
-
-    if (changeSatoshis < 0) {
-      throw new Error('Insufficient satoshis for inscription');
-    }
-
-    if (changeSatoshis > 0) {
-      tx.addOutput({
-        lockingScript: new P2PKH().lock(address),
-        satoshis: changeSatoshis,
-      });
-    }
-
-    await tx.sign();
-
-    const rawTx = tx.toHex();
-    const txid = await broadcastTransaction(rawTx);
-
-    console.log(`[bitsign] Inscription successful: ${txid}`);
-
-    return {
-      txid,
-      inscriptionUrl: `${WHATSONCHAIN_API}/tx/${txid}`,
-      dataHash,
-      blockchainExplorerUrl: `https://whatsonchain.com/tx/${txid}`,
-    };
-  } catch (error) {
-    console.error('[bitsign] Inscription error:', error);
-    throw error;
-  }
 }
 
 /**
