@@ -2304,6 +2304,60 @@ function AccountPageInner() {
                     </div>
                 )}
 
+                {/* ===== VERIFF KYC (Lv.4 Sovereign) ===== */}
+                {identity && !strands.some(s => s.strand_type === 'kyc' && s.strand_subtype === 'veriff') && (
+                    <div className="border border-yellow-500/30 rounded-md bg-yellow-500/5">
+                        <div className="p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-yellow-500/20 border border-yellow-500/30 flex items-center justify-center text-yellow-400 text-sm">
+                                        &#x2606;
+                                    </div>
+                                    <div>
+                                        <span className="text-sm font-medium text-yellow-400">Verify Identity (KYC)</span>
+                                        <p className="text-[10px] text-zinc-500">Upgrade to Level 4 Sovereign — $401 Confidence Level 2</p>
+                                    </div>
+                                </div>
+                                <span className="text-[9px] font-mono text-yellow-500/60 tracking-widest uppercase">+10 pts</span>
+                            </div>
+                            <p className="text-xs text-zinc-500 mb-4">
+                                Verify your government-issued ID via Veriff. This unlocks $403 security token eligibility,
+                                licence activation on kwegwong.com, and the highest identity confidence level.
+                                Your documents are processed by Veriff — we only store the verification result.
+                            </p>
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        const res = await fetch('/api/bitsign/kyc/veriff/start', { method: 'POST' });
+                                        const data = await res.json();
+                                        if (!res.ok) throw new Error(data.error);
+                                        if (data.url) window.location.href = data.url;
+                                    } catch (err: any) {
+                                        alert(err.message || 'Failed to start verification');
+                                    }
+                                }}
+                                className="w-full py-2.5 rounded bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-sm font-medium hover:bg-yellow-500/30 transition-colors"
+                            >
+                                Verify with Veriff
+                            </button>
+                        </div>
+                    </div>
+                )}
+                {/* Show KYC badge if already verified */}
+                {strands.some(s => s.strand_type === 'kyc' && s.strand_subtype === 'veriff') && (
+                    <div className="border border-green-500/30 rounded-md bg-green-500/5 p-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-green-500/20 border border-green-500/30 flex items-center justify-center text-green-400 text-sm">
+                                &#x2713;
+                            </div>
+                            <div>
+                                <span className="text-sm font-medium text-green-400">KYC Verified — Level 4 Sovereign</span>
+                                <p className="text-[10px] text-zinc-500">$401 Confidence Level 2 — Third-Party Verified via Veriff</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* ===== SELF-ATTESTATION (Lv.2 Upgrade) ===== */}
                 {identity && !strands.some(s => s.strand_type === 'self_attestation') && (() => {
                     const s = getStrengthLabel(identity.identity_strength || 0);
