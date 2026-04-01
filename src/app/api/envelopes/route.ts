@@ -4,13 +4,14 @@ import { renderDocument, getTemplate } from '@/lib/templates';
 import { hashData } from '@/lib/bsv-inscription';
 import { handCashConnect, getUserAccount } from '@/lib/handcash';
 import { sendSigningInvitation } from '@/lib/email';
+import { resolveUserHandle } from '@/lib/auth';
 
 /**
  * POST /api/envelopes — Create a new signing envelope
  */
 export async function POST(request: NextRequest) {
   try {
-    const handle = request.cookies.get('handcash_handle')?.value;
+    const handle = await resolveUserHandle(request);
     if (!handle) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
